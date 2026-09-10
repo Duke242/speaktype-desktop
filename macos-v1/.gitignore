@@ -54,3 +54,6 @@ dist/
 speaktype.xcodeproj/project.xcworkspace/xcuserdata/
 Config.xcconfig
 env.example
+
+# Xcode SPM checkout/build cache
+SourcePackages/
