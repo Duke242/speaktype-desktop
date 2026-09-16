@@ -1,0 +1,399 @@
+//! Commands the UI calls through `invoke`.
+//!
+//! Most are async so they run off the main thread. Shortcut registration waits
+//! on the main thread, and on Windows the audio APIs can't be used from it.
+
+use std::path::PathBuf;
+
+use serde::Serialize;
+use tauri::{AppHandle, Emitter, State, ipc::Response};
+use tauri_plugin_opener::OpenerExt;
+
+use crate::{
+    AppState, TRAY_ID,
+    audio::{self, InputDevice},
+    device::{self, DeviceInfo, Recommendation},
+    dictation::{Destination, DictationState, Event},
+    history::{HistoryItem, StatsEntry},
+    media,
+    models::ModelStatus,
+    pipeline,
+    platform::{self, Permission, PermissionKind},
+    settings::Settings,
+};
+
+type CommandResult<T> = Result<T, String>;
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Status {
+    os: &'static str,
+    version: String,
+    setup_notes: Vec<String>,
+    hotkey_error: Option<String>,
+    /// Single-modifier hotkeys this OS supports, e.g. "Fn".
+    modifier_hotkeys: &'static [&'static str],
+}
+
+#[tauri::command]
+pub async fn get_status(app: AppHandle, state: State<'_, AppState>) -> CommandResult<Status> {
+    Ok(Status {
+        os: std::env::consts::OS,
+        version: app.package_info().version.to_string(),
+        setup_notes: platform::setup_notes(),
+        hotkey_error: state.hotkey_error.lock().unwrap().clone(),
+        modifier_hotkeys: platform::MODIFIER_HOTKEYS,
+    })
+}
+
+// ---- Settings ----
+
+#[tauri::command]
+pub async fn get_settings(state: State<'_, AppState>) -> CommandResult<Settings> {
+    Ok(state.settings())
+}
+
+#[tauri::command]
+pub async fn save_settings(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    settings: Settings,
+) -> CommandResult<Settings> {
+    let previous = state.settings();
+
+    if settings.hotkey != previous.hotkey {
+        let registered = state
+            .controller
+            .register_hotkey(&app, &settings.hotkey, Some(&previous.hotkey));
+        if let Err(e) = registered {
+            // Put the old hotkey back so dictation keeps working.
+            let _ = state
+                .controller
+                .register_hotkey(&app, &previous.hotkey, None);
+            return Err(e);
+        }
+        *state.hotkey_error.lock().unwrap() = None;
+    }
+
+    state.replace_settings(settings.clone())?;
+    if settings.selected_model != previous.selected_model {
+        state.warm_up(&app, &settings.selected_model);
+    }
+    if settings.show_tray_icon != previous.show_tray_icon
+        && let Some(tray) = app.tray_by_id(TRAY_ID)
+    {
+        let _ = tray.set_visible(settings.show_tray_icon);
+    }
+    state.controller.send(Event::RefreshPill);
+    let _ = app.emit("settings-changed", ());
+    Ok(settings)
+}
+
+#[tauri::command]
+pub async fn list_input_devices() -> CommandResult<Vec<InputDevice>> {
+    Ok(audio::list_input_devices())
+}
+
+// ---- Models ----
+
+#[tauri::command]
+pub async fn list_models(state: State<'_, AppState>) -> CommandResult<Vec<ModelStatus>> {
+    Ok(state.models.statuses())
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct EngineStatus {
+    loaded: Option<String>,
+    loading: Option<String>,
+}
+
+#[tauri::command]
+pub async fn get_engine_status(state: State<'_, AppState>) -> CommandResult<EngineStatus> {
+    let loading = state.engine_loading.lock().unwrap().clone();
+    // While a model loads the engine is locked, and nothing is usable yet anyway.
+    let loaded = state
+        .engine
+        .try_lock()
+        .ok()
+        .and_then(|engine| engine.loaded_model().map(str::to_string));
+    Ok(EngineStatus { loaded, loading })
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DeviceReport {
+    device: DeviceInfo,
+    recommendation: Recommendation,
+}
+
+#[tauri::command]
+pub async fn get_device_info(state: State<'_, AppState>) -> CommandResult<DeviceReport> {
+    let device = state.device().clone();
+    let language = state.settings().language;
+    let english_ok = language == "auto" || language == "en";
+    Ok(DeviceReport {
+        recommendation: device::recommend(&device, english_ok),
+        device,
+    })
+}
+
+#[tauri::command]
+pub async fn download_model(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: String,
+) -> CommandResult<()> {
+    let _ = app.emit("models-changed", ());
+    let result = state
+        .models
+        .download(&id, |progress| {
+            let _ = app.emit("model-progress", progress);
+        })
+        .await;
+    let _ = app.emit("models-changed", ());
+    result?;
+
+    // The first downloaded model becomes the selected one.
+    let mut settings = state.settings();
+    if settings.selected_model.is_empty() {
+        settings.selected_model = id.clone();
+        state.replace_settings(settings)?;
+        let _ = app.emit("settings-changed", ());
+    }
+    if state.settings().selected_model == id {
+        state.warm_up(&app, &id);
+    }
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn cancel_download(state: State<'_, AppState>, id: String) -> CommandResult<()> {
+    state.models.cancel(&id);
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn delete_model(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: String,
+) -> CommandResult<()> {
+    {
+        let mut engine = state.engine.lock().unwrap_or_else(|e| e.into_inner());
+        if engine.loaded_model() == Some(id.as_str()) {
+            engine.unload();
+        }
+    }
+    state.models.delete(&id)?;
+    let mut settings = state.settings();
+    if settings.selected_model == id {
+        settings.selected_model.clear();
+        state.replace_settings(settings)?;
+        let _ = app.emit("settings-changed", ());
+    }
+    let _ = app.emit("models-changed", ());
+    let _ = app.emit("engine-changed", ());
+    Ok(())
+}
+
+// ---- History ----
+
+#[tauri::command]
+pub async fn get_history(state: State<'_, AppState>) -> CommandResult<Vec<HistoryItem>> {
+    Ok(state.history.lock().unwrap().items().to_vec())
+}
+
+#[tauri::command]
+pub async fn get_stats(state: State<'_, AppState>) -> CommandResult<Vec<StatsEntry>> {
+    Ok(state.history.lock().unwrap().stats().to_vec())
+}
+
+#[tauri::command]
+pub async fn delete_history_item(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: String,
+) -> CommandResult<()> {
+    state.history.lock().unwrap().delete(&id)?;
+    let _ = app.emit("history-changed", ());
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn clear_history(app: AppHandle, state: State<'_, AppState>) -> CommandResult<()> {
+    state.history.lock().unwrap().clear()?;
+    let _ = app.emit("history-changed", ());
+    Ok(())
+}
+
+/// Returns the WAV bytes of an item's recording for playback.
+#[tauri::command]
+pub async fn read_history_audio(state: State<'_, AppState>, id: String) -> CommandResult<Response> {
+    let path = state
+        .history
+        .lock()
+        .unwrap()
+        .audio_path(&id)
+        .ok_or("The recording for this transcript is missing")?;
+    let bytes = tokio::fs::read(path).await.map_err(|e| e.to_string())?;
+    Ok(Response::new(bytes))
+}
+
+#[tauri::command]
+pub async fn reveal_history_audio(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: String,
+) -> CommandResult<()> {
+    let path = state
+        .history
+        .lock()
+        .unwrap()
+        .audio_path(&id)
+        .ok_or("The recording for this transcript is missing")?;
+    app.opener()
+        .reveal_item_in_dir(path)
+        .map_err(|e| e.to_string())
+}
+
+// ---- Dictation and file transcription ----
+
+/// Starts or stops recording. `paste: false` sends the result to the Transcribe
+/// Audio screen instead of the focused app.
+#[tauri::command]
+pub async fn toggle_dictation(state: State<'_, AppState>, paste: bool) -> CommandResult<()> {
+    let destination = if paste { Destination::Paste } else { Destination::Screen };
+    state.controller.send(Event::Toggle(destination));
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn get_dictation_state(state: State<'_, AppState>) -> CommandResult<DictationState> {
+    Ok(state.dictation_state.lock().unwrap().clone())
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FileTranscription {
+    text: String,
+    duration_secs: f64,
+}
+
+#[tauri::command]
+pub async fn transcribe_file(app: AppHandle, path: PathBuf) -> CommandResult<FileTranscription> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let (samples, duration_secs) = media::decode_file(&path)?;
+        let item = pipeline::run(&app, &samples, duration_secs, |warming| {
+            let _ = app.emit("file-transcription-warming", warming);
+        })
+        .map_err(|e| match e.detail() {
+            Some(detail) => format!("{}: {detail}", e.message()),
+            None => e.message().to_string(),
+        })?;
+        Ok(FileTranscription { text: item.transcript, duration_secs })
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+// ---- Permissions ----
+
+#[tauri::command]
+pub async fn get_permissions() -> CommandResult<Vec<Permission>> {
+    Ok(platform::permissions())
+}
+
+#[tauri::command]
+pub async fn request_permission(app: AppHandle, kind: PermissionKind) -> CommandResult<()> {
+    // The macOS prompts must be shown from the main thread.
+    app.run_on_main_thread(move || platform::request_permission(kind))
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn open_permission_settings(app: AppHandle, kind: PermissionKind) -> CommandResult<()> {
+    let url = platform::permission_settings_url(kind).ok_or("No settings page for this")?;
+    app.opener()
+        .open_url(url, None::<&str>)
+        .map_err(|e| e.to_string())
+}
+
+// ---- Updates ----
+
+const RELEASES_URL: &str = "https://api.github.com/repos/karansinghgit/speaktype/releases/latest";
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateInfo {
+    available: bool,
+    current_version: String,
+    latest_version: String,
+    notes: String,
+    url: String,
+}
+
+#[tauri::command]
+pub async fn check_for_update(app: AppHandle) -> CommandResult<UpdateInfo> {
+    #[derive(serde::Deserialize)]
+    struct Release {
+        tag_name: String,
+        #[serde(default)]
+        body: String,
+        html_url: String,
+    }
+    let release: Release = reqwest::Client::new()
+        .get(RELEASES_URL)
+        .header("User-Agent", "SpeakType")
+        .header("Accept", "application/vnd.github+json")
+        .send()
+        .await
+        .and_then(|r| r.error_for_status())
+        .map_err(|e| format!("Couldn't check for updates: {e}"))?
+        .json()
+        .await
+        .map_err(|e| format!("Couldn't read the update info: {e}"))?;
+
+    let current = app.package_info().version.to_string();
+    let latest = release.tag_name.trim_start_matches('v').to_string();
+    Ok(UpdateInfo {
+        available: is_newer(&latest, &current),
+        current_version: current,
+        latest_version: latest,
+        notes: release.body,
+        url: release.html_url,
+    })
+}
+
+/// Compares dotted version numbers, ignoring anything after a `-`.
+fn is_newer(candidate: &str, current: &str) -> bool {
+    let parse = |v: &str| -> Vec<u64> {
+        v.split('-')
+            .next()
+            .unwrap_or_default()
+            .split('.')
+            .map(|part| part.parse().unwrap_or(0))
+            .collect()
+    };
+    let (a, b) = (parse(candidate), parse(current));
+    for i in 0..a.len().max(b.len()) {
+        let (x, y) = (a.get(i).copied().unwrap_or(0), b.get(i).copied().unwrap_or(0));
+        if x != y {
+            return x > y;
+        }
+    }
+    false
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_newer;
+
+    #[test]
+    fn compares_versions_numerically() {
+        assert!(is_newer("1.0.21", "1.0.9"));
+        assert!(is_newer("2.0", "1.9.9"));
+        assert!(!is_newer("1.0.0", "1.0"));
+        assert!(!is_newer("1.0.20", "2.0.0-beta"));
+    }
+}

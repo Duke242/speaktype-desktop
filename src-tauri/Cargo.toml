@@ -1,0 +1,52 @@
+[package]
+name = "speaktype-desktop"
+version = "2.0.0"
+description = "Offline voice dictation for macOS, Windows and Linux"
+edition = "2024"
+rust-version = "1.85"
+
+[lib]
+name = "speaktype_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[features]
+# GPU backends for whisper.cpp. CPU is the default so a plain build works everywhere.
+cuda = ["whisper-rs/cuda"]
+vulkan = ["whisper-rs/vulkan"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon", "image-png", "macos-private-api"] }
+tauri-plugin-global-shortcut = "2"
+tauri-plugin-opener = "2.5"
+tauri-plugin-dialog = "2.7"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+cpal = "0.18"
+whisper-rs = "0.16"
+arboard = "3"
+enigo = "0.6"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "stream", "json"] }
+futures-util = "0.3"
+tokio = { version = "1", features = ["fs", "io-util"] }
+regex = "1"
+uuid = { version = "1", features = ["v4"] }
+hound = "3"
+symphonia = { version = "0.6", default-features = false, features = ["aac", "alac", "flac", "isomp4", "mp3", "ogg", "vorbis", "wav", "pcm", "adpcm", "aiff", "caf", "mkv"] }
+sysinfo = { version = "0.39", default-features = false, features = ["system"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+whisper-rs = { version = "0.16", features = ["metal"] }
+objc2 = "0.6"
+block2 = "0.6"
+objc2-foundation = { version = "0.3", features = ["NSString"] }
+core-foundation = "0.10"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+x11rb = "0.13"
+
+[profile.release]
+lto = true
+codegen-units = 1

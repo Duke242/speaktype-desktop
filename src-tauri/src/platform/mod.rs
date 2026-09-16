@@ -1,0 +1,74 @@
+//! Operating-system specific code. Each OS has its own folder and exposes the
+//! same items, so the rest of the app never needs `cfg` checks:
+//!
+//! - `DEFAULT_HOTKEY`: the shortcut used until the user picks one.
+//! - `MODIFIER_HOTKEYS`, `start_modifier_hotkey`, `stop_modifier_hotkey`:
+//!   hotkeys made of one modifier key, where the OS allows listening for them.
+//! - `send_paste_shortcut`: presses the paste keys for the focused app.
+//! - `setup_notes`: OS-specific hints shown in Settings.
+//! - `permissions`, `request_permission`, `permission_settings_url`: the OS
+//!   permissions dictation needs, for onboarding and Settings.
+//! - `style_main_window`: native window chrome tweaks.
+
+use enigo::{Direction, Enigo, Key, Keyboard};
+use serde::{Deserialize, Serialize};
+
+#[cfg(target_os = "linux")]
+mod linux;
+#[cfg(target_os = "linux")]
+pub use linux::*;
+
+#[cfg(target_os = "macos")]
+mod macos;
+#[cfg(target_os = "macos")]
+pub use macos::*;
+
+#[cfg(target_os = "windows")]
+mod windows;
+#[cfg(target_os = "windows")]
+pub use windows::*;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum PermissionKind {
+    Microphone,
+    Accessibility,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Permission {
+    pub kind: PermissionKind,
+    pub granted: bool,
+}
+
+/// A change in a single-modifier hotkey.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HotkeyEvent {
+    Down,
+    Up,
+    /// Another key was pressed while the hotkey was held.
+    Interrupted,
+}
+
+/// Holds the modifiers, taps `key`, then releases the modifiers even if the tap failed.
+fn press_combo(enigo: &mut Enigo, modifiers: &[Key], key: Key) -> Result<(), String> {
+    let mut result = Ok(());
+    let mut held = Vec::new();
+    for modifier in modifiers {
+        match enigo.key(*modifier, Direction::Press) {
+            Ok(()) => held.push(*modifier),
+            Err(e) => {
+                result = Err(e);
+                break;
+            }
+        }
+    }
+    if result.is_ok() {
+        result = enigo.key(key, Direction::Click);
+    }
+    for modifier in held.iter().rev() {
+        let _ = enigo.key(*modifier, Direction::Release);
+    }
+    result.map_err(|e| format!("Couldn't simulate paste: {e}"))
+}

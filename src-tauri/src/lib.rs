@@ -1,0 +1,242 @@
+mod audio;
+mod commands;
+mod device;
+mod dictation;
+mod history;
+mod media;
+mod models;
+mod paste;
+mod pill;
+mod pipeline;
+mod platform;
+mod settings;
+mod text;
+mod transcribe;
+
+use std::sync::{Arc, Mutex, OnceLock, RwLock};
+
+use tauri::{
+    AppHandle, Emitter, Manager, RunEvent, WindowEvent,
+    menu::{Menu, MenuItem},
+    tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
+};
+
+use crate::{
+    device::DeviceInfo,
+    dictation::{Controller, Destination, DictationState, Event},
+    history::History,
+    models::{ModelInfo, ModelStore},
+    settings::{Settings, SettingsStore},
+    transcribe::Engine,
+};
+
+pub const TRAY_ID: &str = "main";
+
+pub struct AppState {
+    settings: RwLock<Settings>,
+    settings_store: SettingsStore,
+    pub models: ModelStore,
+    pub engine: Arc<Mutex<Engine>>,
+    /// The model currently being loaded into memory, if any.
+    pub engine_loading: Mutex<Option<String>>,
+    pub history: Mutex<History>,
+    pub controller: Controller,
+    pub dictation_state: Mutex<DictationState>,
+    /// Set when the saved hotkey couldn't be registered at launch.
+    pub hotkey_error: Mutex<Option<String>>,
+    device: OnceLock<DeviceInfo>,
+}
+
+impl AppState {
+    pub fn settings(&self) -> Settings {
+        self.settings.read().unwrap().clone()
+    }
+
+    pub fn replace_settings(&self, settings: Settings) -> Result<(), String> {
+        self.settings_store.save(&settings)?;
+        *self.settings.write().unwrap() = settings;
+        Ok(())
+    }
+
+    /// Detected once; reading the CPU and memory takes a moment.
+    pub fn device(&self) -> &DeviceInfo {
+        self.device.get_or_init(device::detect)
+    }
+
+    /// Loads `model` into `engine`, telling the UI while it happens.
+    pub fn load_model(
+        &self,
+        app: &AppHandle,
+        engine: &mut Engine,
+        model: &ModelInfo,
+    ) -> Result<(), String> {
+        if engine.loaded_model() == Some(model.id) {
+            return Ok(());
+        }
+        *self.engine_loading.lock().unwrap() = Some(model.id.to_string());
+        let _ = app.emit("engine-changed", ());
+        let result = engine.load(model.id, &self.models.path(model));
+        *self.engine_loading.lock().unwrap() = None;
+        let _ = app.emit("engine-changed", ());
+        result
+    }
+
+    /// Loads a downloaded model in the background so the first dictation is fast.
+    pub fn warm_up(&self, app: &AppHandle, id: &str) {
+        let Some(model) = models::find(id) else {
+            return;
+        };
+        if !self.models.is_downloaded(id) {
+            return;
+        }
+        let app = app.clone();
+        std::thread::spawn(move || {
+            let state = app.state::<AppState>();
+            let mut engine = state.engine.lock().unwrap_or_else(|e| e.into_inner());
+            if let Err(e) = state.load_model(&app, &mut engine, model) {
+                eprintln!("[models] warm-up failed: {e}");
+            }
+        });
+    }
+}
+
+pub fn run() {
+    let app = tauri::Builder::default()
+        .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
+        .setup(|app| {
+            transcribe::silence_logs();
+            let settings_store = SettingsStore::new(app.path().app_config_dir()?);
+            let settings = settings_store.load();
+            let data_dir = app.path().app_data_dir()?;
+
+            app.manage(AppState {
+                settings: RwLock::new(settings.clone()),
+                settings_store,
+                models: ModelStore::new(data_dir.join("models")),
+                engine: Arc::default(),
+                engine_loading: Mutex::new(None),
+                history: Mutex::new(History::load(&data_dir)),
+                controller: Controller::spawn(app.handle().clone()),
+                dictation_state: Mutex::new(DictationState::Idle),
+                hotkey_error: Mutex::new(None),
+                device: OnceLock::new(),
+            });
+
+            if let Some(main) = app.get_webview_window("main") {
+                platform::style_main_window(&main);
+            }
+            pill::set_interactive(app.handle(), false);
+
+            // Shortcut registration waits on the main thread, so it can't run
+            // here before the event loop starts.
+            let handle = app.handle().clone();
+            std::thread::spawn(move || {
+                let state = handle.state::<AppState>();
+                let result = state
+                    .controller
+                    .register_hotkey(&handle, &settings.hotkey, None);
+                if let Err(e) = result {
+                    eprintln!("[hotkey] {e}");
+                    *state.hotkey_error.lock().unwrap() = Some(e);
+                }
+                state.controller.send(Event::RefreshPill);
+                state.warm_up(&handle, &settings.selected_model);
+                state.device();
+            });
+
+            build_tray(app.handle(), settings.show_tray_icon)?;
+            Ok(())
+        })
+        .on_window_event(|window, event| {
+            // Closing the main window keeps SpeakType running in the tray.
+            if window.label() == "main"
+                && let WindowEvent::CloseRequested { api, .. } = event
+            {
+                api.prevent_close();
+                let _ = window.hide();
+            }
+        })
+        .invoke_handler(tauri::generate_handler![
+            commands::get_status,
+            commands::get_settings,
+            commands::save_settings,
+            commands::list_input_devices,
+            commands::list_models,
+            commands::get_engine_status,
+            commands::get_device_info,
+            commands::download_model,
+            commands::cancel_download,
+            commands::delete_model,
+            commands::get_history,
+            commands::get_stats,
+            commands::delete_history_item,
+            commands::clear_history,
+            commands::read_history_audio,
+            commands::reveal_history_audio,
+            commands::toggle_dictation,
+            commands::get_dictation_state,
+            commands::transcribe_file,
+            commands::get_permissions,
+            commands::request_permission,
+            commands::open_permission_settings,
+            commands::check_for_update,
+        ])
+        .build(tauri::generate_context!())
+        .expect("error while building SpeakType");
+
+    app.run(|app, event| {
+        // macOS: clicking the Dock icon brings the hidden window back.
+        #[cfg(target_os = "macos")]
+        if let RunEvent::Reopen { .. } = event {
+            show_main_window(app);
+        }
+        #[cfg(not(target_os = "macos"))]
+        let _ = (app, event);
+    });
+}
+
+fn show_main_window(app: &AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.show();
+        let _ = window.unminimize();
+        let _ = window.set_focus();
+    }
+}
+
+fn build_tray(app: &AppHandle, visible: bool) -> tauri::Result<()> {
+    let open = MenuItem::with_id(app, "open", "Open SpeakType", true, None::<&str>)?;
+    let dictate = MenuItem::with_id(app, "dictate", "Start / Stop Dictation", true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, "quit", "Quit SpeakType", true, None::<&str>)?;
+    let menu = Menu::with_items(app, &[&open, &dictate, &quit])?;
+
+    let mut tray = TrayIconBuilder::with_id(TRAY_ID)
+        .tooltip("SpeakType")
+        .menu(&menu)
+        .show_menu_on_left_click(false)
+        .on_menu_event(|app, event| match event.id.as_ref() {
+            "open" => show_main_window(app),
+            "dictate" => app
+                .state::<AppState>()
+                .controller
+                .send(Event::Toggle(Destination::Paste)),
+            "quit" => app.exit(0),
+            _ => {}
+        })
+        .on_tray_icon_event(|tray, event| {
+            if let TrayIconEvent::Click {
+                button: MouseButton::Left,
+                button_state: MouseButtonState::Up,
+                ..
+            } = event
+            {
+                show_main_window(tray.app_handle());
+            }
+        });
+    if let Some(icon) = app.default_window_icon() {
+        tray = tray.icon(icon.clone());
+    }
+    tray.build(app)?.set_visible(visible)?;
+    Ok(())
+}
