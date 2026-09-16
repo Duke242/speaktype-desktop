@@ -42,20 +42,18 @@ Each milestone is tagged `v2.0.0-alpha.N` so any build can be rolled back to.
 - [x] Dashboard, History (search, playback), Dictionary, Statistics, Settings
 - [x] Light and dark themes
 - [x] Update check against GitHub releases
-- [ ] Hide the Dock icon when the window is closed
 - [ ] Launch at login
 
 ## Planned for a later v2 release
 - [ ] Import settings, dictionary and history from SpeakType 1
 - [ ] Install updates in place (currently opens the release page)
 - [ ] Menu bar popover with stats and recent transcripts (currently a plain menu)
+- [ ] Hide the Dock icon when the window is closed
+- [ ] Signed and notarized macOS build
+- [ ] Signed Windows installer
+- [ ] CI builds for macOS, Windows and Linux on every tag
 
 ## New in SpeakType 2
 - [ ] Windows build, tested
 - [ ] Linux build, tested (X11 and Wayland)
 - [ ] Single-modifier hotkeys on Windows and Linux
-
-## Shipping
-- [ ] Signed and notarized macOS build
-- [ ] Signed Windows installer
-- [ ] CI builds for macOS, Windows and Linux on every tag
