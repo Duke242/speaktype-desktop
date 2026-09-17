@@ -1,30 +1,24 @@
-import { ArrowDown, ArrowRight, Check, CircleCheck, HardDrive, Laptop, RotateCw, Sparkles, Trash2, TriangleAlert, X, Zap } from "lucide-react";
-import { useState } from "react";
-import {
-  Badge,
-  Button,
-  Card,
-  ConfirmDialog,
-  IconButton,
-  IconTile,
-  Page,
-  PageHeader,
-  ProgressBar,
-  Spinner,
-} from "@/components/ui";
+import { ArrowDown, Check, Laptop, RotateCw, Sparkles, Trash2, TriangleAlert, X, Zap } from "lucide-react";
+import { type ReactNode, useState } from "react";
+import { Badge, Button, Card, ConfirmDialog, IconButton, IconTile, Page, PageHeader, ProgressBar, Spinner } from "@/components/ui";
 import { api, type ModelStatus } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import { accuracyTier, formatBytes, formatLanguages, formatModelSize, speedTier } from "@/lib/format";
 import { useDeviceReport, useEngineStatus } from "@/lib/hooks";
 import { useStore } from "@/lib/store";
 
+/** Model, speed, accuracy, size, action. Speed and accuracy fold into the model column in narrow windows. */
+const COLUMNS =
+  "grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-6 @min-[760px]:grid-cols-[minmax(0,1fr)_112px_112px_64px_148px]";
+
 export function ModelsScreen() {
-  const { models, settings } = useStore();
+  const { models } = useStore();
   const report = useDeviceReport();
-  const engine = useEngineStatus();
   const recommended = models.find((m) => m.id === report?.recommendation.modelId);
-  const others = models.filter((m) => m.id !== recommended?.id);
-  const selected = models.find((m) => m.id === settings.selectedModel && m.downloaded);
+  const installed = models.filter((m) => m.downloaded);
+  const available = models
+    .filter((m) => !m.downloaded)
+    .sort((a, b) => Number(b.id === recommended?.id) - Number(a.id === recommended?.id));
 
   return (
     <Page>
@@ -32,249 +26,273 @@ export function ModelsScreen() {
         title="AI Models"
         description="Every model runs on this computer. Pick the one SpeakType uses to transcribe."
         actions={
-          selected && (
-            <Badge tone={engine.loaded === selected.id ? "success" : "neutral"} icon={engine.loaded === selected.id ? Check : undefined}>
-              {engine.loading === selected.id ? "Loading…" : `Using ${selected.name}`}
-            </Badge>
+          report && (
+            <span className="flex items-center gap-2 type-small text-ink-muted">
+              <Laptop size={14} />
+              {report.device.summary}
+            </span>
           )
         }
       />
 
-      {recommended && report && (
-        <RecommendedCard model={recommended} reason={report.recommendation.reason} deviceSummary={report.device.summary} />
+      {recommended && report && !recommended.downloaded && (
+        <Recommendation model={recommended} reason={report.recommendation.reason} chip={report.device.chip} />
       )}
 
-      <section className="mt-10">
-        <div className="mb-3 px-1">
-          <h2 className="type-section">All models</h2>
-          <p className="mt-0.5 type-small text-ink-secondary">Larger models are more accurate. Smaller ones are faster.</p>
-        </div>
-        <div className="flex flex-col gap-2.5">
-          {others.map((model) => (
-            <ModelRow key={model.id} model={model} />
+      {installed.length > 0 && (
+        <ModelList title="On this computer" description="Click a model to use it for dictation.">
+          {installed.map((model) => (
+            <ModelRow key={model.id} model={model} recommended={model.id === recommended?.id} />
           ))}
-        </div>
-      </section>
+        </ModelList>
+      )}
+
+      {available.length > 0 && (
+        <ModelList title="Available to download" description="Larger models are more accurate. Smaller ones are faster.">
+          {available.map((model) => (
+            <ModelRow key={model.id} model={model} recommended={model.id === recommended?.id} />
+          ))}
+        </ModelList>
+      )}
     </Page>
   );
 }
 
-function RecommendedCard({
-  model,
-  reason,
-  deviceSummary,
-}: {
-  model: ModelStatus;
-  reason: string;
-  deviceSummary: string;
-}) {
+/** Shown until the model recommended for this computer is downloaded. */
+function Recommendation({ model, reason, chip }: { model: ModelStatus; reason: string; chip: string }) {
   return (
-    <Card padding="none" className="relative overflow-hidden">
-      <div className="relative grid grid-cols-[minmax(0,1fr)_280px] gap-8 p-7">
-        <div className="flex flex-col">
-          <div className="flex items-center gap-3">
-            <IconTile icon={Sparkles} tone="brand" size="md" />
-            <div>
-              <h2 className="type-title">{model.name}</h2>
-              <div className="mt-1 flex items-center gap-2">
-                <Badge tone="brand">Recommended for you</Badge>
-                <LanguageBadge model={model} />
-              </div>
+    <Card padding="none" className="mb-8 flex items-center gap-4 px-5 py-4">
+      <IconTile icon={Sparkles} tone="brand" />
+      <div className="min-w-0 flex-1">
+        <div className="type-label">
+          {model.name} is recommended for your {chip}
+        </div>
+        <p className="mt-0.5 type-small text-ink-secondary">{reason}</p>
+      </div>
+      <div className="w-[148px] shrink-0">
+        <DownloadAction model={model} accent />
+      </div>
+    </Card>
+  );
+}
+
+function ModelList({ title, description, children }: { title: string; description: string; children: ReactNode }) {
+  return (
+    <section className="mb-8">
+      <div className="mb-3 px-1">
+        <h2 className="type-section">{title}</h2>
+        <p className="mt-0.5 type-small text-ink-secondary">{description}</p>
+      </div>
+      <Card padding="none">
+        <div className={cn(COLUMNS, "hidden border-b border-line-subtle px-5 py-2.5 type-caption text-ink-muted @min-[760px]:grid")}>
+          <span>Model</span>
+          <span>Speed</span>
+          <span>Accuracy</span>
+          <span className="text-right">Size</span>
+          <span />
+        </div>
+        <div className="divide-y divide-line-subtle">{children}</div>
+      </Card>
+    </section>
+  );
+}
+
+function ModelRow({ model, recommended }: { model: ModelStatus; recommended: boolean }) {
+  const { settings, updateSettings, downloadErrors } = useStore();
+  const engine = useEngineStatus();
+  const active = model.downloaded && model.id === settings.selectedModel;
+  const selectable = model.downloaded && !active;
+  const error = !model.downloaded && !model.downloading ? downloadErrors[model.id] : undefined;
+  const speed = speedTier(model.speed);
+  const accuracy = accuracyTier(model.accuracy);
+
+  return (
+    <div
+      role={model.downloaded ? "radio" : undefined}
+      aria-checked={model.downloaded ? active : undefined}
+      tabIndex={selectable ? 0 : undefined}
+      onClick={selectable ? () => updateSettings({ selectedModel: model.id }) : undefined}
+      onKeyDown={(e) => {
+        if (selectable && (e.key === "Enter" || e.key === " ")) {
+          e.preventDefault();
+          updateSettings({ selectedModel: model.id });
+        }
+      }}
+      className={cn(
+        "group/row px-5 py-4 transition-colors first:rounded-t-card last:rounded-b-card",
+        selectable && "cursor-pointer hover:bg-hover/50",
+        active && "bg-accent-soft/40",
+      )}
+    >
+      <div className={COLUMNS}>
+        <div className="flex min-w-0 items-start gap-3.5">
+          {model.downloaded && <SelectionMark active={active} />}
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <h3 className="type-label">{model.name}</h3>
+              {recommended && <Badge tone="accent">Recommended</Badge>}
+            </div>
+            <p className="mt-0.5 line-clamp-1 type-small text-ink-secondary">{model.description}</p>
+            <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 type-caption text-ink-muted">
+              <span>{formatLanguages(model)}</span>
+              <span className="@min-[760px]:hidden">
+                {speed} · {accuracy} · {formatModelSize(model.downloaded ? model.sizeMb : model.downloadMb)}
+              </span>
+              {model.accelerator === "installed" && (
+                <span className="inline-flex items-center gap-1 text-ink-secondary">
+                  <Zap size={11} strokeWidth={2.25} /> Neural Engine
+                </span>
+              )}
+              {model.downloaded && model.accelerator === "missing" && !model.downloading && <SpeedUpLink model={model} />}
             </div>
           </div>
-          <p className="mt-5 max-w-[460px] type-body-lg text-ink-secondary">{reason}</p>
-          <p className="mt-3 flex items-center gap-2 type-small text-ink-muted">
-            <Laptop size={14} /> {deviceSummary}
-          </p>
-          <div className="mt-auto pt-6">
-            <ModelAction model={model} large />
-          </div>
         </div>
 
-        <div className="flex flex-col gap-4 self-start rounded-card bg-surface-sunken p-5">
-          <MetricBar label="Speed" value={model.speed} tier={speedTier(model.speed)} />
-          <MetricBar label="Accuracy" value={model.accuracy} tier={accuracyTier(model.accuracy)} />
-          <p className="flex items-center gap-2 border-t border-line-subtle pt-4 type-small text-ink-secondary">
-            <HardDrive size={14} /> {formatModelSize(model.downloadMb)} download
-          </p>
+        <Meter score={model.speed} tier={speed} className="hidden @min-[760px]:block" />
+        <Meter score={model.accuracy} tier={accuracy} className="hidden @min-[760px]:block" />
+        <span className="hidden text-right type-small text-ink-secondary tabular-nums @min-[760px]:block">
+          {formatModelSize(model.downloaded ? model.sizeMb : model.downloadMb)}
+        </span>
+
+        <div className="flex items-center justify-end gap-1.5">
+          {model.downloaded && !model.downloading ? (
+            <>
+              {active ? (
+                engine.loading === model.id ? (
+                  <span className="flex items-center gap-1.5 type-small text-ink-secondary">
+                    <Spinner size={12} /> Loading
+                  </span>
+                ) : (
+                  <Badge tone="accent" icon={Check}>
+                    In use
+                  </Badge>
+                )
+              ) : (
+                <span className="type-small font-medium text-ink-secondary opacity-0 transition-opacity group-hover/row:opacity-100">
+                  Use
+                </span>
+              )}
+              <DeleteButton model={model} />
+            </>
+          ) : (
+            <DownloadAction model={model} />
+          )}
         </div>
       </div>
-    </Card>
+
+      {error && (
+        <p className="mt-3 flex items-start gap-2 type-small text-danger">
+          <TriangleAlert size={14} className="mt-0.5 shrink-0" />
+          {error}
+        </p>
+      )}
+    </div>
   );
 }
 
-function ModelRow({ model }: { model: ModelStatus }) {
-  const { settings } = useStore();
-  const active = model.downloaded && model.id === settings.selectedModel;
-
+function SelectionMark({ active }: { active: boolean }) {
   return (
-    <Card padding="none" interactive className={cn(active && "border-ink ring-1 ring-ink")}>
-      <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-8 px-6 py-5">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <h3 className="type-section">{model.name}</h3>
-            {active && (
-              <Badge tone="brand" icon={Check}>
-                In use
-              </Badge>
-            )}
-          </div>
-          <p className="mt-1 type-body text-ink-secondary">{model.description}</p>
-          <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2 type-small text-ink-secondary">
-            <MetricBar label="Speed" value={model.speed} tier={speedTier(model.speed)} className="w-44" />
-            <MetricBar label="Accuracy" value={model.accuracy} tier={accuracyTier(model.accuracy)} className="w-44" />
-            <span className="h-4 w-px bg-line" />
-            <span>{formatModelSize(model.downloaded ? model.sizeMb : model.downloadMb)}</span>
-            <span>{formatLanguages(model)}</span>
-            {model.accelerator === "installed" && <span className="font-medium text-ink">Neural Engine</span>}
-            {model.downloaded && !active && <span className="font-medium text-success">Installed</span>}
-          </div>
-        </div>
-        <ModelAction model={model} />
-      </div>
-      {model.downloading && <DownloadProgressBar model={model} />}
-      <DownloadError model={model} />
-    </Card>
+    <span
+      aria-hidden
+      className={cn(
+        "mt-0.5 grid size-[18px] shrink-0 place-items-center rounded-full transition-colors",
+        active ? "bg-primary text-accent" : "border-[1.5px] border-line-strong group-hover/row:border-ink-muted",
+      )}
+    >
+      {active && <Check size={11} strokeWidth={3} />}
+    </span>
   );
 }
 
-/** Download, use, cancel or delete, depending on the model's state. Shared by the recommendation and rows. */
-function ModelAction({ model, large }: { model: ModelStatus; large?: boolean }) {
-  const { settings, updateSettings, downloadModel, downloadErrors } = useStore();
-  const engine = useEngineStatus();
-  const [confirmDelete, setConfirmDelete] = useState(false);
-  const size = large ? "lg" : "md";
-  const active = model.downloaded && model.id === settings.selectedModel;
+/** Five segments, filled in proportion to a 0–10 score, with the tier name above. */
+function Meter({ score, tier, className }: { score: number; tier: string; className?: string }) {
+  return (
+    <div className={className}>
+      <div className="type-small text-ink">{tier}</div>
+      <div className="mt-1.5 flex gap-1">
+        {Array.from({ length: 5 }, (_, i) => {
+          const fill = Math.min(1, Math.max(0, score / 2 - i));
+          return (
+            <span key={i} className="h-1 flex-1 overflow-hidden rounded-full bg-hover">
+              <span className="block h-full rounded-full bg-ink" style={{ width: `${fill * 100}%` }} />
+            </span>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/** Download, retry, or progress with cancel. */
+function DownloadAction({ model, accent }: { model: ModelStatus; accent?: boolean }) {
+  const { progress, downloadModel, downloadErrors } = useStore();
 
   if (model.downloading) {
-    if (large) return <DownloadProgressBar model={model} inline />;
+    const p = progress[model.id];
+    const fraction = p && p.total ? p.downloaded / p.total : 0;
     return (
-      <Button size={size} icon={X} onClick={() => api.cancelDownload(model.id)}>
-        Cancel
-      </Button>
-    );
-  }
-
-  if (!model.downloaded) {
-    const failed = Boolean(downloadErrors[model.id]);
-    return (
-      <div className="flex flex-col items-start gap-3">
-        {large && <DownloadError model={model} inline />}
-        <Button variant={large ? "accent" : "secondary"} size={size} icon={failed ? RotateCw : ArrowDown} onClick={() => downloadModel(model.id)}>
-          {failed ? "Try again" : "Download"}
-        </Button>
+      <div className="flex w-full items-center gap-2" onClick={(e) => e.stopPropagation()}>
+        <div className="min-w-0 flex-1" title={p ? `${formatBytes(p.downloaded)} of ${formatBytes(p.total)}` : undefined}>
+          <div className="flex items-center justify-between type-caption">
+            <span className="text-ink-muted">Downloading</span>
+            <span className="font-medium text-ink tabular-nums">{Math.round(fraction * 100)}%</span>
+          </div>
+          <ProgressBar value={fraction} className="mt-1.5 h-1" />
+        </div>
+        <IconButton icon={X} label="Cancel download" size="sm" onClick={() => api.cancelDownload(model.id)} />
       </div>
     );
   }
 
-  const deleteButton = (
-    <>
-      <IconButton icon={Trash2} label="Delete model" tone="danger" onClick={() => setConfirmDelete(true)} />
+  const failed = Boolean(downloadErrors[model.id]);
+  return (
+    <Button
+      variant={accent ? "accent" : "secondary"}
+      size="sm"
+      icon={failed ? RotateCw : ArrowDown}
+      className={cn(accent && "w-full")}
+      onClick={(e) => {
+        e.stopPropagation();
+        downloadModel(model.id);
+      }}
+    >
+      {failed ? "Try again" : "Download"}
+    </Button>
+  );
+}
+
+/** Neural Engine files that didn't come with the download (large models) can be added later. */
+function SpeedUpLink({ model }: { model: ModelStatus }) {
+  const { downloadModel } = useStore();
+  return (
+    <button
+      type="button"
+      title="Runs part of the model on the Neural Engine, about 15–30% faster"
+      onClick={(e) => {
+        e.stopPropagation();
+        downloadModel(model.id, true);
+      }}
+      className="inline-flex items-center gap-1 font-medium text-accent-ink hover:underline"
+    >
+      <Zap size={11} strokeWidth={2.25} />
+      Speed up with the Neural Engine · {formatModelSize(model.acceleratorMb)}
+    </button>
+  );
+}
+
+function DeleteButton({ model }: { model: ModelStatus }) {
+  const [confirming, setConfirming] = useState(false);
+  return (
+    <div onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+      <IconButton icon={Trash2} label="Delete model" tone="danger" size="sm" onClick={() => setConfirming(true)} />
       <ConfirmDialog
-        open={confirmDelete}
-        onClose={() => setConfirmDelete(false)}
+        open={confirming}
+        onClose={() => setConfirming(false)}
         onConfirm={() => api.deleteModel(model.id)}
         title={`Delete ${model.name}?`}
         description={`This frees ${formatModelSize(model.sizeMb)}. You can download it again at any time.`}
         confirmLabel="Delete"
       />
-    </>
-  );
-
-  // Neural Engine files that didn't come with the download (large models) can be added later.
-  const speedUp = model.accelerator === "missing" && (
-    <Button
-      size="sm"
-      variant="ghost"
-      icon={Zap}
-      title="Runs part of the model on the Neural Engine, about 15–30% faster"
-      onClick={() => downloadModel(model.id, true)}
-    >
-      Speed up · {formatModelSize(model.acceleratorMb)}
-    </Button>
-  );
-
-  if (active) {
-    const loading = engine.loading === model.id;
-    if (!large) {
-      return (
-        <div className="flex items-center gap-2">
-          {speedUp}
-          {loading && <Spinner size={14} className="mr-1 text-ink-muted" />}
-          {deleteButton}
-        </div>
-      );
-    }
-    return loading ? (
-      <span className="flex items-center gap-2 type-label text-ink-secondary">
-        <Spinner size={14} className="text-accent-ink" /> Getting it ready…
-      </span>
-    ) : (
-      <span className="flex items-center gap-2 type-label text-success">
-        <CircleCheck size={16} /> This is your default model
-      </span>
-    );
-  }
-
-  return (
-    <div className="flex items-center gap-2">
-      {speedUp}
-      <Button variant={large ? "accent" : "secondary"} size={size} onClick={() => updateSettings({ selectedModel: model.id })}>
-        Use this model
-        <ArrowRight size={16} />
-      </Button>
-      {deleteButton}
-    </div>
-  );
-}
-
-function DownloadProgressBar({ model, inline }: { model: ModelStatus; inline?: boolean }) {
-  const { progress } = useStore();
-  const p = progress[model.id];
-  const fraction = p && p.total ? p.downloaded / p.total : 0;
-
-  return (
-    <div className={cn(inline ? "w-[360px]" : "border-t border-line-subtle px-5 pt-3 pb-4")}>
-      <div className="mb-2 flex items-center gap-2 type-small">
-        <Spinner size={12} className="text-accent-ink" />
-        <span className="text-ink-secondary">
-          Downloading{p ? ` · ${formatBytes(p.downloaded)} of ${formatBytes(p.total)}` : "…"}
-        </span>
-        <span className="flex-1" />
-        <span className="font-medium text-ink tabular-nums">{Math.round(fraction * 100)}%</span>
-        {inline && (
-          <IconButton icon={X} label="Cancel download" size="sm" onClick={() => api.cancelDownload(model.id)} />
-        )}
-      </div>
-      <ProgressBar value={fraction} />
-    </div>
-  );
-}
-
-function DownloadError({ model, inline }: { model: ModelStatus; inline?: boolean }) {
-  const { downloadErrors } = useStore();
-  const error = downloadErrors[model.id];
-  if (!error || model.downloading || model.downloaded) return null;
-  return (
-    <p className={cn("flex items-start gap-2 type-small text-danger", !inline && "border-t border-line-subtle px-5 py-3")}>
-      <TriangleAlert size={14} className="mt-0.5 shrink-0" />
-      {error}
-    </p>
-  );
-}
-
-function LanguageBadge({ model }: { model: ModelStatus }) {
-  return <Badge>{formatLanguages(model)}</Badge>;
-}
-
-function MetricBar({ label, value, tier, className }: { label: string; value: number; tier: string; className?: string }) {
-  return (
-    <div className={cn("flex items-center gap-2.5", className)}>
-      <span className="shrink-0 type-small text-ink-secondary">{label}</span>
-      <div className="h-1 flex-1 overflow-hidden rounded-full bg-hover">
-        <div className="h-full rounded-full bg-ink" style={{ width: `${value * 10}%` }} />
-      </div>
-      <span className="shrink-0 type-small font-medium text-ink">{tier}</span>
     </div>
   );
 }
