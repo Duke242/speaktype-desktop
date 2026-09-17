@@ -38,6 +38,9 @@ defaults:
 jobs:
   frontend:
     name: Frontend (types, tests, build)
+    # A release tag points at a commit these checks already passed on, so tags
+    # skip straight to the installers.
+    if: ${{ !startsWith(github.ref, 'refs/tags/') }}
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
@@ -53,6 +56,7 @@ jobs:
 
   rust:
     name: Rust (${{ matrix.name }})
+    if: ${{ !startsWith(github.ref, 'refs/tags/') }}
     strategy:
       fail-fast: false
       matrix:
@@ -98,6 +102,8 @@ jobs:
   bundle:
     name: Installer (${{ matrix.name }})
     needs: [frontend, rust]
+    # Also runs when the checks were skipped for a tag, but not when they failed.
+    if: ${{ !cancelled() && !failure() }}
     strategy:
       fail-fast: false
       matrix:
