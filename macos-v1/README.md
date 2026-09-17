@@ -1,140 +1,97 @@
-# SpeakType
-
 <div align="center">
 
-![SpeakType Icon](speaktype/Assets.xcassets/AppIcon.appiconset/icon_256x256.png)
+<img src="speaktype/Assets.xcassets/AppIcon.appiconset/icon_256x256.png" width="96" alt="SpeakType icon">
 
-**Fast, Offline Voice-to-Text for macOS**
+# SpeakType
 
-![SpeakType app screenshot](image.png)
-[![Download](https://img.shields.io/badge/Download-SpeakType.dmg-blueviolet?logo=apple&logoColor=white)](https://github.com/karansinghgit/speaktype/releases/latest)
-[![Swift](https://img.shields.io/badge/Swift-5.9-orange?logo=swift)](https://swift.org)
-[![Platform](https://img.shields.io/badge/Platform-macOS%2013.0+-blue?logo=apple)](https://www.apple.com/macos/)
-[![License](https://img.shields.io/badge/License-MIT-red)](LICENSE)
+**Talk instead of type, in any app. Free, open source, and 100% on your computer.**
 
-*Press a hotkey, speak, and instantly paste text anywhere on your Mac.*
+[![Download for macOS](https://img.shields.io/badge/macOS-Download-111111?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/karansinghgit/speaktype/releases?q=v2&expanded=true)
+[![Download for Windows](https://img.shields.io/badge/Windows-Download-111111?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/karansinghgit/speaktype/releases?q=v2&expanded=true)
+[![Download for Linux](https://img.shields.io/badge/Linux-Download-111111?style=for-the-badge&logo=linux&logoColor=white)](https://github.com/karansinghgit/speaktype/releases?q=v2&expanded=true)
+
+[![Stars](https://img.shields.io/github/stars/karansinghgit/speaktype?style=flat-square&color=111111)](https://github.com/karansinghgit/speaktype/stargazers)
+[![Downloads](https://img.shields.io/github/downloads/karansinghgit/speaktype/total?style=flat-square&color=111111)](https://github.com/karansinghgit/speaktype/releases)
+[![License: MIT](https://img.shields.io/badge/License-MIT-111111?style=flat-square)](LICENSE)
+
+<img src=".github/assets/speaktype.webp" alt="The SpeakType dashboard: 47,176 words transcribed, this week's activity and recent transcriptions" width="100%">
 
 </div>
 
----
+Hold <kbd>fn</kbd>, say what you want to write, and let go. Your words appear wherever your cursor is: Slack, email, your editor, a terminal, a prompt box. Cloud dictation apps send your voice to a server and charge a subscription for it. SpeakType runs the speech model on your own machine, so it costs nothing, works offline, and nothing you say ever leaves your computer.
 
-## What is SpeakType?
+## Why people switch to SpeakType
 
-SpeakType is a **privacy-first, offline voice dictation tool** for macOS. Unlike online dictation services, everything runs **100% locally** using OpenAI's Whisper AI model via [WhisperKit](https://github.com/argmaxinc/WhisperKit). Support for Parakeet coming soon!
+**🔒 Your voice stays on your computer.** No account, no cloud, no tracking. Pull the network cable and it still works.
 
-- **Privacy First** - Zero data leaves your Mac
-- **Lightning Fast** - Optimized for Apple Silicon
-- **Works Everywhere** - Any app, any text field
-- **Open Source** - Audit every line of code yourself
+**⚡ Faster than you can reach the keyboard.** Parakeet turns a 35-second ramble into punctuated text in under two seconds on an M3 Pro, and the model loads while you're still talking.
 
----
+**🪶 Tiny.** About 15 MB to install. With a model loaded it uses around 285 MB of memory, and 0% CPU while it waits.
 
-## Installation
+**🆓 Free. Actually free.** No trial, no word limits, no monthly plan. MIT licensed, so you can read every line.
 
-### Requirements
+**💻 macOS, Windows and Linux.** One app, with the same local models on every system.
 
-- macOS 13.0+ (Ventura or newer)
-- Apple Silicon (M1+) recommended
-- 2GB available storage (for AI models)
+**🌍 25+ languages.** Parakeet v3 covers 25 European languages, and Whisper covers 99.
 
-### Download
+## What's inside
 
-**[Download Latest Release](https://github.com/karansinghgit/speaktype/releases/latest)**
+- **Hold to talk or toggle.** On a Mac, use <kbd>fn</kbd> or a single key like right <kbd>⌘</kbd>. Any shortcut works on every system.
+- **The best open models.** NVIDIA Parakeet v2 and v3 for speed, and OpenAI Whisper from Tiny to Large v3 Turbo for accuracy. SpeakType recommends one for your hardware.
+- **Neural Engine acceleration** for Whisper on Apple Silicon.
+- **Works in every app.** It pastes into whatever has focus, then puts your clipboard back the way it was.
+- **A dictionary** for names, jargon and anything else it keeps getting wrong.
+- **Cleaner text:** filler words like "um" and "uh" are removed, and punctuation is tidied up.
+- **History with playback.** Copy past dictations again and replay their recordings.
+- **Stats** on words dictated and typing time saved.
+- **A recorder pill** with a live waveform, placed wherever you want it on screen.
+- **A menu bar panel** to start dictating, switch model, language or microphone, and grab your latest dictations.
 
-1. Download `SpeakType.dmg`
-2. Drag **SpeakType** to **Applications**
-3. Grant Microphone + Accessibility + Documents Folder permissions
-4. Download an AI model from Settings → AI Models
+## Get started
 
-Press `fn` to start dictating.
+**[Download SpeakType](https://github.com/karansinghgit/speaktype/releases?q=v2&expanded=true)** and pick the file for your system:
 
-### Build from Source
+| System | File |
+| --- | --- |
+| macOS 13+ (Apple Silicon) | `SpeakType_…_aarch64.dmg` |
+| Windows 10 and 11 | `SpeakType_…_x64-setup.exe` |
+| Linux (Ubuntu, Debian) | `SpeakType_…_amd64.deb` |
+| Linux (other distros) | `SpeakType_…_amd64.AppImage` |
 
-```bash
-git clone https://github.com/karansinghgit/speaktype.git
-cd speaktype
-make build && make run
-```
+Then:
 
----
+1. Allow microphone and accessibility access when asked. SpeakType needs them to hear you and to paste.
+2. Pick a model. SpeakType suggests one that runs well on your computer.
+3. Hold your hotkey and start talking.
 
-## Usage
+SpeakType 2 is new, so expect a few rough edges, and please [open an issue](https://github.com/karansinghgit/speaktype/issues) when you find one. The builds aren't signed by Apple or Microsoft yet, so the first launch needs one extra step:
 
-1. Press hotkey (`fn` by default)
-2. Speak your text
-3. Release hotkey
-4. Text appears!
+- **macOS:** if it says Apple couldn't check the app, open **System Settings → Privacy & Security** and click **Open Anyway**.
+- **Windows:** on the SmartScreen prompt, click **More info**, then **Run anyway**.
 
-**Tips:**
-- Speak naturally - Whisper handles accents well
-- Say punctuation: "comma", "period", "question mark"
-- Best results with 3-10 second clips
+Looking for the previous Mac-only app? [SpeakType 1.3](https://github.com/karansinghgit/speaktype/releases/tag/v1.3.0) is still available.
 
----
+## Contribute
 
-## Development
+SpeakType is growing fast, and there's plenty of room to help:
 
-```bash
-make build          # Build debug
-make run            # Run app
-make clean          # Clean build
-make test           # Run tests
-make dmg            # Create DMG installer
-```
+- **App core** in Rust: audio, speech engines, hotkeys and pasting on each system. The codebase is young and small, so it's a friendly place to learn Rust.
+- **Interface** in React and TypeScript.
+- **Product and design:** ideas, feedback and polish.
+- **Mobile** in React Native. Coming soon.
 
-### Current Issues
-
-⚠️ When loading a model for the first time / switching to another model, there is a startup delay of 30-60 seconds. 
-
-So the first transcription will appear ultra slow, but it will go back to instantaneous dictation right after it's warmed up. 
-
-### Project Structure
-
-```
-speaktype/
-├── App/           # Entry point
-├── Views/         # SwiftUI interface
-├── Models/        # Data models
-├── Services/      # Core functionality
-├── Controllers/   # Window management
-└── Resources/     # Assets & config
-```
-
-### Tech Stack
-
-- **Swift 5.9+** / SwiftUI + AppKit
-- **[WhisperKit](https://github.com/argmaxinc/WhisperKit)** - Local Whisper inference
-- **[KeyboardShortcuts](https://github.com/sindresorhus/KeyboardShortcuts)** - Global hotkeys
-- **AVFoundation** - Audio capture
-
----
-
-## Contributing
-
-1. Fork & clone
-2. Create a branch: `git checkout -b feature/my-feature`
-3. Make changes and run `make lint`
-4. Submit a PR
-
----
-
-## License
-
-MIT License - see [LICENSE](LICENSE) for details.
-
----
+Pick an [issue](https://github.com/karansinghgit/speaktype/issues), or open one to say what you'd like to work on. For anything bigger than a small fix, let's talk it through first.
 
 ## Credits
 
-- [WhisperKit](https://github.com/argmaxinc/WhisperKit) by Argmax
-- [OpenAI Whisper](https://github.com/openai/whisper)
+Speech recognition by [OpenAI Whisper](https://github.com/openai/whisper) through [whisper.cpp](https://github.com/ggml-org/whisper.cpp) and [WhisperKit](https://github.com/argmaxinc/WhisperKit), and [NVIDIA Parakeet](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3) through [ONNX Runtime](https://onnxruntime.ai) and [FluidAudio](https://github.com/FluidInference/FluidAudio).
 
----
+## License
+
+[MIT](LICENSE). Made by [2048 Labs](https://tryspeaktype.com).
 
 <div align="center">
 
-**Made with ❤️ for developers**
-
-*Privacy-first • Open Source *
+If SpeakType saves you some typing, a ⭐ helps other people find it.
 
 </div>
