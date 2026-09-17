@@ -1,0 +1,41 @@
+name: Set up SpeakType 2 build
+description: Installs system libraries, Node, the Rust toolchain and caches for building desktop/.
+
+runs:
+  using: composite
+  steps:
+    - name: Linux system libraries
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y --no-install-recommends \
+          libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev \
+          libasound2-dev libxdo-dev libssl-dev patchelf cmake clang pkg-config
+
+    # bindgen (used by the speech engine's C bindings) needs libclang.
+    - name: Point bindgen at LLVM
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: echo "LIBCLANG_PATH=C:\Program Files\LLVM\bin" >> $env:GITHUB_ENV
+
+    - uses: actions/setup-node@v5
+      with:
+        node-version: 22
+        cache: npm
+        cache-dependency-path: desktop/package-lock.json
+
+    - name: Install frontend dependencies
+      shell: bash
+      working-directory: desktop
+      run: npm ci
+
+    - uses: dtolnay/rust-toolchain@stable
+      with:
+        components: clippy, rustfmt
+
+    - uses: Swatinem/rust-cache@v2
+      with:
+        workspaces: desktop/src-tauri -> target
+        # Keep lint/test and release caches apart; they build different profiles.
+        key: ${{ github.job }}
