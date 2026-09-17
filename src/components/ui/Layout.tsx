@@ -16,7 +16,7 @@ export function Page({ children, className }: { children: ReactNode; className?:
   return (
     <div className="relative h-full">
       <div ref={viewport} className="no-scrollbar h-full overflow-y-auto">
-        <div className={cn("mx-auto max-w-[960px] px-10 pt-9 pb-14", className)}>{children}</div>
+        <div className={cn("@container mx-auto max-w-[1120px] px-10 pt-9 pb-14", className)}>{children}</div>
       </div>
       <ScrollThumb viewport={viewport} />
     </div>

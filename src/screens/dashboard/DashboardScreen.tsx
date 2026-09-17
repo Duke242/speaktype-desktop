@@ -36,7 +36,8 @@ export function DashboardScreen({ onNavigate }: { onNavigate: (route: Route) => 
   return (
     <Page>
       <ReadinessBar onNavigate={onNavigate} />
-      <div className="grid grid-cols-[minmax(0,1fr)_380px] gap-5">
+      {/* Side by side once there's room for both, stacked in narrow windows. */}
+      <div className="grid grid-cols-1 gap-5 @min-[780px]:grid-cols-[minmax(0,1.5fr)_minmax(300px,1fr)]">
         <OverviewCard stats={stats} now={now} />
         <WeekCard stats={stats} now={now} />
       </div>
@@ -137,7 +138,7 @@ function OverviewCard({ stats, now }: { stats: StatsEntry[]; now: number }) {
   return (
     <Card padding="lg" className="relative flex flex-col overflow-hidden">
       <h2 className="relative type-section">{greeting(new Date(now).getHours())}</h2>
-      <div className="relative mt-4 flex items-baseline gap-3">
+      <div className="relative mt-4 flex flex-wrap items-baseline gap-x-3">
         <span className="type-display tabular-nums">
           {formatNumber(totalWords)}
         </span>
@@ -147,7 +148,7 @@ function OverviewCard({ stats, now }: { stats: StatsEntry[]; now: number }) {
         {pagesLine(totalWords)}
       </p>
 
-      <div className="relative mt-7 grid grid-cols-2 gap-x-6 gap-y-5 border-t border-line-subtle pt-6">
+      <div className="relative mt-7 grid grid-cols-[repeat(auto-fill,minmax(190px,1fr))] gap-x-6 gap-y-5 border-t border-line-subtle pt-6">
         <Stat icon={Mic} tone="neutral" value={formatNumber(todayCount)} label="Transcriptions today" />
         <Stat icon={AudioLines} tone="neutral" value={formatNumber(stats.length)} label="Total transcriptions" />
         <Stat icon={Clock} tone="neutral" value={formatMinutesSaved(minutesSaved)} label="Time saved typing" />
@@ -202,19 +203,23 @@ function WeekCard({ stats, now }: { stats: StatsEntry[]; now: number }) {
         )}
       </p>
 
-      <div className="mt-auto flex h-[168px] items-end gap-3 pt-6">
+      {/* Grows with the card, so bars fill the space next to a taller overview. */}
+      <div className="flex min-h-[168px] flex-1 gap-3 pt-6">
         {days.map((day, i) => {
           const isToday = i === days.length - 1;
           return (
-            <div key={day.start} className="flex h-full flex-1 flex-col items-center justify-end gap-2">
-              <span className="h-4 type-caption text-ink-muted tabular-nums">{day.count || ""}</span>
-              <div
-                className={cn(
-                  "w-full max-w-6 rounded-t-inner transition-[height] duration-500 ease-out-soft",
-                  day.count > 0 ? (isToday ? "bg-chart" : "bg-chart/55") : "bg-hover",
-                )}
-                style={{ height: Math.max(6, (day.count / max) * 112) }}
-              />
+            <div key={day.start} className="flex flex-1 flex-col items-center gap-2">
+              <div className="flex w-full flex-1 flex-col items-center justify-end gap-2">
+                <span className="h-4 type-caption text-ink-muted tabular-nums">{day.count || ""}</span>
+                <div
+                  className={cn(
+                    "min-h-1.5 w-full max-w-7 rounded-t-inner transition-[height] duration-500 ease-out-soft",
+                    day.count > 0 ? (isToday ? "bg-chart" : "bg-chart/55") : "bg-hover",
+                  )}
+                  // The count label above the bar takes 24px.
+                  style={{ height: `calc((100% - 24px) * ${day.count / max})` }}
+                />
+              </div>
               <span className={cn("type-caption", isToday ? "font-medium text-ink" : "text-ink-muted")}>
                 {day.label}
               </span>
