@@ -43,7 +43,7 @@ Every push and pull request that touches `desktop/` runs `.github/workflows/desk
 - a dependency audit
 - installers for all three systems, uploaded as workflow artifacts
 
-Pushing a `v2.*` tag also publishes those installers as a GitHub pre-release. SpeakType 1 stays the "Latest" release, so its update check and download links are unaffected. Every tag is a rollback point.
+Pushing a `v2.*` tag builds the installers straight away, since the tagged commit has already been checked, and publishes them as a GitHub pre-release. SpeakType 1 stays the "Latest" release, so its update check and download links are unaffected. Every tag is a rollback point.
 
 ## Layout
 
