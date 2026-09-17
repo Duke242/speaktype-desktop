@@ -7,14 +7,16 @@ import {
   Cpu,
   Hash,
   Mic,
+  Pause,
+  Play,
   Sparkles,
   TriangleAlert,
   type LucideIcon,
 } from "lucide-react";
-import { useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Route } from "@/app/routes";
-import { Button, Callout, Card, EmptyState, Hotkey, IconTile, Page, Spinner, type Tone } from "@/components/ui";
-import type { HistoryItem, StatsEntry } from "@/lib/api";
+import { Button, Callout, Card, EmptyState, Hotkey, IconButton, IconTile, Page, Spinner, type Tone } from "@/components/ui";
+import { api, type HistoryItem, type StatsEntry } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import {
   TYPING_WORDS_PER_MINUTE,
@@ -216,6 +218,48 @@ function WeekCard({ stats, now }: { stats: StatsEntry[]; now: number }) {
   );
 }
 
+/** Plays one history recording at a time. */
+function usePlayback() {
+  const current = useRef<{ id: string; audio: HTMLAudioElement; url: string } | null>(null);
+  const request = useRef(0);
+  const [playingId, setPlayingId] = useState<string | null>(null);
+
+  const stop = useCallback(() => {
+    request.current++;
+    if (current.current) {
+      current.current.audio.pause();
+      URL.revokeObjectURL(current.current.url);
+      current.current = null;
+    }
+    setPlayingId(null);
+  }, []);
+
+  const toggle = useCallback(
+    async (id: string) => {
+      const wasPlaying = current.current?.id === id;
+      stop();
+      if (wasPlaying) return;
+      const token = request.current;
+      try {
+        const buffer = await api.readHistoryAudio(id);
+        if (token !== request.current) return;
+        const url = URL.createObjectURL(new Blob([buffer], { type: "audio/wav" }));
+        const audio = new Audio(url);
+        audio.onended = stop;
+        current.current = { id, audio, url };
+        setPlayingId(id);
+        await audio.play();
+      } catch {
+        if (token === request.current) stop();
+      }
+    },
+    [stop],
+  );
+
+  useEffect(() => stop, [stop]);
+  return { playingId, toggle };
+}
+
 function RecentCard({
   items,
   now,
@@ -227,6 +271,7 @@ function RecentCard({
 }) {
   const { settings } = useStore();
   const { copy, copiedKey } = useCopy();
+  const playback = usePlayback();
 
   return (
     <Card padding="none" className="mt-5">
@@ -258,6 +303,7 @@ function RecentCard({
         <ol className="px-3 pb-3">
           {items.slice(0, 5).map((item) => {
             const copied = copiedKey === item.id;
+            const playing = playback.playingId === item.id;
             return (
               <li
                 key={item.id}
@@ -271,7 +317,7 @@ function RecentCard({
                 <button
                   type="button"
                   onClick={() => copy(item.transcript, item.id)}
-                  className="flex w-full cursor-pointer items-start gap-6 rounded-control px-3 py-3.5 text-left transition-colors hover:bg-hover/60 active:bg-hover"
+                  className="flex w-full cursor-pointer items-start gap-6 rounded-control py-3.5 pr-44 pl-3 text-left transition-colors hover:bg-hover/60 active:bg-hover"
                 >
                   <div className="w-[76px] shrink-0 pt-px">
                     <div className="type-small font-medium text-ink tabular-nums">
@@ -281,21 +327,46 @@ function RecentCard({
                       {item.wordCount} {item.wordCount === 1 ? "word" : "words"}
                     </div>
                   </div>
-
                   <p className="line-clamp-2 min-w-0 flex-1 pt-px type-body text-ink">{item.transcript}</p>
-
-                  <span
-                    className={cn(
-                      "flex w-24 shrink-0 items-center justify-end gap-1.5 pt-0.5 type-caption font-medium transition-opacity",
-                      copied
-                        ? "text-success opacity-100"
-                        : "text-ink-muted opacity-0 group-hover:opacity-100 group-focus-within:opacity-100",
-                    )}
-                  >
-                    {copied ? <Check size={13} strokeWidth={2.25} /> : <Copy size={13} strokeWidth={2} />}
-                    {copied ? "Copied" : "Click to copy"}
-                  </span>
                 </button>
+
+                {/* Clicks here fall through to the row, except on the play button. */}
+                <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center gap-2">
+                  <span className="grid justify-items-end type-caption font-medium tabular-nums">
+                    <span
+                      className={cn(
+                        "col-start-1 row-start-1 inline-flex items-center gap-1.5 transition-opacity",
+                        copied ? "text-success" : "text-ink-muted opacity-0 group-hover:opacity-100",
+                      )}
+                    >
+                      {copied ? <Check size={13} strokeWidth={2.25} /> : <Copy size={13} strokeWidth={2} />}
+                      {copied ? "Copied" : "Click to copy"}
+                    </span>
+                    <span
+                      className={cn(
+                        "col-start-1 row-start-1 text-ink-muted transition-opacity group-hover:opacity-0",
+                        copied && "opacity-0",
+                      )}
+                    >
+                      {formatDuration(item.durationSecs)}
+                    </span>
+                  </span>
+                  {item.audioPath ? (
+                    <IconButton
+                      icon={playing ? Pause : Play}
+                      label={playing ? "Stop" : "Play recording"}
+                      size="sm"
+                      onClick={() => playback.toggle(item.id)}
+                      className={cn(
+                        "pointer-events-auto transition-[opacity,background-color,color]",
+                        playing ? "bg-hover text-ink" : "opacity-0 group-hover:opacity-100 focus-visible:opacity-100",
+                      )}
+                    />
+                  ) : (
+                    // Keeps durations lined up with rows that have a play button.
+                    <span className="size-8" />
+                  )}
+                </div>
               </li>
             );
           })}
