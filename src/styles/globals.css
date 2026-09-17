@@ -93,7 +93,8 @@
   --info-soft: rgb(37 99 235 / 0.09);
 
   --shadow-color: 0 0 0;
-  --scrollbar: rgb(0 0 0 / 0.14);
+  --scrollbar: rgb(0 0 0 / 0.18);
+  --scrollbar-active: rgb(0 0 0 / 0.34);
 
   color-scheme: light;
 }
@@ -140,13 +141,16 @@
   --info: #60a5fa;
   --info-soft: rgb(96 165 250 / 0.14);
 
-  --scrollbar: rgb(255 255 255 / 0.14);
+  --scrollbar: rgb(255 255 255 / 0.2);
+  --scrollbar-active: rgb(255 255 255 / 0.38);
 
   color-scheme: dark;
 }
 
 @theme inline {
   --color-app: var(--app);
+  --color-scrollbar: var(--scrollbar);
+  --color-scrollbar-active: var(--scrollbar-active);
   --color-surface: var(--surface);
   --color-surface-sunken: var(--surface-sunken);
   --color-hover: var(--hover);
@@ -294,6 +298,14 @@
 
 /* ---- Decoration ---- */
 
+/* Hides the native scrollbar where a custom one is drawn instead. */
+@utility no-scrollbar {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
 /* A soft accent wash from the top edge, for welcome and hero areas. */
 @utility bg-glow {
   background-image:
@@ -359,6 +371,7 @@
   }
   ::-webkit-scrollbar-track {
     background: transparent;
+    margin-block: 6px;
   }
 
   /* The recorder pill and menu bar panel windows are transparent around their content. */
