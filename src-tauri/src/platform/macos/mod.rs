@@ -1,21 +1,23 @@
+//! macOS: Fn and other single-modifier hotkeys through an event tap, TCC
+//! permission prompts, and the Neural Engine for Whisper.
+
 mod hotkey;
 mod permissions;
 
+use std::{path::Path, process::Command};
+
 use enigo::{Enigo, Key};
-use tauri::TitleBarStyle;
+use tauri::{TitleBarStyle, WebviewWindow};
 
 pub use hotkey::MODIFIER_HOTKEYS;
 pub use permissions::{permission_settings_url, permissions, request_permission};
 
-use super::HotkeyEvent;
+use super::HotkeyHandler;
 
 /// Fn, as in the Swift app.
 pub const DEFAULT_HOTKEY: &str = "Fn";
 
-pub fn start_modifier_hotkey(
-    name: &str,
-    handler: Box<dyn Fn(HotkeyEvent) + Send + Sync>,
-) -> Result<(), String> {
+pub fn start_modifier_hotkey(name: &str, handler: HotkeyHandler) -> Result<(), String> {
     hotkey::start(name, handler)
 }
 
@@ -40,13 +42,13 @@ pub const NEURAL_ENGINE: bool = true;
 pub const ORT_ACCELERATOR: transcribe_rs::OrtAccelerator = transcribe_rs::OrtAccelerator::CpuOnly;
 
 /// Unzips with `ditto`, which ships with macOS and keeps bundle metadata intact.
-pub fn extract_zip(zip: &std::path::Path, dest: &std::path::Path) -> Result<(), String> {
-    let status = std::process::Command::new("/usr/bin/ditto")
+pub fn extract_zip(zip: &Path, dest: &Path) -> Result<(), String> {
+    let status = Command::new("/usr/bin/ditto")
         .args(["-x", "-k"])
         .arg(zip)
         .arg(dest)
         .status()
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| format!("Couldn't run ditto: {e}"))?;
     if status.success() {
         Ok(())
     } else {
@@ -60,7 +62,7 @@ pub fn setup_notes() -> Vec<String> {
 }
 
 /// Hides the title bar and lets content run under the traffic lights, like the Swift app.
-pub fn style_main_window(window: &tauri::WebviewWindow) {
+pub fn style_main_window(window: &WebviewWindow) {
     let _ = window.set_title_bar_style(TitleBarStyle::Overlay);
     let _ = window.set_title("");
 }

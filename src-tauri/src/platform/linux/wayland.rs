@@ -1,3 +1,5 @@
+//! Pasting in Wayland sessions, which don't let apps simulate keys directly.
+
 use std::process::{Command, Stdio};
 
 pub fn is_session() -> bool {

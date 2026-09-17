@@ -14,20 +14,18 @@ mod settings;
 mod text;
 mod tray;
 
-use std::sync::{Arc, Mutex, OnceLock, RwLock};
+use std::sync::{Mutex, MutexGuard, OnceLock, PoisonError, RwLock, TryLockError};
 
 use tauri::{AppHandle, Emitter, Manager, WindowEvent};
 
 use crate::{
     device::DeviceInfo,
     dictation::{Controller, DictationState, Event},
+    engine::Engine,
     history::History,
     models::{ModelInfo, ModelStore},
     settings::{Settings, SettingsStore},
-    engine::Engine,
 };
-
-pub use tray::TRAY_ID;
 
 /// Benchmarks for development (`cargo run --release --example transcribe_wav`).
 #[doc(hidden)]
@@ -35,21 +33,41 @@ pub mod devtools {
     use std::{path::Path, time::Instant};
 
     /// Downloads a catalog model into `models_dir`, printing progress.
-    pub fn download(model_id: &str, models_dir: &Path, accelerator: Option<bool>) -> Result<(), String> {
+    pub fn download(
+        model_id: &str,
+        models_dir: &Path,
+        accelerator: Option<bool>,
+    ) -> Result<(), String> {
         let store = crate::models::ModelStore::new(models_dir.to_path_buf());
         tauri::async_runtime::block_on(store.download(model_id, accelerator, |p| {
             if p.total > 0 {
-                println!("  {}: {:.0}%", p.id, p.downloaded as f64 / p.total as f64 * 100.0);
+                println!(
+                    "  {}: {:.0}%",
+                    p.id,
+                    p.downloaded as f64 / p.total as f64 * 100.0
+                );
             }
         }))?;
-        let status = store.statuses().into_iter().find(|s| s.info.id == model_id).ok_or("Unknown model id")?;
-        println!("downloaded={} accelerator={:?}", status.downloaded, status.accelerator);
+        let status = store
+            .statuses()
+            .into_iter()
+            .find(|s| s.info.id == model_id)
+            .ok_or("Unknown model id")?;
+        println!(
+            "downloaded={} accelerator={:?}",
+            status.downloaded, status.accelerator
+        );
         Ok(())
     }
 
     /// Loads a catalog model from `models_dir` and transcribes a WAV file
     /// `runs` times, printing load and transcription times.
-    pub fn benchmark(model_id: &str, models_dir: &Path, wav: &Path, runs: usize) -> Result<(), String> {
+    pub fn benchmark(
+        model_id: &str,
+        models_dir: &Path,
+        wav: &Path,
+        runs: usize,
+    ) -> Result<(), String> {
         let model = crate::models::find(model_id).ok_or("Unknown model id")?;
         let store = crate::models::ModelStore::new(models_dir.to_path_buf());
         let (samples, duration) = crate::media::decode_file(wav)?;
@@ -76,11 +94,35 @@ pub mod devtools {
     }
 }
 
-pub struct AppState {
+/// Locking that ignores poisoning. The data behind these locks stays usable
+/// after a panic interrupted an update, and one failed dictation shouldn't make
+/// every later command panic too.
+pub(crate) trait LockExt<T> {
+    fn lock_unpoisoned(&self) -> MutexGuard<'_, T>;
+    /// `None` only when another thread holds the lock.
+    fn try_lock_unpoisoned(&self) -> Option<MutexGuard<'_, T>>;
+}
+
+impl<T> LockExt<T> for Mutex<T> {
+    fn lock_unpoisoned(&self) -> MutexGuard<'_, T> {
+        self.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    fn try_lock_unpoisoned(&self) -> Option<MutexGuard<'_, T>> {
+        match self.try_lock() {
+            Ok(guard) => Some(guard),
+            Err(TryLockError::Poisoned(e)) => Some(e.into_inner()),
+            Err(TryLockError::WouldBlock) => None,
+        }
+    }
+}
+
+pub(crate) struct AppState {
     settings: RwLock<Settings>,
     settings_store: SettingsStore,
     pub models: ModelStore,
-    pub engine: Arc<Mutex<Engine>>,
+    /// Held for the whole of a model load or transcription.
+    pub engine: Mutex<Engine>,
     /// The model currently being loaded into memory, if any.
     pub engine_loading: Mutex<Option<String>>,
     pub history: Mutex<History>,
@@ -93,12 +135,18 @@ pub struct AppState {
 
 impl AppState {
     pub fn settings(&self) -> Settings {
-        self.settings.read().unwrap().clone()
+        self.settings
+            .read()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone()
     }
 
     pub fn replace_settings(&self, settings: Settings) -> Result<(), String> {
         self.settings_store.save(&settings)?;
-        *self.settings.write().unwrap() = settings;
+        *self
+            .settings
+            .write()
+            .unwrap_or_else(PoisonError::into_inner) = settings;
         Ok(())
     }
 
@@ -117,10 +165,10 @@ impl AppState {
         if engine.loaded_model() == Some(model.id) {
             return Ok(());
         }
-        *self.engine_loading.lock().unwrap() = Some(model.id.to_string());
+        *self.engine_loading.lock_unpoisoned() = Some(model.id.to_string());
         let _ = app.emit("engine-changed", ());
         let result = engine.load(model, &self.models.path(model));
-        *self.engine_loading.lock().unwrap() = None;
+        *self.engine_loading.lock_unpoisoned() = None;
         let _ = app.emit("engine-changed", ());
         result
     }
@@ -134,13 +182,18 @@ impl AppState {
             return;
         }
         let app = app.clone();
-        std::thread::spawn(move || {
-            let state = app.state::<AppState>();
-            let mut engine = state.engine.lock().unwrap_or_else(|e| e.into_inner());
-            if let Err(e) = state.load_model(&app, &mut engine, model) {
-                eprintln!("[models] warm-up failed: {e}");
-            }
-        });
+        let spawned = std::thread::Builder::new()
+            .name("warm-up".into())
+            .spawn(move || {
+                let state = app.state::<AppState>();
+                let mut engine = state.engine.lock_unpoisoned();
+                if let Err(e) = state.load_model(&app, &mut engine, model) {
+                    eprintln!("[models] warm-up failed: {e}");
+                }
+            });
+        if let Err(e) = spawned {
+            eprintln!("[models] couldn't start warm-up: {e}");
+        }
     }
 }
 
@@ -153,16 +206,17 @@ pub fn run() {
             engine::silence_logs();
             let settings_store = SettingsStore::new(app.path().app_config_dir()?);
             let settings = settings_store.load();
+            let show_tray_icon = settings.show_tray_icon;
             let data_dir = app.path().app_data_dir()?;
 
             app.manage(AppState {
-                settings: RwLock::new(settings.clone()),
+                settings: RwLock::new(settings),
                 settings_store,
                 models: ModelStore::new(data_dir.join("models")),
-                engine: Arc::default(),
+                engine: Mutex::default(),
                 engine_loading: Mutex::new(None),
                 history: Mutex::new(History::load(&data_dir)),
-                controller: Controller::spawn(app.handle().clone()),
+                controller: Controller::spawn(app.handle().clone())?,
                 dictation_state: Mutex::new(DictationState::Idle),
                 hotkey_error: Mutex::new(None),
                 device: OnceLock::new(),
@@ -176,21 +230,26 @@ pub fn run() {
             // Shortcut registration waits on the main thread, so it can't run
             // here before the event loop starts.
             let handle = app.handle().clone();
-            std::thread::spawn(move || {
-                let state = handle.state::<AppState>();
-                let result = state
-                    .controller
-                    .register_hotkey(&handle, &settings.hotkey, None);
-                if let Err(e) = result {
-                    eprintln!("[hotkey] {e}");
-                    *state.hotkey_error.lock().unwrap() = Some(e);
-                }
-                state.controller.send(Event::RefreshPill);
-                state.warm_up(&handle, &settings.selected_model);
-                state.device();
-            });
+            std::thread::Builder::new()
+                .name("startup".into())
+                .spawn(move || {
+                    let state = handle.state::<AppState>();
+                    // Read now rather than captured above, in case the UI has
+                    // already saved a change.
+                    let settings = state.settings();
+                    let result = state
+                        .controller
+                        .register_hotkey(&handle, &settings.hotkey, None);
+                    if let Err(e) = result {
+                        eprintln!("[hotkey] {e}");
+                        *state.hotkey_error.lock_unpoisoned() = Some(e);
+                    }
+                    state.controller.send(Event::RefreshPill);
+                    state.warm_up(&handle, &settings.selected_model);
+                    state.device();
+                })?;
 
-            tray::build(app.handle(), settings.show_tray_icon)?;
+            tray::build(app.handle(), show_tray_icon)?;
             Ok(())
         })
         .on_window_event(|window, event| match (window.label(), event) {
@@ -200,7 +259,9 @@ pub fn run() {
                 let _ = window.hide();
             }
             // The menu bar panel behaves like a popover: it closes when you click elsewhere.
-            (tray::PANEL_LABEL, WindowEvent::Focused(false)) => tray::panel_blurred(window.app_handle()),
+            (tray::PANEL_LABEL, WindowEvent::Focused(false)) => {
+                tray::panel_blurred(window.app_handle())
+            }
             _ => {}
         })
         .invoke_handler(tauri::generate_handler![

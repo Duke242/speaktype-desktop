@@ -1,3 +1,5 @@
+//! X11 queries. Also reaches XWayland apps in a Wayland session.
+
 use x11rb::{
     connection::Connection,
     protocol::xproto::{AtomEnum, ConnectionExt},

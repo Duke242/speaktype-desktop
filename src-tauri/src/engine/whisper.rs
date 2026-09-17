@@ -1,8 +1,10 @@
 //! Whisper through whisper.cpp.
 
-use std::path::Path;
+use std::{borrow::Cow, path::Path};
 
-use whisper_rs::{FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters, WhisperState};
+use whisper_rs::{
+    FullParams, SamplingStrategy, WhisperContext, WhisperContextParameters, WhisperState,
+};
 
 use crate::audio::WHISPER_SAMPLE_RATE;
 
@@ -25,14 +27,21 @@ impl Whisper {
         let state = context
             .create_state()
             .map_err(|e| format!("Couldn't prepare model: {e}"))?;
-        Ok(Self { _context: context, state })
+        Ok(Self {
+            _context: context,
+            state,
+        })
     }
 
     pub fn transcribe(&mut self, samples: &[f32], language: &str) -> Result<String, String> {
         // Greedy decoding at temperature 0 with whisper.cpp's usual temperature
         // fallback, matching the defaults the macOS app gets from WhisperKit.
         let mut params = FullParams::new(SamplingStrategy::Greedy { best_of: 1 });
-        params.set_language(if language == "auto" { None } else { Some(language) });
+        params.set_language(if language == "auto" {
+            None
+        } else {
+            Some(language)
+        });
         params.set_n_threads(thread_count());
         params.set_no_context(true);
         params.set_no_timestamps(true);
@@ -41,21 +50,25 @@ impl Whisper {
         params.set_print_realtime(false);
         params.set_print_timestamps(false);
 
-        let mut audio = samples.to_vec();
-        if audio.len() < MIN_SAMPLES {
-            audio.resize(MIN_SAMPLES, 0.0);
-        }
+        let audio = if samples.len() < MIN_SAMPLES {
+            let mut padded = samples.to_vec();
+            padded.resize(MIN_SAMPLES, 0.0);
+            Cow::Owned(padded)
+        } else {
+            Cow::Borrowed(samples)
+        };
         self.state.full(params, &audio).map_err(|e| e.to_string())?;
 
         Ok(self
             .state
             .as_iter()
-            .filter_map(|segment| segment.to_str_lossy().ok().map(|s| s.into_owned()))
+            .filter_map(|segment| segment.to_str_lossy().ok().map(Cow::into_owned))
             .collect::<Vec<_>>()
             .join(" "))
     }
 }
 
+/// whisper.cpp gains little past 8 threads, and more would starve the rest of the system.
 fn thread_count() -> i32 {
     std::thread::available_parallelism()
         .map(|n| n.get().min(8) as i32)

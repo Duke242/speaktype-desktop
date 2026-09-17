@@ -6,7 +6,6 @@
 //! text before the target app reads it.
 
 use std::{
-    borrow::Cow,
     sync::mpsc::{self, Sender},
     thread,
     time::Duration,
@@ -28,6 +27,8 @@ struct Job {
     restore_clipboard: bool,
 }
 
+/// Handle to the paste thread. Cloning it is cheap; the thread exits once every
+/// handle is gone.
 #[derive(Clone)]
 pub struct Paster {
     tx: Sender<Job>,
@@ -42,34 +43,40 @@ enum Saved {
 impl Paster {
     pub fn spawn() -> Self {
         let (tx, rx) = mpsc::channel::<Job>();
-        thread::Builder::new()
-            .name("paste".into())
-            .spawn(move || {
-                let mut clipboard = match Clipboard::new() {
-                    Ok(c) => c,
-                    Err(e) => {
-                        eprintln!("[paste] clipboard unavailable: {e}");
-                        return;
-                    }
-                };
-                let mut enigo = None;
-                for job in rx {
-                    // Created on first use so the macOS permission prompt appears
-                    // when the user first dictates, not at launch.
-                    if enigo.is_none() {
-                        enigo = Enigo::new(&Settings::default())
-                            .map_err(|e| eprintln!("[paste] keyboard simulation unavailable: {e}"))
-                            .ok();
-                    }
-                    if let Err(e) = paste(&mut clipboard, enigo.as_mut(), &job) {
-                        eprintln!("[paste] {e}");
-                    }
+        let spawned = thread::Builder::new().name("paste".into()).spawn(move || {
+            // Both are created on first use and retried if that fails. The
+            // macOS keyboard permission prompt then appears when the user
+            // first dictates, not at launch.
+            let mut clipboard = None;
+            let mut enigo = None;
+            for job in rx {
+                if clipboard.is_none() {
+                    clipboard = Clipboard::new()
+                        .map_err(|e| eprintln!("[paste] clipboard unavailable: {e}"))
+                        .ok();
                 }
-            })
-            .expect("failed to start paste thread");
+                let Some(clipboard) = clipboard.as_mut() else {
+                    continue;
+                };
+                if enigo.is_none() {
+                    enigo = Enigo::new(&Settings::default())
+                        .map_err(|e| eprintln!("[paste] keyboard simulation unavailable: {e}"))
+                        .ok();
+                }
+                if let Err(e) = paste(clipboard, enigo.as_mut(), &job) {
+                    eprintln!("[paste] {e}");
+                }
+            }
+        });
+        // Without the thread, jobs are dropped but transcripts still reach
+        // History, the same as when the clipboard is unavailable.
+        if let Err(e) = spawned {
+            eprintln!("[paste] couldn't start the paste thread: {e}");
+        }
         Self { tx }
     }
 
+    /// Queues `text` to be pasted into the focused app. Returns immediately.
     pub fn paste(&self, text: String, restore_clipboard: bool) {
         let _ = self.tx.send(Job {
             text,
@@ -109,11 +116,7 @@ fn save(clipboard: &mut Clipboard) -> Saved {
         return Saved::Text(text);
     }
     if let Ok(image) = clipboard.get_image() {
-        return Saved::Image(ImageData {
-            width: image.width,
-            height: image.height,
-            bytes: Cow::Owned(image.bytes.into_owned()),
-        });
+        return Saved::Image(image);
     }
     Saved::Empty
 }

@@ -7,9 +7,12 @@
 mod wayland;
 mod x11;
 
-use enigo::{Enigo, Key};
+use std::path::Path;
 
-use super::{Permission, PermissionKind};
+use enigo::{Enigo, Key};
+use tauri::WebviewWindow;
+
+use super::{HotkeyHandler, Permission, PermissionKind};
 
 pub const DEFAULT_HOTKEY: &str = "Ctrl+Shift+Space";
 
@@ -61,15 +64,12 @@ pub fn permission_settings_url(_kind: PermissionKind) -> Option<&'static str> {
     None
 }
 
-pub fn style_main_window(_window: &tauri::WebviewWindow) {}
+pub fn style_main_window(_window: &WebviewWindow) {}
 
 /// Single-modifier hotkeys aren't supported here yet.
 pub const MODIFIER_HOTKEYS: &[&str] = &[];
 
-pub fn start_modifier_hotkey(
-    _name: &str,
-    _handler: Box<dyn Fn(super::HotkeyEvent) + Send + Sync>,
-) -> Result<(), String> {
+pub fn start_modifier_hotkey(_name: &str, _handler: HotkeyHandler) -> Result<(), String> {
     Err("Single-key hotkeys aren't supported on this system yet".into())
 }
 
@@ -82,6 +82,6 @@ pub const NEURAL_ENGINE: bool = false;
 pub const ORT_ACCELERATOR: transcribe_rs::OrtAccelerator = transcribe_rs::OrtAccelerator::Auto;
 
 /// Only macOS downloads zipped model files.
-pub fn extract_zip(_zip: &std::path::Path, _dest: &std::path::Path) -> Result<(), String> {
+pub fn extract_zip(_zip: &Path, _dest: &Path) -> Result<(), String> {
     Err("Zipped model files aren't used on this system".into())
 }

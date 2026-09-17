@@ -8,7 +8,7 @@ use std::{
     collections::HashMap,
     path::{Path, PathBuf},
     sync::{
-        Arc, Mutex,
+        Arc, Mutex, MutexGuard,
         atomic::{AtomicBool, Ordering},
     },
     time::{Duration, Instant},
@@ -18,7 +18,7 @@ use futures_util::StreamExt;
 use serde::Serialize;
 use tokio::io::AsyncWriteExt;
 
-use crate::platform;
+use crate::{LockExt, platform};
 
 const WHISPER_BASE_URL: &str = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main";
 
@@ -78,7 +78,10 @@ const AUTO_ACCELERATOR_MB: u32 = 200;
 
 impl ModelInfo {
     pub fn supports_language(&self, language: &str) -> bool {
-        language == "auto" || self.languages.is_none_or(|languages| languages.contains(&language))
+        language == "auto"
+            || self
+                .languages
+                .is_none_or(|languages| languages.contains(&language))
     }
 }
 
@@ -257,8 +260,16 @@ struct Asset {
     zipped: bool,
 }
 
+/// Gives up on a connection that stops sending data, instead of showing the
+/// download as in progress forever.
+const READ_TIMEOUT: Duration = Duration::from_secs(30);
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(15);
+/// How often download progress is reported.
+const PROGRESS_INTERVAL: Duration = Duration::from_millis(200);
+
 pub struct ModelStore {
     dir: PathBuf,
+    /// Downloads in progress, by model id, with their cancel flags.
     active: Mutex<HashMap<String, Arc<AtomicBool>>>,
 }
 
@@ -268,6 +279,12 @@ impl ModelStore {
             dir,
             active: Mutex::new(HashMap::new()),
         }
+    }
+
+    /// Nothing panics while holding this lock and the map is valid after every
+    /// operation, so a poisoned lock is still safe to use.
+    fn active(&self) -> MutexGuard<'_, HashMap<String, Arc<AtomicBool>>> {
+        self.active.lock_unpoisoned()
     }
 
     /// The Whisper file or Parakeet folder the engine loads.
@@ -290,9 +307,11 @@ impl ModelStore {
                     dest: self.path(model),
                     zipped: false,
                 }];
-                if let (true, Some(zip), Some(dest)) =
-                    (with_accelerator, model.coreml_encoder, self.coreml_path(model))
-                {
+                if let (true, Some(zip), Some(dest)) = (
+                    with_accelerator,
+                    model.coreml_encoder,
+                    self.coreml_path(model),
+                ) {
                     assets.push(Asset {
                         url: format!("{WHISPER_BASE_URL}/{zip}"),
                         dest,
@@ -321,7 +340,10 @@ impl ModelStore {
     fn is_ready(&self, model: &ModelInfo) -> bool {
         match model.engine {
             EngineKind::Whisper => self.path(model).is_file(),
-            EngineKind::Parakeet => PARAKEET_FILES.iter().all(|f| self.path(model).join(f).is_file()),
+            EngineKind::Parakeet => {
+                let dir = self.path(model);
+                PARAKEET_FILES.iter().all(|f| dir.join(f).is_file())
+            }
         }
     }
 
@@ -334,7 +356,7 @@ impl ModelStore {
     }
 
     pub fn statuses(&self) -> Vec<ModelStatus> {
-        let active = self.active.lock().unwrap();
+        let active = self.active();
         CATALOG
             .iter()
             .map(|m| ModelStatus {
@@ -343,13 +365,18 @@ impl ModelStore {
                 downloading: active.contains_key(m.id),
                 accelerator: self.accelerator(m),
                 download_mb: m.size_mb
-                    + if auto_accelerator(m) { m.accelerator_mb } else { 0 },
+                    + if auto_accelerator(m) {
+                        m.accelerator_mb
+                    } else {
+                        0
+                    },
             })
             .collect()
     }
 
+    /// Asks a running download to stop. It ends with a "Download cancelled" error.
     pub fn cancel(&self, id: &str) {
-        if let Some(flag) = self.active.lock().unwrap().get(id) {
+        if let Some(flag) = self.active().get(id) {
             flag.store(true, Ordering::Relaxed);
         }
     }
@@ -360,7 +387,9 @@ impl ModelStore {
         // Large Turbo and its compressed build share one encoder; keep it while either is installed.
         if let Some(coreml) = self.coreml_path(model) {
             let shared = CATALOG.iter().any(|other| {
-                other.id != model.id && other.coreml_encoder == model.coreml_encoder && self.is_ready(other)
+                other.id != model.id
+                    && other.coreml_encoder == model.coreml_encoder
+                    && self.is_ready(other)
             });
             if !shared {
                 paths.push(coreml);
@@ -394,19 +423,18 @@ impl ModelStore {
         let model = find(id).ok_or("Unknown model")?;
         let cancelled = Arc::new(AtomicBool::new(false));
         {
-            let mut active = self.active.lock().unwrap();
+            let mut active = self.active();
             if active.contains_key(id) {
                 return Err("This model is already downloading".into());
             }
             active.insert(id.to_string(), cancelled.clone());
         }
+        // Clears the entry however this ends, including if the future is dropped.
+        let _active = ActiveDownload { store: self, id };
 
         let with_accelerator = accelerator.unwrap_or_else(|| auto_accelerator(model));
-        let result = self
-            .fetch_missing(model, with_accelerator, &cancelled, &on_progress)
-            .await;
-        self.active.lock().unwrap().remove(id);
-        result
+        self.fetch_missing(model, with_accelerator, &cancelled, &on_progress)
+            .await
     }
 
     async fn fetch_missing(
@@ -425,7 +453,11 @@ impl ModelStore {
             return Ok(());
         }
 
-        let client = reqwest::Client::new();
+        let client = reqwest::Client::builder()
+            .connect_timeout(CONNECT_TIMEOUT)
+            .read_timeout(READ_TIMEOUT)
+            .build()
+            .map_err(|e| format!("Download failed: {e}"))?;
         let mut sizes = Vec::with_capacity(missing.len());
         for asset in &missing {
             let size = client
@@ -448,8 +480,15 @@ impl ModelStore {
                 total,
             })
         };
+        let download = Download {
+            client: &client,
+            model_id: model.id,
+            cancelled,
+        };
         for (asset, size) in missing.iter().zip(sizes) {
-            fetch_asset(&client, asset, size, cancelled, &|bytes| report(done + bytes)).await?;
+            download
+                .fetch(asset, size, &|bytes| report(done + bytes))
+                .await?;
             done += size;
         }
         report(total);
@@ -457,75 +496,144 @@ impl ModelStore {
     }
 }
 
-async fn fetch_asset(
-    client: &reqwest::Client,
-    asset: &Asset,
-    expected: u64,
-    cancelled: &AtomicBool,
-    on_bytes: &impl Fn(u64),
-) -> Result<(), String> {
-    let dir = asset.dest.parent().ok_or("Invalid model path")?;
-    tokio::fs::create_dir_all(dir).await.map_err(|e| e.to_string())?;
-    let part = with_suffix(&asset.dest, if asset.zipped { ".zip.part" } else { ".part" });
+/// Removes a model from `ModelStore::active` when dropped.
+struct ActiveDownload<'a> {
+    store: &'a ModelStore,
+    id: &'a str,
+}
 
-    let response = client
-        .get(&asset.url)
-        .send()
-        .await
-        .and_then(|r| r.error_for_status())
-        .map_err(|e| format!("Download failed: {e}"))?;
-    let mut file = tokio::fs::File::create(&part).await.map_err(|e| e.to_string())?;
-    let mut stream = response.bytes_stream();
-    let mut downloaded = 0u64;
-    let mut last_report = Instant::now();
+impl Drop for ActiveDownload<'_> {
+    fn drop(&mut self) {
+        self.store.active().remove(self.id);
+    }
+}
 
-    let outcome: Result<(), String> = async {
+/// What every asset of one model's download shares.
+struct Download<'a> {
+    client: &'a reqwest::Client,
+    /// Names the temporary files, so models sharing an asset (the Turbo encoder)
+    /// can download at the same time without writing to the same file.
+    model_id: &'a str,
+    cancelled: &'a AtomicBool,
+}
+
+impl Download<'_> {
+    async fn fetch(
+        &self,
+        asset: &Asset,
+        expected: u64,
+        on_bytes: &impl Fn(u64),
+    ) -> Result<(), String> {
+        if self.cancelled.load(Ordering::Relaxed) {
+            return Err("Download cancelled".into());
+        }
+        let dir = asset.dest.parent().ok_or("Invalid model path")?;
+        tokio::fs::create_dir_all(dir)
+            .await
+            .map_err(|e| e.to_string())?;
+        let part = with_suffix(
+            &asset.dest,
+            &format!(
+                ".{}{}",
+                self.model_id,
+                if asset.zipped { ".zip.part" } else { ".part" }
+            ),
+        );
+
+        if let Err(e) = self.fetch_to(&asset.url, &part, expected, on_bytes).await {
+            let _ = tokio::fs::remove_file(&part).await;
+            return Err(e);
+        }
+
+        let result = if asset.zipped {
+            // Extract into a temporary folder, then move the result into place, so a
+            // half-extracted folder never looks installed. Unzipping takes a while,
+            // so it runs off the async runtime.
+            let staging = with_suffix(&asset.dest, &format!(".{}.extracting", self.model_id));
+            let (zip, dest) = (part.clone(), asset.dest.clone());
+            let installed = tauri::async_runtime::spawn_blocking(move || {
+                let result = install_zip(&zip, &staging, &dest);
+                let _ = std::fs::remove_dir_all(&staging);
+                result
+            })
+            .await
+            .unwrap_or_else(|e| Err(e.to_string()));
+            installed.map_err(|e| format!("Couldn't unpack the Neural Engine files: {e}"))
+        } else {
+            tokio::fs::rename(&part, &asset.dest)
+                .await
+                .map_err(|e| e.to_string())
+        };
+        let _ = tokio::fs::remove_file(&part).await;
+        result
+    }
+
+    /// Streams `url` into `part`, flushed to disk, checking for cancellation as
+    /// chunks arrive.
+    async fn fetch_to(
+        &self,
+        url: &str,
+        part: &Path,
+        expected: u64,
+        on_bytes: &impl Fn(u64),
+    ) -> Result<(), String> {
+        let response = self
+            .client
+            .get(url)
+            .send()
+            .await
+            .and_then(|r| r.error_for_status())
+            .map_err(|e| format!("Download failed: {e}"))?;
+        let mut file = tokio::fs::File::create(part)
+            .await
+            .map_err(|e| e.to_string())?;
+        let mut stream = response.bytes_stream();
+        let mut downloaded = 0u64;
+        let mut last_report = Instant::now();
+
         while let Some(chunk) = stream.next().await {
-            if cancelled.load(Ordering::Relaxed) {
+            if self.cancelled.load(Ordering::Relaxed) {
                 return Err("Download cancelled".into());
             }
             let chunk = chunk.map_err(|e| format!("Download interrupted: {e}"))?;
             file.write_all(&chunk).await.map_err(|e| e.to_string())?;
             downloaded += chunk.len() as u64;
-            if last_report.elapsed() >= Duration::from_millis(200) {
+            if last_report.elapsed() >= PROGRESS_INTERVAL {
                 on_bytes(downloaded);
                 last_report = Instant::now();
             }
         }
-        file.flush().await.map_err(|e| e.to_string())?;
         if expected > 0 && downloaded != expected {
-            return Err(format!("Download incomplete: got {downloaded} of {expected} bytes"));
+            return Err(format!(
+                "Download incomplete: got {downloaded} of {expected} bytes"
+            ));
         }
-        Ok(())
+        // Flushed to disk before it's renamed into place, so a power loss can't
+        // leave a truncated model under its final name. `flush` reports any
+        // failed buffered write, which `sync_all` alone would not.
+        file.flush().await.map_err(|e| e.to_string())?;
+        file.sync_all().await.map_err(|e| e.to_string())
     }
-    .await;
-    drop(file);
+}
 
-    if let Err(e) = outcome {
-        let _ = tokio::fs::remove_file(&part).await;
-        return Err(e);
-    }
-
-    if asset.zipped {
-        // Extract into a temporary folder, then move the result into place, so a
-        // half-extracted folder never looks installed.
-        let staging = with_suffix(&asset.dest, ".extracting");
-        let _ = tokio::fs::remove_dir_all(&staging).await;
-        let result = platform::extract_zip(&part, &staging).and_then(|()| {
-            let name = asset.dest.file_name().ok_or("Invalid model path")?;
-            std::fs::rename(staging.join(name), &asset.dest).map_err(|e| e.to_string())
-        });
-        let _ = tokio::fs::remove_file(&part).await;
-        let _ = tokio::fs::remove_dir_all(&staging).await;
-        result.map_err(|e| format!("Couldn't unpack the Neural Engine files: {e}"))
-    } else {
-        tokio::fs::rename(&part, &asset.dest).await.map_err(|e| e.to_string())
+/// Unzips `zip` into `staging` and moves the folder named like `dest` into place.
+fn install_zip(zip: &Path, staging: &Path, dest: &Path) -> Result<(), String> {
+    let _ = std::fs::remove_dir_all(staging);
+    platform::extract_zip(zip, staging)?;
+    let name = dest.file_name().ok_or("Invalid model path")?;
+    match std::fs::rename(staging.join(name), dest) {
+        Ok(()) => Ok(()),
+        // Another model sharing these files finished first.
+        Err(_) if dest.is_dir() => Ok(()),
+        Err(e) => Err(e.to_string()),
     }
 }
 
 /// Whether a model's Neural Engine files download with it by default on this OS.
 fn auto_accelerator(model: &ModelInfo) -> bool {
-    platform::NEURAL_ENGINE && model.coreml_encoder.is_some() && model.accelerator_mb <= AUTO_ACCELERATOR_MB
+    platform::NEURAL_ENGINE
+        && model.coreml_encoder.is_some()
+        && model.accelerator_mb <= AUTO_ACCELERATOR_MB
 }
 
 fn with_suffix(path: &Path, suffix: &str) -> PathBuf {
@@ -561,7 +669,200 @@ mod tests {
         let store = ModelStore::new(PathBuf::from("/models"));
         let assets = store.assets(find("parakeet-tdt-v2").unwrap(), true);
         assert_eq!(assets.len(), PARAKEET_FILES.len());
-        assert!(assets.iter().all(|a| a.dest.starts_with("/models/parakeet-tdt-0.6b-v2-int8")));
-        assert!(assets[0].url.starts_with("https://huggingface.co/istupakov/parakeet-tdt-0.6b-v2-onnx/"));
+        assert!(
+            assets
+                .iter()
+                .all(|a| a.dest.starts_with("/models/parakeet-tdt-0.6b-v2-int8"))
+        );
+        assert!(
+            assets[0]
+                .url
+                .starts_with("https://huggingface.co/istupakov/parakeet-tdt-0.6b-v2-onnx/")
+        );
+    }
+
+    /// A fresh models directory under the system temp dir, removed on drop.
+    struct TempStore {
+        store: ModelStore,
+        root: PathBuf,
+    }
+
+    impl TempStore {
+        fn new() -> Self {
+            let root =
+                std::env::temp_dir().join(format!("speaktype-test-{}", uuid::Uuid::new_v4()));
+            std::fs::create_dir_all(&root).unwrap();
+            Self {
+                store: ModelStore::new(root.clone()),
+                root,
+            }
+        }
+
+        fn touch(&self, model: &ModelInfo) {
+            let path = self.store.path(model);
+            match model.engine {
+                EngineKind::Whisper => std::fs::write(path, b"ggml").unwrap(),
+                EngineKind::Parakeet => {
+                    std::fs::create_dir_all(&path).unwrap();
+                    for file in PARAKEET_FILES {
+                        std::fs::write(path.join(file), b"onnx").unwrap();
+                    }
+                }
+            }
+        }
+    }
+
+    impl Drop for TempStore {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.root);
+        }
+    }
+
+    #[test]
+    fn whisper_assets_add_the_encoder_only_when_asked_and_supported() {
+        let store = ModelStore::new(PathBuf::from("/models"));
+        let model = find("base").unwrap();
+
+        let plain = store.assets(model, false);
+        assert_eq!(plain.len(), 1);
+        assert_eq!(plain[0].dest, PathBuf::from("/models/ggml-base.bin"));
+        assert_eq!(plain[0].url, format!("{WHISPER_BASE_URL}/ggml-base.bin"));
+        assert!(!plain[0].zipped);
+
+        let accelerated = store.assets(model, true);
+        if platform::NEURAL_ENGINE {
+            assert_eq!(accelerated.len(), 2);
+            let encoder = &accelerated[1];
+            assert!(encoder.zipped);
+            assert_eq!(
+                encoder.dest,
+                PathBuf::from("/models/ggml-base-encoder.mlmodelc")
+            );
+            assert!(encoder.url.ends_with("/ggml-base-encoder.mlmodelc.zip"));
+        } else {
+            assert_eq!(accelerated.len(), 1);
+        }
+    }
+
+    #[test]
+    fn statuses_include_small_encoders_in_the_download_size() {
+        let store = ModelStore::new(PathBuf::from("/nonexistent/models"));
+        let statuses = store.statuses();
+        assert_eq!(statuses.len(), CATALOG.len());
+        let size = |id: &str| {
+            statuses
+                .iter()
+                .find(|s| s.info.id == id)
+                .unwrap()
+                .download_mb
+        };
+        let small = if platform::NEURAL_ENGINE {
+            142 + 36
+        } else {
+            142
+        };
+        assert_eq!(size("base"), small);
+        // Turbo's 1.1 GB encoder is an optional extra.
+        assert_eq!(size("large-v3-turbo"), 1624);
+        assert!(statuses.iter().all(|s| !s.downloaded && !s.downloading));
+    }
+
+    #[test]
+    fn parakeet_is_ready_only_with_every_file() {
+        let temp = TempStore::new();
+        let model = find("parakeet-tdt-v3").unwrap();
+        assert!(!temp.store.is_downloaded(model.id));
+        temp.touch(model);
+        assert!(temp.store.is_downloaded(model.id));
+        std::fs::remove_file(temp.store.path(model).join(PARAKEET_FILES[1])).unwrap();
+        assert!(!temp.store.is_downloaded(model.id));
+        assert!(!temp.store.is_downloaded("no-such-model"));
+    }
+
+    #[test]
+    fn delete_keeps_an_encoder_another_model_still_uses() {
+        let temp = TempStore::new();
+        let turbo = find("large-v3-turbo").unwrap();
+        let compressed = find("large-v3-turbo-q5").unwrap();
+        temp.touch(turbo);
+        temp.touch(compressed);
+        let encoder = temp.store.coreml_path(turbo);
+        if let Some(encoder) = &encoder {
+            std::fs::create_dir_all(encoder).unwrap();
+            assert_eq!(temp.store.accelerator(turbo), Accelerator::Installed);
+        }
+
+        temp.store.delete(turbo.id).unwrap();
+        assert!(!temp.store.is_downloaded(turbo.id));
+        if let Some(encoder) = &encoder {
+            assert!(encoder.is_dir(), "still used by the compressed model");
+        }
+
+        temp.store.delete(compressed.id).unwrap();
+        if let Some(encoder) = &encoder {
+            assert!(!encoder.exists());
+        }
+        // Deleting something that isn't installed is fine; unknown ids aren't.
+        temp.store.delete(compressed.id).unwrap();
+        assert!(temp.store.delete("no-such-model").is_err());
+    }
+
+    #[test]
+    fn download_of_an_installed_model_needs_no_network_and_clears_its_entry() {
+        let temp = TempStore::new();
+        let model = find("tiny").unwrap();
+        temp.touch(model);
+
+        let result = tauri::async_runtime::block_on(temp.store.download(
+            model.id,
+            Some(false),
+            |_| panic!("nothing to report"),
+        ));
+        assert_eq!(result, Ok(()));
+        assert!(temp.store.active().is_empty());
+
+        let unknown =
+            tauri::async_runtime::block_on(temp.store.download("no-such-model", None, |_| {}));
+        assert!(unknown.is_err());
+    }
+
+    #[test]
+    fn a_second_download_of_the_same_model_is_refused() {
+        let temp = TempStore::new();
+        let flag = Arc::new(AtomicBool::new(false));
+        temp.store.active().insert("tiny".into(), flag.clone());
+
+        let result = tauri::async_runtime::block_on(temp.store.download("tiny", None, |_| {}));
+        assert_eq!(result, Err("This model is already downloading".into()));
+        // The refused attempt must not clear the running download's entry.
+        assert!(temp.store.active().contains_key("tiny"));
+
+        temp.store.cancel("tiny");
+        assert!(flag.load(Ordering::Relaxed));
+    }
+
+    #[test]
+    fn active_entry_is_removed_when_a_download_is_dropped() {
+        let store = ModelStore::new(PathBuf::from("/models"));
+        store
+            .active()
+            .insert("tiny".into(), Arc::new(AtomicBool::new(false)));
+        drop(ActiveDownload {
+            store: &store,
+            id: "tiny",
+        });
+        assert!(store.active().is_empty());
+    }
+
+    #[test]
+    fn temporary_names_extend_the_file_name() {
+        assert_eq!(
+            with_suffix(Path::new("/m/ggml-base.bin"), ".base.part"),
+            PathBuf::from("/m/ggml-base.bin.base.part")
+        );
+        assert_eq!(
+            with_suffix(Path::new("/m/enc.mlmodelc"), ".tiny.extracting"),
+            PathBuf::from("/m/enc.mlmodelc.tiny.extracting")
+        );
     }
 }

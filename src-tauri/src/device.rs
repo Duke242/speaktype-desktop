@@ -8,24 +8,25 @@ use crate::models::{CATALOG, ModelInfo};
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DeviceInfo {
-    pub chip: String,
-    pub ram_gb: u32,
-    pub cores: usize,
+    chip: String,
+    ram_gb: u32,
+    cores: usize,
     /// Whether whisper.cpp runs on a GPU in this build.
-    pub gpu: bool,
+    gpu: bool,
     /// A short line like "Apple M3 Pro · 18 GB · Metal".
-    pub summary: String,
+    summary: String,
     /// 0..1 estimate of how fast this machine runs models.
-    pub performance_tier: f64,
+    performance_tier: f64,
 }
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Recommendation {
-    pub model_id: &'static str,
-    pub reason: String,
+    model_id: &'static str,
+    reason: String,
 }
 
+/// Reads the CPU and memory. Takes a moment, so callers cache the result.
 pub fn detect() -> DeviceInfo {
     let system = System::new_with_specifics(
         RefreshKind::nothing()
@@ -41,10 +42,10 @@ pub fn detect() -> DeviceInfo {
     let ram_gb = (system.total_memory() as f64 / 1024f64.powi(3)).round() as u32;
     let cores = System::physical_core_count().unwrap_or(4);
     let backend = gpu_backend();
-    let mut summary = format!("{chip} · {ram_gb} GB");
-    if let Some(backend) = backend {
-        summary.push_str(&format!(" · {backend}"));
-    }
+    let summary = match backend {
+        Some(backend) => format!("{chip} · {ram_gb} GB · {backend}"),
+        None => format!("{chip} · {ram_gb} GB"),
+    };
     DeviceInfo {
         performance_tier: performance_tier(&chip, cores, backend.is_some()),
         chip,
@@ -81,11 +82,10 @@ fn performance_tier(chip: &str, cores: usize, gpu: bool) -> f64 {
 
 fn apple_silicon_generation(chip: &str) -> Option<u32> {
     let rest = chip.strip_prefix("Apple M")?;
-    rest.chars()
-        .take_while(char::is_ascii_digit)
-        .collect::<String>()
-        .parse()
-        .ok()
+    let digits = rest
+        .find(|c: char| !c.is_ascii_digit())
+        .unwrap_or(rest.len());
+    rest[..digits].parse().ok()
 }
 
 /// Picks the model that best balances speed and accuracy for dictation on this machine.
@@ -101,6 +101,8 @@ pub fn recommend(device: &DeviceInfo, language: &str) -> Recommendation {
         .collect();
     let pool = if fits.is_empty() { candidates } else { fits };
 
+    // Multilingual Whisper models support every language, so the pool is only
+    // empty if the catalog changes; fall back to its first entry then.
     let best = pool
         .into_iter()
         .max_by(|a, b| score(a, device).total_cmp(&score(b, device)))
@@ -108,10 +110,17 @@ pub fn recommend(device: &DeviceInfo, language: &str) -> Recommendation {
 
     let reason = format!(
         "Fast and accurate enough for live dictation, and {} on your {}.",
-        if best.size_mb < 600 { "loads quickly" } else { "runs comfortably" },
+        if best.size_mb < 600 {
+            "loads quickly"
+        } else {
+            "runs comfortably"
+        },
         device.chip
     );
-    Recommendation { model_id: best.id, reason }
+    Recommendation {
+        model_id: best.id,
+        reason,
+    }
 }
 
 fn score(model: &ModelInfo, device: &DeviceInfo) -> f64 {
@@ -147,6 +156,23 @@ mod tests {
         assert_eq!(apple_silicon_generation("Apple M3 Pro"), Some(3));
         assert_eq!(apple_silicon_generation("Apple M10"), Some(10));
         assert_eq!(apple_silicon_generation("Intel(R) Core(TM) i7"), None);
+        assert_eq!(apple_silicon_generation("Apple M"), None);
+        assert_eq!(apple_silicon_generation("Apple M99999999999 Ultra"), None);
+    }
+
+    #[test]
+    fn performance_tier_stays_in_range() {
+        for (chip, cores, gpu) in [
+            ("Apple M1", 8, true),
+            ("Apple M9 Max", 64, true),
+            ("Apple M0", 0, true),
+            ("Intel Celeron", 1, false),
+            ("AMD Ryzen 9", 32, true),
+        ] {
+            let tier = performance_tier(chip, cores, gpu);
+            assert!((0.0..=1.0).contains(&tier), "{chip}: {tier}");
+        }
+        assert!(performance_tier("Apple M4", 10, true) > performance_tier("Apple M1", 10, true));
     }
 
     #[test]
@@ -168,6 +194,10 @@ mod tests {
         let rec = recommend(&device("Intel Celeron", 2, false), "auto");
         assert!(crate::models::find(rec.model_id).unwrap().min_ram_gb <= 2);
         let rec = recommend(&device("Intel Celeron", 2, false), "ja");
-        assert!(crate::models::find(rec.model_id).unwrap().supports_language("ja"));
+        assert!(
+            crate::models::find(rec.model_id)
+                .unwrap()
+                .supports_language("ja")
+        );
     }
 }

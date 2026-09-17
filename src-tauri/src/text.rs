@@ -42,6 +42,10 @@ pub fn process(raw: &str, options: &Options) -> String {
     }
 }
 
+/// The patterns below are fixed at compile time and exercised by the tests, so
+/// failing to compile one is a programming error.
+const STATIC_PATTERN: &str = "static regex pattern is valid";
+
 static PLACEHOLDERS: LazyLock<Vec<Regex>> = LazyLock::new(|| {
     [
         r"\[(?:BLANK_AUDIO|SILENCE)\]",
@@ -49,7 +53,7 @@ static PLACEHOLDERS: LazyLock<Vec<Regex>> = LazyLock::new(|| {
         r"\[\s*S\s*\]",
     ]
     .iter()
-    .map(|p| Regex::new(p).unwrap())
+    .map(|p| Regex::new(p).expect(STATIC_PATTERN))
     .collect()
 });
 
@@ -85,18 +89,19 @@ const NOISE_TERMS: &[&str] = &[
 
 static NOISE_LABEL: LazyLock<Regex> = LazyLock::new(|| {
     let terms: Vec<String> = NOISE_TERMS.iter().map(|t| regex::escape(t)).collect();
-    Regex::new(&format!(r"(?i)[\[(]\s*(?:{})\s*[\])]", terms.join("|"))).unwrap()
+    Regex::new(&format!(r"(?i)[\[(]\s*(?:{})\s*[\])]", terms.join("|"))).expect(STATIC_PATTERN)
 });
 
-static WHITESPACE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\s+").unwrap());
+static WHITESPACE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\s+").expect(STATIC_PATTERN));
 
 // The Swift pattern ends in a lookahead, `(?=$|[\s,.;:!?])`, which the regex crate
 // doesn't support. `remove_fillers` checks that boundary by hand instead.
-static FILLER: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"(?i)(^|[\s,.;:!?])(?:uh+|um+|umm+|uhm+|erm+|hmm+)").unwrap());
+static FILLER: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(r"(?i)(^|[\s,.;:!?])(?:uh+|um+|umm+|uhm+|erm+|hmm+)").expect(STATIC_PATTERN)
+});
 
 static SPACE_BEFORE_PUNCTUATION: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"\s+([,.;:!?])").unwrap());
+    LazyLock::new(|| Regex::new(r"\s+([,.;:!?])").expect(STATIC_PATTERN));
 
 /// Removes Whisper's placeholder tokens and bracketed noise labels, and
 /// optionally filler words ("Auto Edit").
@@ -128,7 +133,11 @@ fn remove_fillers(text: &str) -> String {
     let mut search_from = 0;
 
     while let Some(caps) = FILLER.captures_at(text, search_from) {
-        let whole = caps.get(0).unwrap();
+        // Group 0 is the whole match and group 1 always participates (it can
+        // match the empty `^`), so both are present on every match.
+        let (Some(whole), Some(boundary)) = (caps.get(0), caps.get(1)) else {
+            break;
+        };
         let rest = &text[whole.end()..];
         let mut after = rest.chars();
         let boundary_ok = match after.next() {
@@ -154,7 +163,7 @@ fn remove_fillers(text: &str) -> String {
             end += c.len_utf8();
         }
         out.push_str(&text[copied_to..whole.start()]);
-        out.push_str(caps.get(1).unwrap().as_str());
+        out.push_str(boundary.as_str());
         copied_to = end;
         search_from = end;
         if search_from >= text.len() {
@@ -200,25 +209,23 @@ fn dictionary_regex(trigger: &str, whole_word: bool) -> Option<Regex> {
 }
 
 static NUMBER: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"(?i)^\+?\(?\d(?:[\d\s.,\-()/:]*\d)?$").unwrap());
+    LazyLock::new(|| Regex::new(r"(?i)^\+?\(?\d(?:[\d\s.,\-()/:]*\d)?$").expect(STATIC_PATTERN));
 static EMAIL: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"(?i)^[^\s@]+@[^\s@]+\.[^\s@]+$").unwrap());
+    LazyLock::new(|| Regex::new(r"(?i)^[^\s@]+@[^\s@]+\.[^\s@]+$").expect(STATIC_PATTERN));
 static URL: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
         r"(?i)^(?:[a-z][a-z0-9+.\-]*://\S+|www\.\S+\.\S+|[a-z0-9\-]+(?:\.[a-z0-9\-]+)*\.[a-z]{2,}(?:[/:?#]\S*)?)$",
     )
-    .unwrap()
+    .expect(STATIC_PATTERN)
 });
 
 /// Drops the period Whisper adds after short non-prose dictations such as an
 /// email address, URL, number or single word. Sentences keep their period.
 pub fn strip_trailing_period(text: &str) -> String {
-    let trimmed = text.trim();
-    if !trimmed.ends_with('.') || trimmed.ends_with("..") {
+    let Some(candidate) = text.trim().strip_suffix('.') else {
         return text.to_string();
-    }
-    let candidate = &trimmed[..trimmed.len() - 1];
-    if candidate.is_empty() {
+    };
+    if candidate.is_empty() || candidate.ends_with('.') {
         return text.to_string();
     }
     let is_plain_token = !candidate.chars().any(|c| c.is_whitespace() || c == '.');
@@ -369,6 +376,40 @@ mod tests {
         ] {
             assert_eq!(strip_trailing_period(input), input, "input: {input:?}");
         }
+    }
+
+    #[test]
+    fn filler_removal_handles_unicode_neighbours() {
+        // Accented letters after a filler make it part of a word.
+        assert_eq!(normalize_transcription("umé ummé", true), "umé ummé");
+        // Multi-byte text around a removed filler survives intact.
+        assert_eq!(
+            normalize_transcription("café, um, naïve 日本語 uh", true),
+            "café, naïve 日本語"
+        );
+        // An ellipsis character isn't a boundary, so the filler stays.
+        assert_eq!(normalize_transcription("um… right", true), "um… right");
+        assert_eq!(normalize_transcription("", true), "");
+        assert_eq!(normalize_transcription("   ", true), "");
+    }
+
+    #[test]
+    fn dictionary_handles_unicode_and_empty_input() {
+        let entries = [entry("café", "coffee shop", true)];
+        assert_eq!(
+            apply_dictionary("Meet at the CAFÉ, not cafés", &entries),
+            "Meet at the coffee shop, not cafés"
+        );
+        let entries = [entry("  ", "x", true), entry("ß", "ss", false)];
+        assert_eq!(apply_dictionary("Straße", &entries), "Strasse");
+        assert_eq!(apply_dictionary("", &entries), "");
+    }
+
+    #[test]
+    fn smart_trailing_punctuation_handles_unicode() {
+        assert_eq!(strip_trailing_period("東京."), "東京");
+        assert_eq!(strip_trailing_period("naïve café."), "naïve café.");
+        assert_eq!(strip_trailing_period("é"), "é");
     }
 
     #[test]

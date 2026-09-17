@@ -18,14 +18,15 @@ enum Loaded {
     Parakeet(parakeet::Parakeet),
 }
 
+/// At most one model in memory, with the id it was loaded as.
 #[derive(Default)]
 pub struct Engine {
-    loaded: Option<(String, Loaded)>,
+    loaded: Option<(&'static str, Loaded)>,
 }
 
 impl Engine {
-    pub fn loaded_model(&self) -> Option<&str> {
-        self.loaded.as_ref().map(|(id, _)| id.as_str())
+    pub fn loaded_model(&self) -> Option<&'static str> {
+        self.loaded.as_ref().map(|(id, _)| *id)
     }
 
     /// Loads a model unless it is already the loaded one. The previous model is
@@ -39,7 +40,7 @@ impl Engine {
             EngineKind::Whisper => Loaded::Whisper(whisper::Whisper::load(path)?),
             EngineKind::Parakeet => Loaded::Parakeet(parakeet::Parakeet::load(path)?),
         };
-        self.loaded = Some((model.id.to_string(), loaded));
+        self.loaded = Some((model.id, loaded));
         Ok(())
     }
 

@@ -54,6 +54,10 @@ pub enum HotkeyEvent {
     Interrupted,
 }
 
+/// Receives single-modifier hotkey changes. Called on the listener's own
+/// thread, so it should return quickly.
+pub type HotkeyHandler = Box<dyn Fn(HotkeyEvent) + Send + Sync>;
+
 /// Holds the modifiers, taps `key`, then releases the modifiers even if the tap failed.
 fn press_combo(enigo: &mut Enigo, modifiers: &[Key], key: Key) -> Result<(), String> {
     let mut result = Ok(());

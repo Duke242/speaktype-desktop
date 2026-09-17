@@ -5,19 +5,19 @@
 //! trays don't report clicks, so there the menu is the only option.
 
 use std::{
-    sync::atomic::{AtomicU64, Ordering},
-    time::{SystemTime, UNIX_EPOCH},
+    sync::Mutex,
+    time::{Duration, Instant},
 };
 
 use tauri::{
-    AppHandle, Emitter, Manager, PhysicalPosition, Rect,
+    AppHandle, Emitter, Manager, PhysicalPosition, Rect, WebviewWindow,
     image::Image,
     menu::{Menu, MenuItem, PredefinedMenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
 };
 
 use crate::{
-    AppState,
+    AppState, LockExt,
     dictation::{Destination, DictationState, Event},
 };
 
@@ -30,7 +30,9 @@ const PANEL_GAP: f64 = 6.0;
 /// When the panel last hid itself because it lost focus. Clicking the icon
 /// while the panel is open blurs it first; without this the same click would
 /// immediately reopen it.
-static LAST_BLUR_HIDE_MS: AtomicU64 = AtomicU64::new(0);
+static LAST_BLUR_HIDE: Mutex<Option<Instant>> = Mutex::new(None);
+/// Clicks on the icon this soon after the panel hid itself are that same click.
+const REOPEN_DELAY: Duration = Duration::from_millis(300);
 
 // Template images: macOS tints them to match the menu bar.
 const ICON_IDLE: &[u8] = include_bytes!("../icons/tray/idle.png");
@@ -43,7 +45,10 @@ pub fn build(app: &AppHandle, visible: bool) -> tauri::Result<()> {
     let settings = MenuItem::with_id(app, "settings", "Settings…", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "Quit SpeakType", true, None::<&str>)?;
     let separator = PredefinedMenuItem::separator(app)?;
-    let menu = Menu::with_items(app, &[&dictate, &separator, &open, &settings, &separator, &quit])?;
+    let menu = Menu::with_items(
+        app,
+        &[&dictate, &separator, &open, &settings, &separator, &quit],
+    )?;
 
     TrayIconBuilder::with_id(TRAY_ID)
         .tooltip("SpeakType")
@@ -113,7 +118,7 @@ pub fn hide_panel(app: &AppHandle) {
 
 /// Called when the panel loses focus.
 pub fn panel_blurred(app: &AppHandle) {
-    LAST_BLUR_HIDE_MS.store(now_ms(), Ordering::Relaxed);
+    *LAST_BLUR_HIDE.lock_unpoisoned() = Some(Instant::now());
     hide_panel(app);
 }
 
@@ -125,7 +130,10 @@ fn toggle_panel(app: &AppHandle, icon: Rect) {
         let _ = panel.hide();
         return;
     }
-    if now_ms().saturating_sub(LAST_BLUR_HIDE_MS.load(Ordering::Relaxed)) < 300 {
+    let just_hidden = LAST_BLUR_HIDE
+        .lock_unpoisoned()
+        .is_some_and(|hidden| hidden.elapsed() < REOPEN_DELAY);
+    if just_hidden {
         return;
     }
     if let Some(position) = panel_position(app, &panel, icon) {
@@ -136,10 +144,12 @@ fn toggle_panel(app: &AppHandle, icon: Rect) {
     let _ = app.emit_to(PANEL_LABEL, "panel-shown", ());
 }
 
-/// Centres the panel on the icon, below it when the icon is in the top half of
-/// the screen (the macOS menu bar) and above it otherwise (a bottom taskbar),
-/// kept inside the screen.
-fn panel_position(app: &AppHandle, panel: &tauri::WebviewWindow, icon: Rect) -> Option<PhysicalPosition<i32>> {
+/// Where the panel goes for the icon at `icon`, on the monitor that shows it.
+fn panel_position(
+    app: &AppHandle,
+    panel: &WebviewWindow,
+    icon: Rect,
+) -> Option<PhysicalPosition<i32>> {
     let scale = panel.scale_factor().ok()?;
     let icon_position = icon.position.to_physical::<f64>(scale);
     let icon_size = icon.size.to_physical::<f64>(scale);
@@ -151,25 +161,86 @@ fn panel_position(app: &AppHandle, panel: &tauri::WebviewWindow, icon: Rect) -> 
         .or_else(|| app.primary_monitor().ok().flatten())?;
     let screen = monitor.position();
     let screen_size = monitor.size();
-    let gap = PANEL_GAP * scale;
 
-    let centre_x = icon_position.x + icon_size.width / 2.0;
-    let min_x = screen.x as f64 + gap;
-    let max_x = (screen.x + screen_size.width as i32) as f64 - size.width as f64 - gap;
-    let x = (centre_x - size.width as f64 / 2.0).clamp(min_x, max_x.max(min_x));
-
-    let in_top_half = icon_position.y < screen.y as f64 + screen_size.height as f64 / 2.0;
-    let y = if in_top_half {
-        icon_position.y + icon_size.height + gap
-    } else {
-        icon_position.y - size.height as f64 - gap
-    };
-    Some(PhysicalPosition::new(x.round() as i32, y.round() as i32))
+    let (x, y) = panel_origin(
+        (
+            icon_position.x,
+            icon_position.y,
+            icon_size.width,
+            icon_size.height,
+        ),
+        (f64::from(size.width), f64::from(size.height)),
+        (
+            f64::from(screen.x),
+            f64::from(screen.y),
+            f64::from(screen_size.width),
+            f64::from(screen_size.height),
+        ),
+        PANEL_GAP * scale,
+    );
+    Some(PhysicalPosition::new(x, y))
 }
 
-fn now_ms() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map(|d| d.as_millis() as u64)
-        .unwrap_or_default()
+/// Top-left corner of the panel, all in physical pixels with y growing
+/// downwards. The panel is centred on the icon, below it when the icon is in
+/// the top half of the screen (the macOS menu bar) and above it otherwise (a
+/// bottom taskbar), and kept inside the screen horizontally.
+fn panel_origin(
+    (icon_x, icon_y, icon_w, icon_h): (f64, f64, f64, f64),
+    (w, h): (f64, f64),
+    (screen_x, screen_y, screen_w, screen_h): (f64, f64, f64, f64),
+    gap: f64,
+) -> (i32, i32) {
+    let min_x = screen_x + gap;
+    let max_x = (screen_x + screen_w - w - gap).max(min_x);
+    let x = (icon_x + icon_w / 2.0 - w / 2.0).clamp(min_x, max_x);
+
+    let y = if icon_y < screen_y + screen_h / 2.0 {
+        icon_y + icon_h + gap
+    } else {
+        icon_y - h - gap
+    };
+    (x.round() as i32, y.round() as i32)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::panel_origin;
+
+    const SCREEN: (f64, f64, f64, f64) = (0.0, 0.0, 1920.0, 1080.0);
+    const PANEL: (f64, f64) = (300.0, 400.0);
+
+    #[test]
+    fn opens_below_a_menu_bar_icon() {
+        let icon = (1000.0, 0.0, 40.0, 24.0);
+        assert_eq!(panel_origin(icon, PANEL, SCREEN, 6.0), (870, 30));
+    }
+
+    #[test]
+    fn opens_above_a_taskbar_icon() {
+        let icon = (1000.0, 1040.0, 40.0, 40.0);
+        assert_eq!(panel_origin(icon, PANEL, SCREEN, 6.0), (870, 634));
+    }
+
+    #[test]
+    fn stays_inside_the_screen_edges() {
+        let right = (1900.0, 0.0, 20.0, 24.0);
+        assert_eq!(panel_origin(right, PANEL, SCREEN, 6.0), (1614, 30));
+        let left = (0.0, 0.0, 20.0, 24.0);
+        assert_eq!(panel_origin(left, PANEL, SCREEN, 6.0), (6, 30));
+    }
+
+    #[test]
+    fn uses_the_offset_of_a_secondary_monitor() {
+        let screen = (-1280.0, 0.0, 1280.0, 720.0);
+        let icon = (-700.0, 690.0, 30.0, 30.0);
+        assert_eq!(panel_origin(icon, PANEL, screen, 6.0), (-835, 284));
+    }
+
+    #[test]
+    fn a_panel_wider_than_the_screen_starts_at_its_left_edge() {
+        let screen = (0.0, 0.0, 200.0, 1080.0);
+        let icon = (100.0, 0.0, 20.0, 24.0);
+        assert_eq!(panel_origin(icon, PANEL, screen, 6.0), (6, 30));
+    }
 }

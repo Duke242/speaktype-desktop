@@ -1,43 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Hotkey } from "@/components/ui";
 import { cn } from "@/lib/cn";
-
-const MODIFIER_CODES = new Set([
-  "ControlLeft",
-  "ControlRight",
-  "ShiftLeft",
-  "ShiftRight",
-  "AltLeft",
-  "AltRight",
-  "MetaLeft",
-  "MetaRight",
-]);
-
-/**
- * Builds an accelerator such as "Ctrl+Shift+Space" from a key press.
- * KeyboardEvent.code names ("KeyD", "Digit1", "F5") are what the Rust side parses.
- */
-function acceleratorFrom(event: KeyboardEvent): string | null {
-  if (MODIFIER_CODES.has(event.code)) return null;
-  const parts: string[] = [];
-  if (event.ctrlKey) parts.push("Ctrl");
-  if (event.altKey) parts.push("Alt");
-  if (event.shiftKey) parts.push("Shift");
-  if (event.metaKey) parts.push("Super");
-  const key = event.code.replace(/^Key/, "").replace(/^Digit/, "");
-  // A bare letter would fire while typing, so require a modifier unless it's a function key.
-  if (parts.length === 0 && !/^F\d+$/.test(key)) return null;
-  return [...parts, key].join("+");
-}
-
-function heldModifiers(event: KeyboardEvent) {
-  const parts: string[] = [];
-  if (event.ctrlKey) parts.push("Ctrl");
-  if (event.altKey) parts.push("Alt");
-  if (event.shiftKey) parts.push("Shift");
-  if (event.metaKey) parts.push("Super");
-  return parts.join("+");
-}
+import { acceleratorFrom, heldModifiers } from "@/lib/hotkeys";
 
 export function HotkeyRecorder({ value, onChange }: { value: string; onChange: (hotkey: string) => void }) {
   const [recording, setRecording] = useState(false);

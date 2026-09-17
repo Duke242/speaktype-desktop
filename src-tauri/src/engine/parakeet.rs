@@ -11,6 +11,7 @@ pub struct Parakeet {
     model: ParakeetModel,
 }
 
+/// The accelerator is a global ONNX Runtime setting, so it is chosen once.
 static ACCELERATOR: Once = Once::new();
 
 impl Parakeet {

@@ -3,11 +3,16 @@
 //! Each recording runs on its own thread, because a cpal stream can't be moved
 //! between threads on every platform. Audio is kept in memory as mono f32 at the
 //! device's rate and resampled to 16 kHz for Whisper when the recording stops.
+//!
+//! The device callback runs on a real-time audio thread, so it only appends
+//! samples and publishes a level; the level is forwarded to `on_level` from the
+//! capture thread, keeping UI work off the audio thread.
 
 use std::{
     sync::{
         Arc, Mutex,
-        mpsc::{self, Receiver, Sender},
+        atomic::{AtomicU32, Ordering},
+        mpsc::{self, Receiver, RecvTimeoutError, Sender},
     },
     thread,
     time::{Duration, Instant},
@@ -19,17 +24,23 @@ use cpal::{
 };
 use serde::Serialize;
 
+use crate::LockExt;
+
 pub const WHISPER_SAMPLE_RATE: u32 = 16_000;
 
 /// How often the level meter is updated while recording.
 const LEVEL_INTERVAL: Duration = Duration::from_millis(33);
 
+/// Seconds of audio to reserve up front, so the device callback rarely has to
+/// grow the buffer during a typical dictation.
+const RESERVE_SECS: usize = 30;
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct InputDevice {
-    pub id: String,
-    pub name: String,
-    pub is_default: bool,
+    id: String,
+    name: String,
+    is_default: bool,
 }
 
 pub struct Captured {
@@ -67,14 +78,20 @@ pub fn list_input_devices() -> Vec<InputDevice> {
         .collect()
 }
 
+/// Samples shared between the device callback and the capture thread.
+type Buffer = Arc<Mutex<Vec<f32>>>;
+
+/// A running microphone capture. Dropping it without calling `finish` stops
+/// the microphone and discards the audio.
 pub struct Recording {
     stop_tx: Sender<()>,
-    done_rx: Receiver<Result<Captured, String>>,
+    done_rx: Receiver<Captured>,
 }
 
 impl Recording {
     /// Starts recording from `device_id`, or the default input if it is empty or
-    /// no longer connected. `on_level` receives the peak level (0..1) of recent audio.
+    /// no longer connected. `on_level` receives the smoothed loudness (0..1) of
+    /// recent audio, on the capture thread.
     pub fn start(
         device_id: &str,
         on_level: impl Fn(f32) + Send + 'static,
@@ -88,9 +105,9 @@ impl Recording {
             .name("audio-capture".into())
             .spawn(move || {
                 let started = Instant::now();
-                let buffer = Arc::new(Mutex::new(Vec::<f32>::new()));
-                let (stream, sample_rate) = match open_stream(&device_id, buffer.clone(), on_level)
-                {
+                let buffer = Buffer::default();
+                let level = Arc::new(AtomicU32::new(NO_LEVEL));
+                let (stream, sample_rate) = match open_stream(&device_id, &buffer, &level) {
                     Ok(opened) => opened,
                     Err(e) => {
                         let _ = ready_tx.send(Err(e));
@@ -99,16 +116,30 @@ impl Recording {
                 };
                 let _ = ready_tx.send(Ok(()));
 
-                // Blocks until `finish` is called or the Recording is dropped.
-                let _ = stop_rx.recv();
+                // Polling at half the meter's interval forwards every update
+                // without visibly delaying any.
+                loop {
+                    match stop_rx.recv_timeout(LEVEL_INTERVAL / 2) {
+                        Ok(()) => break,
+                        // The Recording was dropped: nobody wants the audio.
+                        Err(RecvTimeoutError::Disconnected) => return,
+                        Err(RecvTimeoutError::Timeout) => {
+                            let bits = level.swap(NO_LEVEL, Ordering::Relaxed);
+                            if bits != NO_LEVEL {
+                                on_level(f32::from_bits(bits));
+                            }
+                        }
+                    }
+                }
                 drop(stream);
 
-                let samples = std::mem::take(&mut *buffer.lock().unwrap());
-                let samples = resample(&samples, sample_rate, WHISPER_SAMPLE_RATE);
-                let _ = done_tx.send(Ok(Captured {
+                // The callback can't be holding the lock now that the stream is
+                // gone, and a Vec<f32> is valid even if a callback panicked.
+                let samples = std::mem::take(&mut *buffer.lock_unpoisoned());
+                let _ = done_tx.send(Captured {
                     duration_secs: started.elapsed().as_secs_f64(),
-                    samples,
-                }));
+                    samples: resample(&samples, sample_rate, WHISPER_SAMPLE_RATE),
+                });
             })
             .map_err(|e| e.to_string())?;
 
@@ -124,14 +155,18 @@ impl Recording {
         let _ = self.stop_tx.send(());
         self.done_rx
             .recv()
-            .unwrap_or_else(|_| Err("Audio thread exited unexpectedly".into()))
+            .map_err(|_| "Audio thread exited unexpectedly".into())
     }
 }
 
+/// Marks the shared level as already forwarded. No real level has these bits,
+/// since the meter only produces values in 0..1.
+const NO_LEVEL: u32 = u32::MAX;
+
 fn open_stream(
     device_id: &str,
-    buffer: Arc<Mutex<Vec<f32>>>,
-    on_level: impl Fn(f32) + Send + 'static,
+    buffer: &Buffer,
+    level: &Arc<AtomicU32>,
 ) -> Result<(cpal::Stream, u32), String> {
     let host = cpal::default_host();
     let device = device_id
@@ -144,19 +179,28 @@ fn open_stream(
         .default_input_config()
         .map_err(|e| format!("Microphone config: {e}"))?;
     let sample_rate = config.sample_rate();
-    let channels = config.channels() as usize;
+    let channels = usize::from(config.channels()).max(1);
     let format = config.sample_format();
     let stream_config = config.config();
 
-    let meter = LevelMeter::new(on_level);
+    buffer
+        .lock_unpoisoned()
+        .reserve(sample_rate as usize * RESERVE_SECS);
+
+    let sink = Sink {
+        channels,
+        buffer: buffer.clone(),
+        level: level.clone(),
+        meter: LevelMeter::new(),
+    };
     let stream = match format {
-        SampleFormat::I8 => build::<i8>(&device, &stream_config, channels, buffer, meter),
-        SampleFormat::I16 => build::<i16>(&device, &stream_config, channels, buffer, meter),
-        SampleFormat::I32 => build::<i32>(&device, &stream_config, channels, buffer, meter),
-        SampleFormat::U8 => build::<u8>(&device, &stream_config, channels, buffer, meter),
-        SampleFormat::U16 => build::<u16>(&device, &stream_config, channels, buffer, meter),
-        SampleFormat::F32 => build::<f32>(&device, &stream_config, channels, buffer, meter),
-        SampleFormat::F64 => build::<f64>(&device, &stream_config, channels, buffer, meter),
+        SampleFormat::I8 => build::<i8>(&device, &stream_config, sink),
+        SampleFormat::I16 => build::<i16>(&device, &stream_config, sink),
+        SampleFormat::I32 => build::<i32>(&device, &stream_config, sink),
+        SampleFormat::U8 => build::<u8>(&device, &stream_config, sink),
+        SampleFormat::U16 => build::<u16>(&device, &stream_config, sink),
+        SampleFormat::F32 => build::<f32>(&device, &stream_config, sink),
+        SampleFormat::F64 => build::<f64>(&device, &stream_config, sink),
         other => return Err(format!("Unsupported microphone sample format {other:?}")),
     }?;
     stream
@@ -165,12 +209,18 @@ fn open_stream(
     Ok((stream, sample_rate))
 }
 
+/// Everything the device callback owns.
+struct Sink {
+    channels: usize,
+    buffer: Buffer,
+    level: Arc<AtomicU32>,
+    meter: LevelMeter,
+}
+
 fn build<T>(
     device: &cpal::Device,
     config: &cpal::StreamConfig,
-    channels: usize,
-    buffer: Arc<Mutex<Vec<f32>>>,
-    mut meter: LevelMeter,
+    mut sink: Sink,
 ) -> Result<cpal::Stream, String>
 where
     T: SizedSample,
@@ -180,13 +230,18 @@ where
         .build_input_stream(
             *config,
             move |data: &[T], _: &_| {
-                let mut buf = buffer.lock().unwrap();
+                // Only the capture thread also locks, and only after the stream
+                // is dropped, so this never waits. Recovering from poisoning keeps
+                // a panic elsewhere from panicking the audio thread too.
+                let mut buf = sink.buffer.lock_unpoisoned();
                 let start = buf.len();
                 // Downmix to mono by averaging each frame's channels.
-                buf.extend(data.chunks(channels.max(1)).map(|frame| {
+                buf.extend(data.chunks(sink.channels).map(|frame| {
                     frame.iter().map(|s| f32::from_sample(*s)).sum::<f32>() / frame.len() as f32
                 }));
-                meter.push(&buf[start..]);
+                if let Some(level) = sink.meter.push(&buf[start..]) {
+                    sink.level.store(level.to_bits(), Ordering::Relaxed);
+                }
             },
             |err| eprintln!("[audio] stream error: {err}"),
             None,
@@ -199,7 +254,6 @@ where
 /// amplitude, a gate so room noise stays flat, and smoothing that rises fast
 /// and falls slowly.
 struct LevelMeter {
-    callback: Box<dyn Fn(f32) + Send>,
     sum_squares: f64,
     count: usize,
     peak: f32,
@@ -215,9 +269,8 @@ impl LevelMeter {
     const RISE: f32 = 0.55;
     const FALL: f32 = 0.18;
 
-    fn new(callback: impl Fn(f32) + Send + 'static) -> Self {
+    fn new() -> Self {
         Self {
-            callback: Box::new(callback),
             sum_squares: 0.0,
             count: 0,
             peak: 0.0,
@@ -226,26 +279,31 @@ impl LevelMeter {
         }
     }
 
-    fn push(&mut self, samples: &[f32]) {
+    /// Adds samples, and returns a new smoothed level once per `LEVEL_INTERVAL`.
+    fn push(&mut self, samples: &[f32]) -> Option<f32> {
         for s in samples {
-            self.sum_squares += (*s as f64) * (*s as f64);
+            self.sum_squares += f64::from(*s) * f64::from(*s);
             self.peak = self.peak.max(s.abs());
         }
         self.count += samples.len();
         if self.last_sent.elapsed() < LEVEL_INTERVAL || self.count == 0 {
-            return;
+            return None;
         }
 
         let rms = (self.sum_squares / self.count as f64).sqrt() as f32;
         let level = level_from_amplitudes(rms, self.peak);
-        let rate = if level > self.smoothed { Self::RISE } else { Self::FALL };
+        let rate = if level > self.smoothed {
+            Self::RISE
+        } else {
+            Self::FALL
+        };
         self.smoothed += (level - self.smoothed) * rate;
-        (self.callback)(self.smoothed);
 
         self.sum_squares = 0.0;
         self.count = 0;
         self.peak = 0.0;
         self.last_sent = Instant::now();
+        Some(self.smoothed)
     }
 }
 
@@ -262,32 +320,38 @@ fn level_from_amplitudes(rms: f32, peak: f32) -> f32 {
 /// Converts mono audio between sample rates using windowed-sinc interpolation.
 /// When downsampling, the filter cutoff drops to the new Nyquist frequency so
 /// high frequencies don't fold back into the speech band.
+///
+/// A rate of zero has no meaningful conversion and yields no samples.
 pub fn resample(input: &[f32], from: u32, to: u32) -> Vec<f32> {
+    if from == 0 || to == 0 {
+        return Vec::new();
+    }
     if from == to || input.is_empty() {
         return input.to_vec();
     }
     const ZERO_CROSSINGS: f64 = 12.0;
-    let ratio = to as f64 / from as f64;
+    let ratio = f64::from(to) / f64::from(from);
     let cutoff = ratio.min(1.0) * 0.95;
     let radius = ZERO_CROSSINGS / cutoff;
     let out_len = (input.len() as f64 * ratio).round() as usize;
-    let last = input.len() as isize - 1;
+    let last = input.len() - 1;
 
     let mut out = Vec::with_capacity(out_len);
     for i in 0..out_len {
         let center = i as f64 / ratio;
-        let lo = ((center - radius).ceil() as isize).max(0);
-        let hi = ((center + radius).floor() as isize).min(last);
+        // Float-to-int casts saturate, so a negative start clamps to 0.
+        let lo = (center - radius).ceil().max(0.0) as usize;
+        let hi = ((center + radius).floor() as usize).min(last);
         let mut sum = 0.0;
         let mut weight = 0.0;
-        for j in lo..=hi {
+        for (j, sample) in input.iter().enumerate().take(hi + 1).skip(lo) {
             let x = j as f64 - center;
             let t = std::f64::consts::PI * x * cutoff;
             let sinc = if t.abs() < 1e-9 { 1.0 } else { t.sin() / t };
             // Hann window over the filter's width.
             let window = 0.5 + 0.5 * (std::f64::consts::PI * x / radius).cos();
             let w = sinc * window;
-            sum += input[j as usize] as f64 * w;
+            sum += f64::from(*sample) * w;
             weight += w;
         }
         out.push(if weight.abs() > 1e-9 {
@@ -327,6 +391,26 @@ mod tests {
     }
 
     #[test]
+    fn level_ignores_nan_samples() {
+        let level = level_from_amplitudes(f32::NAN, f32::NAN);
+        assert_eq!(level, 0.0);
+    }
+
+    #[test]
+    fn meter_waits_for_its_interval_and_stays_in_range() {
+        let mut meter = LevelMeter::new();
+        assert_eq!(meter.push(&[1.0; 480]), None);
+        meter.last_sent -= LEVEL_INTERVAL;
+        let level = meter.push(&[1.0; 480]).expect("interval elapsed");
+        assert!((0.0..=1.0).contains(&level), "level {level}");
+        // A loud burst rises toward full scale but is smoothed.
+        assert!(level < 1.0);
+        // Nothing new to measure.
+        meter.last_sent -= LEVEL_INTERVAL;
+        assert_eq!(meter.push(&[]), None);
+    }
+
+    #[test]
     fn output_length_follows_the_rate_ratio() {
         assert_eq!(resample(&vec![0.0; 48_000], 48_000, 16_000).len(), 16_000);
         assert_eq!(resample(&vec![0.0; 44_100], 44_100, 16_000).len(), 16_000);
@@ -337,6 +421,22 @@ mod tests {
     fn same_rate_is_a_copy() {
         let input = vec![0.1, -0.2, 0.3];
         assert_eq!(resample(&input, 16_000, 16_000), input);
+    }
+
+    #[test]
+    fn tiny_and_degenerate_inputs_do_not_panic() {
+        assert!(resample(&[], 48_000, 16_000).is_empty());
+        assert!(resample(&[0.5], 0, 16_000).is_empty());
+        assert!(resample(&[0.5], 48_000, 0).is_empty());
+        // One sample at 48 kHz rounds to no output at 16 kHz.
+        assert!(resample(&[0.5], 48_000, 16_000).is_empty());
+        // A constant signal stays constant when upsampled, even from one sample.
+        let up = resample(&[0.5], 8_000, 16_000);
+        assert_eq!(up.len(), 2);
+        assert!(up.iter().all(|s| (s - 0.5).abs() < 1e-6), "{up:?}");
+        let up = resample(&[0.25, 0.25], 16_000, 48_000);
+        assert_eq!(up.len(), 6);
+        assert!(up.iter().all(|s| (s - 0.25).abs() < 1e-6), "{up:?}");
     }
 
     #[test]

@@ -3,7 +3,7 @@ name = "speaktype-desktop"
 version = "2.0.0"
 description = "Offline voice dictation for macOS, Windows and Linux"
 edition = "2024"
-rust-version = "1.85"
+rust-version = "1.88"
 
 [lib]
 name = "speaktype_lib"
@@ -52,3 +52,15 @@ x11rb = "0.13"
 [profile.release]
 lto = true
 codegen-units = 1
+
+[lints.rust]
+unsafe_op_in_unsafe_fn = "warn"
+missing_debug_implementations = "allow"
+unused_qualifications = "warn"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+undocumented_unsafe_blocks = "warn"
+dbg_macro = "warn"
+todo = "warn"
+unwrap_in_result = "warn"
