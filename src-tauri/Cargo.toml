@@ -9,6 +9,11 @@ rust-version = "1.88"
 name = "speaktype_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
+# The Dock and task manager show this name while developing.
+[[bin]]
+name = "SpeakType"
+path = "src/main.rs"
+
 [features]
 # GPU backends for whisper.cpp. CPU is the default so a plain build works everywhere.
 cuda = ["whisper-rs/cuda"]
