@@ -105,6 +105,22 @@ export function formatDay(ms: number) {
   });
 }
 
+/** 1 → "1 transcription", 21 → "21 transcriptions" */
+export function plural(count: number, noun: string) {
+  return `${formatNumber(count)} ${noun}${count === 1 ? "" : "s"}`;
+}
+
+/** "21 transcriptions, 3 dictionary words and your settings" */
+export function describeImport(parts: { transcripts: number; dictionary: number; settings?: boolean }) {
+  const items = [
+    parts.transcripts > 0 && plural(parts.transcripts, "transcription"),
+    parts.dictionary > 0 && plural(parts.dictionary, "dictionary word"),
+    parts.settings && "your settings",
+  ].filter((item): item is string => Boolean(item));
+  if (items.length <= 1) return items[0] ?? "";
+  return `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
+}
+
 export function countWords(text: string) {
   return text.split(/\s+/).filter(Boolean).length;
 }

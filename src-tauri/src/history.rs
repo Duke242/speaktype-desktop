@@ -38,6 +38,22 @@ pub struct StatsEntry {
     duration_secs: f64,
 }
 
+impl StatsEntry {
+    pub fn new(created_at: u64, word_count: usize, duration_secs: f64) -> Self {
+        Self {
+            created_at,
+            word_count,
+            duration_secs,
+        }
+    }
+}
+
+impl From<&HistoryItem> for StatsEntry {
+    fn from(item: &HistoryItem) -> Self {
+        Self::new(item.created_at, item.word_count, item.duration_secs)
+    }
+}
+
 pub struct History {
     items_path: PathBuf,
     stats_path: PathBuf,
@@ -55,7 +71,7 @@ impl History {
         let mut stats: Vec<StatsEntry> = read_json(&stats_path);
         // History saved before stats had their own file.
         if stats.is_empty() && !items.is_empty() {
-            stats = items.iter().map(stats_entry).collect();
+            stats = items.iter().map(StatsEntry::from).collect();
         }
         Self {
             items_path,
@@ -101,11 +117,49 @@ impl History {
             audio_path: audio_path.map(|p| p.to_string_lossy().into_owned()),
         };
         self.items.insert(0, item.clone());
-        self.stats.insert(0, stats_entry(&item));
+        self.stats.insert(0, StatsEntry::from(&item));
         // Save both even if the first fails; they're independent files.
         let items = write_json(&self.items_path, &self.items);
         let stats = write_json(&self.stats_path, &self.stats);
         items.and(stats).map(|()| Some(item))
+    }
+
+    /// Adds items and stats from elsewhere, skipping any already here, and keeps
+    /// both lists newest first. Returns how many items were added.
+    ///
+    /// Items match by id. Stats have no id, so they match by time and word count.
+    pub fn import(
+        &mut self,
+        items: Vec<HistoryItem>,
+        stats: Vec<StatsEntry>,
+    ) -> Result<usize, String> {
+        let before_items = self.items.len();
+        let before_stats = self.stats.len();
+        for item in items {
+            if !self.items.iter().any(|existing| existing.id == item.id) {
+                self.items.push(item);
+            }
+        }
+        for entry in stats {
+            if !self
+                .stats
+                .iter()
+                .any(|s| s.created_at == entry.created_at && s.word_count == entry.word_count)
+            {
+                self.stats.push(entry);
+            }
+        }
+        let added = self.items.len() - before_items;
+        if added == 0 && self.stats.len() == before_stats {
+            return Ok(0);
+        }
+        self.items
+            .sort_by_key(|item| std::cmp::Reverse(item.created_at));
+        self.stats
+            .sort_by_key(|entry| std::cmp::Reverse(entry.created_at));
+        let items = write_json(&self.items_path, &self.items);
+        let stats = write_json(&self.stats_path, &self.stats);
+        items.and(stats).map(|()| added)
     }
 
     /// Removes an item and its recording. Stats are kept.
@@ -131,14 +185,6 @@ impl History {
             .and_then(|item| item.audio_path.as_ref())
             .map(PathBuf::from)
             .filter(|path| path.is_file())
-    }
-}
-
-fn stats_entry(item: &HistoryItem) -> StatsEntry {
-    StatsEntry {
-        created_at: item.created_at,
-        word_count: item.word_count,
-        duration_secs: item.duration_secs,
     }
 }
 

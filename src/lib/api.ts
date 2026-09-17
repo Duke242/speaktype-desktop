@@ -141,6 +141,20 @@ export interface Permission {
   granted: boolean;
 }
 
+/** What was brought over from SpeakType 1. */
+export interface ImportSummary {
+  transcripts: number;
+  dictionary: number;
+  settings: boolean;
+}
+
+export interface LegacyStatus {
+  /** SpeakType 1's data on this computer, if there is any. */
+  available: { transcripts: number; dictionary: number } | null;
+  /** What was brought over at first launch. Only reported once. */
+  imported: ImportSummary | null;
+}
+
 export interface UpdateInfo {
   available: boolean;
   currentVersion: string;
@@ -177,6 +191,8 @@ export const api = {
   openPermissionSettings: (kind: PermissionKind) => invoke<void>("open_permission_settings", { kind }),
 
   checkForUpdate: () => invoke<UpdateInfo>("check_for_update"),
+  getLegacyStatus: () => invoke<LegacyStatus>("get_legacy_status"),
+  importLegacy: () => invoke<ImportSummary>("import_legacy"),
 
   openMainWindow: (route?: string) => invoke<void>("open_main_window", { route }),
   hideTrayPanel: () => invoke<void>("hide_tray_panel"),

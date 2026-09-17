@@ -4,6 +4,7 @@ mod device;
 mod dictation;
 mod engine;
 mod history;
+mod legacy;
 mod media;
 mod models;
 mod paste;
@@ -131,6 +132,8 @@ pub(crate) struct AppState {
     /// Set when the saved hotkey couldn't be registered at launch.
     pub hotkey_error: Mutex<Option<String>>,
     device: OnceLock<DeviceInfo>,
+    /// What was brought over from SpeakType 1 at first launch, until the UI has shown it.
+    pub legacy_import: Mutex<Option<legacy::ImportSummary>>,
 }
 
 impl AppState {
@@ -197,6 +200,37 @@ impl AppState {
     }
 }
 
+/// On a fresh install, brings over everything SpeakType 1 saved on this computer.
+///
+/// Settings are saved straight away, so this only ever happens once. Failures are
+/// logged and the app starts normally without the old data.
+fn import_speaktype1(
+    app: &AppHandle,
+    store: &SettingsStore,
+    settings: &mut Settings,
+    history: &mut History,
+) -> Option<legacy::ImportSummary> {
+    let path = legacy::preferences_path(&app.path().home_dir().ok()?)?;
+    let data = match legacy::V1Data::read(&path) {
+        Ok(data) => data?,
+        Err(e) => {
+            eprintln!("[legacy] {e}");
+            return None;
+        }
+    };
+    let summary = match legacy::import_all(&data, settings, history) {
+        Ok(summary) => summary,
+        Err(e) => {
+            eprintln!("[legacy] couldn't import history: {e}");
+            return None;
+        }
+    };
+    if let Err(e) = store.save(settings) {
+        eprintln!("[legacy] couldn't save imported settings: {e}");
+    }
+    (!summary.is_empty()).then_some(summary)
+}
+
 pub fn run() {
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
@@ -204,9 +238,16 @@ pub fn run() {
         .setup(|app| {
             engine::silence_logs();
             let settings_store = SettingsStore::new(app.path().app_config_dir()?);
-            let settings = settings_store.load();
-            let show_tray_icon = settings.show_tray_icon;
+            let fresh_install = !settings_store.exists();
+            let mut settings = settings_store.load();
             let data_dir = app.path().app_data_dir()?;
+            let mut history = History::load(&data_dir);
+            let legacy_import = if fresh_install {
+                import_speaktype1(app.handle(), &settings_store, &mut settings, &mut history)
+            } else {
+                None
+            };
+            let show_tray_icon = settings.show_tray_icon;
 
             app.manage(AppState {
                 settings: RwLock::new(settings),
@@ -214,7 +255,8 @@ pub fn run() {
                 models: ModelStore::new(data_dir.join("models")),
                 engine: Mutex::default(),
                 engine_loading: Mutex::new(None),
-                history: Mutex::new(History::load(&data_dir)),
+                history: Mutex::new(history),
+                legacy_import: Mutex::new(legacy_import),
                 controller: Controller::spawn(app.handle().clone())?,
                 dictation_state: Mutex::new(DictationState::Idle),
                 hotkey_error: Mutex::new(None),
@@ -280,6 +322,8 @@ pub fn run() {
             commands::clear_history,
             commands::read_history_audio,
             commands::reveal_history_audio,
+            commands::get_legacy_status,
+            commands::import_legacy,
             commands::toggle_dictation,
             commands::get_dictation_state,
             commands::get_permissions,

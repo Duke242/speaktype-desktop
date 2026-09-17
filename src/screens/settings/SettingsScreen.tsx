@@ -4,6 +4,7 @@ import {
   Command,
   Globe,
   Hand,
+  Import,
   Keyboard,
   Mic,
   Monitor,
@@ -38,8 +39,9 @@ import {
   useToast,
   type SelectOption,
 } from "@/components/ui";
-import { api, errorMessage, type InputDevice, type Settings, type UpdateInfo } from "@/lib/api";
+import { api, errorMessage, type InputDevice, type LegacyStatus, type Settings, type UpdateInfo } from "@/lib/api";
 import { cn } from "@/lib/cn";
+import { describeImport } from "@/lib/format";
 
 import { LANGUAGES, languageName } from "@/lib/languages";
 import { useStore } from "@/lib/store";
@@ -197,6 +199,7 @@ function GeneralTab() {
 
       <LanguageSection />
       <UpdatesSection />
+      <ImportSection />
     </>
   );
 }
@@ -275,6 +278,50 @@ function UpdatesSection() {
         </Button>
       </div>
       <UpdateDialog update={update} onClose={() => setUpdate(null)} />
+    </Section>
+  );
+}
+
+/** Only shown when SpeakType 1's data is on this computer. */
+function ImportSection() {
+  const toast = useToast();
+  const [available, setAvailable] = useState<LegacyStatus["available"]>(null);
+  const [importing, setImporting] = useState(false);
+
+  useEffect(() => {
+    api
+      .getLegacyStatus()
+      .then((status) => setAvailable(status.available))
+      .catch(() => {});
+  }, []);
+
+  if (!available) return null;
+
+  const run = async () => {
+    setImporting(true);
+    try {
+      const result = await api.importLegacy();
+      const what = describeImport(result);
+      toast(what ? `Imported ${what} from SpeakType 1.` : "Everything from SpeakType 1 is already here.");
+    } catch (error) {
+      toast(errorMessage(error), "error");
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  return (
+    <Section title="SpeakType 1">
+      <SettingRow
+        icon={Import}
+        tone="neutral"
+        label="Import from SpeakType 1"
+        description={`Found ${describeImport(available)} on this computer. Anything already here is skipped.`}
+      >
+        <Button loading={importing} onClick={run}>
+          Import
+        </Button>
+      </SettingRow>
     </Section>
   );
 }

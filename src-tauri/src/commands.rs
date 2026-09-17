@@ -17,6 +17,7 @@ use crate::{
     device::{self, DeviceInfo, Recommendation},
     dictation::{DictationState, Event},
     history::{HistoryItem, StatsEntry},
+    legacy::{self, ImportSummary, V1Data},
     models::ModelStatus,
     platform::{self, Permission, PermissionKind},
     settings::Settings,
@@ -285,6 +286,74 @@ pub async fn toggle_dictation(state: State<'_, AppState>) -> CommandResult<()> {
 #[tauri::command]
 pub async fn get_dictation_state(state: State<'_, AppState>) -> CommandResult<DictationState> {
     Ok(state.dictation_state.lock_unpoisoned().clone())
+}
+
+// ---- SpeakType 1 ----
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LegacyStatus {
+    /// SpeakType 1's data on this computer, if there is any.
+    available: Option<LegacyData>,
+    /// What was brought over at first launch. Reported once.
+    imported: Option<ImportSummary>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LegacyData {
+    transcripts: usize,
+    dictionary: usize,
+}
+
+fn read_legacy(app: &AppHandle) -> CommandResult<Option<V1Data>> {
+    let home = app.path().home_dir().map_err(|e| e.to_string())?;
+    match legacy::preferences_path(&home) {
+        Some(path) => V1Data::read(&path),
+        None => Ok(None),
+    }
+}
+
+#[tauri::command]
+pub async fn get_legacy_status(
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> CommandResult<LegacyStatus> {
+    let available = read_legacy(&app)?
+        .filter(|data| data.transcripts() > 0 || data.dictionary_len() > 0)
+        .map(|data| LegacyData {
+            transcripts: data.transcripts(),
+            dictionary: data.dictionary_len(),
+        });
+    Ok(LegacyStatus {
+        available,
+        imported: state.legacy_import.lock_unpoisoned().take(),
+    })
+}
+
+/// Adds SpeakType 1's history and dictionary entries that aren't here yet.
+/// Settings are left alone, since they may have been changed here since.
+#[tauri::command]
+pub async fn import_legacy(
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> CommandResult<ImportSummary> {
+    let data = read_legacy(&app)?.ok_or("There's no SpeakType 1 data on this computer")?;
+    let transcripts = data.import_history(&mut state.history.lock_unpoisoned())?;
+    let mut settings = state.settings();
+    let dictionary = data.import_dictionary(&mut settings);
+    if dictionary > 0 {
+        state.replace_settings(settings)?;
+        let _ = app.emit("settings-changed", ());
+    }
+    if transcripts > 0 {
+        let _ = app.emit("history-changed", ());
+    }
+    Ok(ImportSummary {
+        transcripts,
+        dictionary,
+        settings: false,
+    })
 }
 
 // ---- Permissions ----

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   accuracyTier,
   countWords,
+  describeImport,
   formatBytes,
   formatClock,
   formatDuration,
@@ -78,5 +79,15 @@ describe("text", () => {
     expect(hotkeyParts("Fn")).toEqual(["fn"]);
     expect(hotkeyParts("RightCommand")).toEqual(["Right ⌘"]);
     expect(hotkeyParts("Ctrl+Space")).toHaveLength(2);
+  });
+});
+
+describe("imports", () => {
+  it("describes what came over", () => {
+    expect(describeImport({ transcripts: 21, dictionary: 1, settings: true })).toBe(
+      "21 transcriptions, 1 dictionary word and your settings",
+    );
+    expect(describeImport({ transcripts: 1, dictionary: 0 })).toBe("1 transcription");
+    expect(describeImport({ transcripts: 0, dictionary: 0, settings: false })).toBe("");
   });
 });

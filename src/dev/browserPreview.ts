@@ -131,6 +131,14 @@ export function installBrowserPreview() {
             { kind: "microphone", granted: true },
             { kind: "accessibility", granted: false },
           ];
+        case "get_legacy_status":
+          return {
+            available: { transcripts: 21, dictionary: 3 },
+            // Add ?imported=1 to preview onboarding after an upgrade from SpeakType 1.
+            imported: params.get("imported") ? { transcripts: 21, dictionary: 3, settings: true } : null,
+          };
+        case "import_legacy":
+          return { transcripts: 21, dictionary: 3, settings: false };
         case "check_for_update":
           return { available: false, currentVersion: "2.0.0", latestVersion: "2.0.0", notes: "", url: "" };
         default:

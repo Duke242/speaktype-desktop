@@ -107,6 +107,11 @@ impl SettingsStore {
         }
     }
 
+    /// Whether settings have ever been saved here, i.e. this isn't a fresh install.
+    pub fn exists(&self) -> bool {
+        self.path.exists()
+    }
+
     /// Reads settings, falling back to defaults if the file is missing or unreadable.
     ///
     /// An unreadable file is moved aside to `settings.json.corrupt` and logged,
