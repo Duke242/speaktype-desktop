@@ -2,6 +2,7 @@
   "bundle": {
     "macOS": {
       "minimumSystemVersion": "13.0",
+      "signingIdentity": "-",
       "infoPlist": "bundle/macos/Info.plist",
       "entitlements": "bundle/macos/Entitlements.plist"
     }
