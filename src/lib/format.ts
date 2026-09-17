@@ -145,5 +145,12 @@ export function accuracyTier(score: number) {
   return "Rough";
 }
 
+/** 130 → "130m", 1179 → "19.7h", 12000 → "200h". Hours once minutes get hard to read. */
+export function formatMinutesSaved(minutes: number) {
+  if (minutes < 1000) return `${formatNumber(minutes)}m`;
+  const hours = minutes / 60;
+  return `${formatNumber(hours < 100 ? Math.round(hours * 10) / 10 : Math.round(hours))}h`;
+}
+
 /** Typing speed used to estimate time saved, as in the macOS app. */
 export const TYPING_WORDS_PER_MINUTE = 40;

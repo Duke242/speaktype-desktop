@@ -21,6 +21,7 @@ import { cn } from "@/lib/cn";
 import {
   TYPING_WORDS_PER_MINUTE,
   formatDuration,
+  formatMinutesSaved,
   formatNumber,
   formatRelative,
   startOfDay,
@@ -141,7 +142,7 @@ function OverviewCard({ stats, now }: { stats: StatsEntry[]; now: number }) {
       <div className="relative mt-7 grid grid-cols-2 gap-x-6 gap-y-5 border-t border-line-subtle pt-6">
         <Stat icon={Mic} tone="brand" value={formatNumber(todayCount)} label="Transcriptions today" />
         <Stat icon={AudioLines} tone="neutral" value={formatNumber(stats.length)} label="Total transcriptions" />
-        <Stat icon={Clock} tone="neutral" value={`${formatNumber(minutesSaved)}m`} label="Time saved typing" />
+        <Stat icon={Clock} tone="neutral" value={formatMinutesSaved(minutesSaved)} label="Time saved typing" />
         <Stat icon={Hash} tone="neutral" value={formatNumber(average)} label="Average words per note" />
       </div>
     </Card>
