@@ -5,18 +5,21 @@ import {
   Clock,
   Copy,
   Cpu,
+  Hash,
+  Mic,
   Sparkles,
   TriangleAlert,
   type LucideIcon,
 } from "lucide-react";
 import { useMemo } from "react";
 import type { Route } from "@/app/routes";
-import { Button, Callout, Card, EmptyState, Hotkey, IconButton, Page, Spinner } from "@/components/ui";
+import { Button, Callout, Card, EmptyState, Hotkey, IconButton, IconTile, Page, Spinner, type Tone } from "@/components/ui";
 import type { HistoryItem, StatsEntry } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import {
   TYPING_WORDS_PER_MINUTE,
   formatDuration,
+  formatMinutesSaved,
   formatNumber,
   formatRelative,
   startOfDay,
@@ -120,35 +123,38 @@ function OverviewCard({ stats, now }: { stats: StatsEntry[]; now: number }) {
   const average = stats.length ? Math.round(totalWords / stats.length) : 0;
 
   return (
-    <Card padding="lg" className="flex flex-col">
-      <h2 className="type-section">{greeting(new Date(now).getHours())}</h2>
-      <div className="mt-4 flex items-baseline gap-3">
-        <span className="type-display tabular-nums">{formatNumber(totalWords)}</span>
+    <Card padding="lg" className="relative flex flex-col overflow-hidden">
+      <h2 className="relative type-section">{greeting(new Date(now).getHours())}</h2>
+      <div className="relative mt-4 flex items-baseline gap-3">
+        <span className="type-display tabular-nums">
+          {formatNumber(totalWords)}
+        </span>
         <span className="type-body-lg text-ink-secondary">words transcribed</span>
       </div>
-      {minutesSaved > 0 ? (
-        <div className="mt-3 inline-flex items-center gap-1.5 self-start rounded-full bg-accent-soft px-2.5 py-1 type-small font-medium text-accent-ink">
-          <Clock size={13} strokeWidth={2.25} />
-          {formatDuration(minutesSaved * 60)} of typing saved
-        </div>
-      ) : (
-        <p className="mt-2 type-small text-ink-muted">Your words and time saved will add up here.</p>
-      )}
+      <p className="relative mt-2 type-small text-ink-muted">
+        {minutesSaved > 0
+          ? `That's about ${formatDuration(minutesSaved * 60)} of typing saved.`
+          : "Your words and time saved will add up here."}
+      </p>
 
-      <dl className="mt-auto grid grid-cols-3 divide-x divide-line-subtle border-t border-line-subtle pt-6">
-        <Stat label="Today" value={formatNumber(todayCount)} className="pl-0" />
-        <Stat label="All time" value={formatNumber(stats.length)} />
-        <Stat label="Words per note" value={formatNumber(average)} />
-      </dl>
+      <div className="relative mt-7 grid grid-cols-2 gap-x-6 gap-y-5 border-t border-line-subtle pt-6">
+        <Stat icon={Mic} tone="brand" value={formatNumber(todayCount)} label="Transcriptions today" />
+        <Stat icon={AudioLines} tone="neutral" value={formatNumber(stats.length)} label="Total transcriptions" />
+        <Stat icon={Clock} tone="neutral" value={formatMinutesSaved(minutesSaved)} label="Time saved typing" />
+        <Stat icon={Hash} tone="neutral" value={formatNumber(average)} label="Average words per note" />
+      </div>
     </Card>
   );
 }
 
-function Stat({ label, value, className }: { label: string; value: string; className?: string }) {
+function Stat({ icon, tone, value, label }: { icon: LucideIcon; tone: Tone; value: string; label: string }) {
   return (
-    <div className={cn("px-6", className)}>
-      <dt className="type-caption text-ink-muted">{label}</dt>
-      <dd className="mt-1 type-metric">{value}</dd>
+    <div className="flex items-center gap-3">
+      <IconTile icon={icon} tone={tone} size="md" />
+      <div className="min-w-0">
+        <div className="type-metric">{value}</div>
+        <div className="type-caption text-ink-muted">{label}</div>
+      </div>
     </div>
   );
 }
@@ -250,30 +256,21 @@ function RecentCard({
 
       {items && items.length > 0 && (
         <ol className="px-3 pb-3">
-          {items.slice(0, 5).map((item, i, shown) => (
+          {items.slice(0, 5).map((item) => (
             <li
               key={item.id}
-              className="group relative flex gap-4 rounded-control px-3 py-3 transition-colors hover:bg-hover/60"
+              className={cn(
+                "group relative flex gap-6 rounded-control px-3 py-3.5 transition-colors hover:bg-hover/60",
+                // Hairline between rows, hidden next to the highlighted row.
+                "not-first:before:absolute not-first:before:inset-x-3 not-first:before:top-0 not-first:before:h-px not-first:before:bg-line-subtle",
+                "hover:before:opacity-0 [&:hover+li]:before:opacity-0",
+              )}
             >
-              <div className="w-[76px] shrink-0 pt-px text-right">
+              <div className="w-[76px] shrink-0 pt-px">
                 <div className="type-small font-medium text-ink tabular-nums">{formatRelative(item.createdAt, now)}</div>
                 <div className="mt-0.5 type-caption text-ink-muted tabular-nums">
                   {item.wordCount} {item.wordCount === 1 ? "word" : "words"}
                 </div>
-              </div>
-
-              {/* Timeline rail: a dot per transcript, joined by a hairline. */}
-              <div className="relative w-2 shrink-0">
-                {i > 0 && <span className="absolute -top-3 left-1/2 h-[21px] w-px -translate-x-1/2 bg-line" />}
-                <span
-                  className={cn(
-                    "absolute top-[9px] left-1/2 size-2 -translate-x-1/2 rounded-full ring-4 ring-surface",
-                    i === 0 ? "bg-accent" : "bg-line-strong",
-                  )}
-                />
-                {i < shown.length - 1 && (
-                  <span className="absolute top-[17px] -bottom-3 left-1/2 w-px -translate-x-1/2 bg-line" />
-                )}
               </div>
 
               <p data-selectable className="line-clamp-2 min-w-0 flex-1 pt-px type-body text-ink">
