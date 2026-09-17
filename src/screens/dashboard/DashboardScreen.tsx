@@ -117,6 +117,16 @@ function ReadinessBar({ onNavigate }: { onNavigate: (route: Route) => void }) {
   );
 }
 
+/** A single-spaced typed page holds about 500 words. */
+const WORDS_PER_PAGE = 500;
+
+function pagesLine(words: number) {
+  if (words === 0) return "Your words and time saved will add up here.";
+  if (words < WORDS_PER_PAGE) return `${formatNumber(WORDS_PER_PAGE - words)} words to go until your first full page.`;
+  const pages = Math.round(words / WORDS_PER_PAGE);
+  return `That's about ${formatNumber(pages)} ${pages === 1 ? "page" : "pages"} you didn't have to type.`;
+}
+
 function OverviewCard({ stats, now }: { stats: StatsEntry[]; now: number }) {
   const today = startOfDay(now);
   const totalWords = stats.reduce((sum, s) => sum + s.wordCount, 0);
@@ -134,9 +144,7 @@ function OverviewCard({ stats, now }: { stats: StatsEntry[]; now: number }) {
         <span className="type-body-lg text-ink-secondary">words transcribed</span>
       </div>
       <p className="relative mt-2 type-small text-ink-muted">
-        {minutesSaved > 0
-          ? `That's about ${formatDuration(minutesSaved * 60)} of typing saved.`
-          : "Your words and time saved will add up here."}
+        {pagesLine(totalWords)}
       </p>
 
       <div className="relative mt-7 grid grid-cols-2 gap-x-6 gap-y-5 border-t border-line-subtle pt-6">
@@ -260,6 +268,8 @@ function usePlayback() {
   return { playingId, toggle };
 }
 
+const RECENT_COUNT = 10;
+
 function RecentCard({
   items,
   now,
@@ -301,7 +311,7 @@ function RecentCard({
 
       {items && items.length > 0 && (
         <ol className="px-3 pb-3">
-          {items.slice(0, 5).map((item) => {
+          {items.slice(0, RECENT_COUNT).map((item) => {
             const copied = copiedKey === item.id;
             const playing = playback.playingId === item.id;
             return (
@@ -317,54 +327,58 @@ function RecentCard({
                 <button
                   type="button"
                   onClick={() => copy(item.transcript, item.id)}
-                  className="flex w-full cursor-pointer items-start gap-6 rounded-control py-3.5 pr-44 pl-3 text-left transition-colors hover:bg-hover/60 active:bg-hover"
+                  className="flex w-full cursor-pointer items-start gap-6 rounded-control py-3.5 pr-16 pl-3 text-left transition-colors hover:bg-hover/60 active:bg-hover"
                 >
-                  <div className="w-[76px] shrink-0 pt-px">
+                  <div className="w-[88px] shrink-0 pt-px">
                     <div className="type-small font-medium text-ink tabular-nums">
                       {formatRelative(item.createdAt, now)}
                     </div>
-                    <div className="mt-0.5 type-caption text-ink-muted tabular-nums">
-                      {item.wordCount} {item.wordCount === 1 ? "word" : "words"}
+                    {/* The word count turns into the copy hint on hover. */}
+                    <div className="mt-0.5 grid type-caption">
+                      <span
+                        className={cn(
+                          "col-start-1 row-start-1 text-ink-muted tabular-nums transition-opacity group-hover:opacity-0",
+                          copied && "opacity-0",
+                        )}
+                      >
+                        {item.wordCount} {item.wordCount === 1 ? "word" : "words"}
+                      </span>
+                      <span
+                        className={cn(
+                          "col-start-1 row-start-1 inline-flex items-center gap-1 font-medium whitespace-nowrap transition-opacity",
+                          copied ? "text-success" : "text-accent-ink opacity-0 group-hover:opacity-100",
+                        )}
+                      >
+                        {copied ? <Check size={12} strokeWidth={2.5} /> : <Copy size={12} strokeWidth={2.25} />}
+                        {copied ? "Copied" : "Click to copy"}
+                      </span>
                     </div>
                   </div>
                   <p className="line-clamp-2 min-w-0 flex-1 pt-px type-body text-ink">{item.transcript}</p>
                 </button>
 
-                {/* Clicks here fall through to the row, except on the play button. */}
-                <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center gap-2">
-                  <span className="grid justify-items-end type-caption font-medium tabular-nums">
-                    <span
-                      className={cn(
-                        "col-start-1 row-start-1 inline-flex items-center gap-1.5 transition-opacity",
-                        copied ? "text-success" : "text-ink-muted opacity-0 group-hover:opacity-100",
-                      )}
-                    >
-                      {copied ? <Check size={13} strokeWidth={2.25} /> : <Copy size={13} strokeWidth={2} />}
-                      {copied ? "Copied" : "Click to copy"}
-                    </span>
-                    <span
-                      className={cn(
-                        "col-start-1 row-start-1 text-ink-muted transition-opacity group-hover:opacity-0",
-                        copied && "opacity-0",
-                      )}
-                    >
-                      {formatDuration(item.durationSecs)}
-                    </span>
+                {/* The recording length turns into a play button on hover. */}
+                <div className="pointer-events-none absolute inset-y-0 right-3 grid w-10 items-center justify-items-end">
+                  <span
+                    className={cn(
+                      "col-start-1 row-start-1 type-caption text-ink-muted tabular-nums transition-opacity",
+                      item.audioPath && "group-hover:opacity-0",
+                      playing && "opacity-0",
+                    )}
+                  >
+                    {formatDuration(item.durationSecs)}
                   </span>
-                  {item.audioPath ? (
+                  {item.audioPath && (
                     <IconButton
                       icon={playing ? Pause : Play}
                       label={playing ? "Stop" : "Play recording"}
                       size="sm"
                       onClick={() => playback.toggle(item.id)}
                       className={cn(
-                        "pointer-events-auto transition-[opacity,background-color,color]",
+                        "pointer-events-auto col-start-1 row-start-1 transition-[opacity,background-color,color]",
                         playing ? "bg-hover text-ink" : "opacity-0 group-hover:opacity-100 focus-visible:opacity-100",
                       )}
                     />
-                  ) : (
-                    // Keeps durations lined up with rows that have a play button.
-                    <span className="size-8" />
                   )}
                 </div>
               </li>
