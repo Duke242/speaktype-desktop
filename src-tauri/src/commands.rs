@@ -5,7 +5,7 @@
 //! Work that can block for a while, like waiting for the engine, runs on the
 //! blocking thread pool so it doesn't hold up other commands.
 
-use std::{path::PathBuf, time::Duration};
+use std::time::Duration;
 
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, State, ipc::Response};
@@ -15,11 +15,9 @@ use crate::{
     AppState, LockExt,
     audio::{self, InputDevice},
     device::{self, DeviceInfo, Recommendation},
-    dictation::{Destination, DictationState, Event},
+    dictation::{DictationState, Event},
     history::{HistoryItem, StatsEntry},
-    media,
     models::ModelStatus,
-    pipeline,
     platform::{self, Permission, PermissionKind},
     settings::Settings,
     tray,
@@ -275,48 +273,18 @@ pub async fn reveal_history_audio(
         .map_err(|e| e.to_string())
 }
 
-// ---- Dictation and file transcription ----
+// ---- Dictation ----
 
-/// Starts or stops recording. `paste: false` sends the result to the Transcribe
-/// Audio screen instead of the focused app.
+/// Starts or stops recording, as if the hotkey was pressed in toggle mode.
 #[tauri::command]
-pub async fn toggle_dictation(state: State<'_, AppState>, paste: bool) -> CommandResult<()> {
-    let destination = if paste {
-        Destination::Paste
-    } else {
-        Destination::Screen
-    };
-    state.controller.send(Event::Toggle(destination));
+pub async fn toggle_dictation(state: State<'_, AppState>) -> CommandResult<()> {
+    state.controller.send(Event::Toggle);
     Ok(())
 }
 
 #[tauri::command]
 pub async fn get_dictation_state(state: State<'_, AppState>) -> CommandResult<DictationState> {
     Ok(state.dictation_state.lock_unpoisoned().clone())
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct FileTranscription {
-    text: String,
-    duration_secs: f64,
-}
-
-#[tauri::command]
-pub async fn transcribe_file(app: AppHandle, path: PathBuf) -> CommandResult<FileTranscription> {
-    tauri::async_runtime::spawn_blocking(move || {
-        let (samples, duration_secs) = media::decode_file(&path)?;
-        let item = pipeline::run(&app, &samples, duration_secs, |warming| {
-            let _ = app.emit("file-transcription-warming", warming);
-        })
-        .map_err(|e| e.to_string())?;
-        Ok(FileTranscription {
-            text: item.transcript,
-            duration_secs,
-        })
-    })
-    .await
-    .map_err(|e| e.to_string())?
 }
 
 // ---- Permissions ----

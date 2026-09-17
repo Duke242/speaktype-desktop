@@ -201,7 +201,6 @@ pub fn run() {
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
-        .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             engine::silence_logs();
             let settings_store = SettingsStore::new(app.path().app_config_dir()?);
@@ -283,7 +282,6 @@ pub fn run() {
             commands::reveal_history_audio,
             commands::toggle_dictation,
             commands::get_dictation_state,
-            commands::transcribe_file,
             commands::get_permissions,
             commands::request_permission,
             commands::open_permission_settings,

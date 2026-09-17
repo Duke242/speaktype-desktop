@@ -12,7 +12,6 @@
     "core:window:allow-start-dragging",
     "core:menu:default",
     "opener:default",
-    "dialog:allow-open",
     "core:window:allow-set-size",
     "core:window:allow-hide"
   ]

@@ -12,7 +12,6 @@ import { ModelsScreen } from "@/screens/models/ModelsScreen";
 import { OnboardingScreen } from "@/screens/onboarding/OnboardingScreen";
 import { SettingsScreen } from "@/screens/settings/SettingsScreen";
 import { StatisticsScreen } from "@/screens/statistics/StatisticsScreen";
-import { TranscribeScreen } from "@/screens/transcribe/TranscribeScreen";
 import type { Route } from "./routes";
 import { Sidebar } from "./Sidebar";
 
@@ -71,7 +70,6 @@ export function App() {
       <Sidebar route={route} onNavigate={setRoute} />
       <main key={route} className="h-full min-w-0 flex-1 animate-fade-in bg-app">
         {route === "dashboard" && <DashboardScreen onNavigate={setRoute} />}
-        {route === "transcribe" && <TranscribeScreen />}
         {route === "history" && <HistoryScreen />}
         {route === "dictionary" && <DictionaryScreen />}
         {route === "statistics" && <StatisticsScreen />}

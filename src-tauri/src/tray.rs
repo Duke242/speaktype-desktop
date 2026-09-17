@@ -18,7 +18,7 @@ use tauri::{
 
 use crate::{
     AppState, LockExt,
-    dictation::{Destination, DictationState, Event},
+    dictation::{DictationState, Event},
 };
 
 pub const TRAY_ID: &str = "main";
@@ -59,10 +59,7 @@ pub fn build(app: &AppHandle, visible: bool) -> tauri::Result<()> {
         .on_menu_event(|app, event| match event.id.as_ref() {
             "open" => open_main_window(app, None),
             "settings" => open_main_window(app, Some("settings")),
-            "dictate" => app
-                .state::<AppState>()
-                .controller
-                .send(Event::Toggle(Destination::Paste)),
+            "dictate" => app.state::<AppState>().controller.send(Event::Toggle),
             "quit" => app.exit(0),
             _ => {}
         })
@@ -90,7 +87,7 @@ pub fn show_state(app: &AppHandle, state: &DictationState) {
     let bytes = match state {
         DictationState::Idle => ICON_IDLE,
         DictationState::Recording { .. } => ICON_RECORDING,
-        DictationState::Transcribing { .. } => ICON_BUSY,
+        DictationState::Transcribing => ICON_BUSY,
     };
     if let Ok(icon) = Image::from_bytes(bytes) {
         let _ = tray.set_icon_with_as_template(Some(icon), true);

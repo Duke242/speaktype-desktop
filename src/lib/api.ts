@@ -123,17 +123,10 @@ export interface StatsEntry {
   durationSecs: number;
 }
 
-export type Destination = "paste" | "screen";
-
 export type DictationState =
   | { phase: "idle" }
-  | { phase: "recording"; startedAtMs: number; destination: Destination }
-  | { phase: "transcribing"; destination: Destination };
-
-export interface DictationResult {
-  text: string | null;
-  error: string | null;
-}
+  | { phase: "recording"; startedAtMs: number }
+  | { phase: "transcribing" };
 
 export type PillState =
   | { phase: "idle" }
@@ -156,11 +149,6 @@ export interface UpdateInfo {
   url: string;
 }
 
-export interface FileTranscription {
-  text: string;
-  durationSecs: number;
-}
-
 export const api = {
   getStatus: () => invoke<Status>("get_status"),
   getSettings: () => invoke<Settings>("get_settings"),
@@ -181,9 +169,8 @@ export const api = {
   readHistoryAudio: (id: string) => invoke<ArrayBuffer>("read_history_audio", { id }),
   revealHistoryAudio: (id: string) => invoke<void>("reveal_history_audio", { id }),
 
-  toggleDictation: (paste = true) => invoke<void>("toggle_dictation", { paste }),
+  toggleDictation: () => invoke<void>("toggle_dictation"),
   getDictationState: () => invoke<DictationState>("get_dictation_state"),
-  transcribeFile: (path: string) => invoke<FileTranscription>("transcribe_file", { path }),
 
   getPermissions: () => invoke<Permission[]>("get_permissions"),
   requestPermission: (kind: PermissionKind) => invoke<void>("request_permission", { kind }),

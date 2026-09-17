@@ -33,7 +33,6 @@ Each milestone is tagged `v2.0.0-alpha.N` so any build can be rolled back to.
 - [x] Recommended model for this machine
 - [x] Language choice with recent languages
 - [x] Filler-word removal, smart trailing punctuation, dictionary rules
-- [x] Transcribe audio and video files, drag and drop
 - [x] Parakeet v2 (English) and v3 (25 languages), on CPU, about 25–30x real time on an M3 Pro
 - [x] Neural Engine acceleration for Whisper on Apple Silicon (15–30% faster; optional for Turbo)
 - [ ] Parakeet on the Neural Engine (CoreML through ONNX Runtime was 3–4x slower than CPU)

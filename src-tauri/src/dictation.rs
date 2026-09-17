@@ -42,16 +42,6 @@ const ERROR_MESSAGE: Duration = Duration::from_millis(2000);
 const NO_SPEECH_MESSAGE: Duration = Duration::from_millis(1500);
 const STOPPING_MESSAGE: Duration = Duration::from_millis(800);
 
-/// Where a finished transcription goes.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub enum Destination {
-    /// Pasted into the focused app.
-    Paste,
-    /// Shown in the Transcribe Audio screen.
-    Screen,
-}
-
 /// Broadcast to the UI as `dictation-state`.
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "phase", rename_all = "camelCase")]
@@ -60,19 +50,8 @@ pub enum DictationState {
     #[serde(rename_all = "camelCase")]
     Recording {
         started_at_ms: u64,
-        destination: Destination,
     },
-    Transcribing {
-        destination: Destination,
-    },
-}
-
-/// Broadcast to the UI as `dictation-result` when a transcription for the screen finishes.
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct DictationResult {
-    text: Option<String>,
-    error: Option<String>,
+    Transcribing,
 }
 
 pub enum Event {
@@ -81,7 +60,7 @@ pub enum Event {
     /// Another key was pressed while a single-modifier hotkey was held.
     HotkeyInterrupted,
     /// Start or stop from the UI or tray, regardless of recording mode.
-    Toggle(Destination),
+    Toggle,
     Escape,
     /// A transcription worker started or finished waiting for the model.
     Warming {
@@ -107,7 +86,7 @@ enum Input {
     HotkeyDown,
     HotkeyUp,
     HotkeyInterrupted,
-    Toggle(Destination),
+    Toggle,
     Escape,
 }
 
@@ -127,7 +106,6 @@ enum Activity {
 enum Action {
     Nothing,
     Start {
-        destination: Destination,
         by_hotkey: bool,
     },
     /// Stops recording and transcribes. `cancelled` keeps the result from being pasted.
@@ -150,10 +128,7 @@ fn decide(input: Input, activity: Activity, mode: RecordingMode, hotkey_down: &m
                 return Action::Nothing;
             }
             match activity {
-                Activity::Idle => Action::Start {
-                    destination: Destination::Paste,
-                    by_hotkey: true,
-                },
+                Activity::Idle => Action::Start { by_hotkey: true },
                 Activity::Recording { .. } if mode == RecordingMode::Toggle => {
                     Action::Stop { cancelled: false }
                 }
@@ -179,11 +154,8 @@ fn decide(input: Input, activity: Activity, mode: RecordingMode, hotkey_down: &m
                 _ => Action::Nothing,
             }
         }
-        Input::Toggle(destination) => match activity {
-            Activity::Idle => Action::Start {
-                destination,
-                by_hotkey: false,
-            },
+        Input::Toggle => match activity {
+            Activity::Idle => Action::Start { by_hotkey: false },
             Activity::Recording { .. } => Action::Stop { cancelled: false },
             Activity::Transcribing => Action::Nothing,
         },
@@ -201,14 +173,12 @@ enum Phase {
     Idle,
     Recording {
         recording: Recording,
-        destination: Destination,
         by_hotkey: bool,
     },
     Transcribing {
         session: u64,
         /// Escape was pressed while recording.
         cancelled: bool,
-        destination: Destination,
     },
     /// A short status message before returning to idle.
     Message {
@@ -329,7 +299,7 @@ impl Session {
             Event::HotkeyDown => self.input(Input::HotkeyDown),
             Event::HotkeyUp => self.input(Input::HotkeyUp),
             Event::HotkeyInterrupted => self.input(Input::HotkeyInterrupted),
-            Event::Toggle(destination) => self.input(Input::Toggle(destination)),
+            Event::Toggle => self.input(Input::Toggle),
             Event::Escape => self.input(Input::Escape),
             Event::Warming { session, warming } => self.warming(session, warming),
             Event::Transcribed { session, outcome } => self.transcribed(session, outcome),
@@ -351,17 +321,14 @@ impl Session {
         let mode = self.state().settings().recording_mode;
         match decide(input, self.phase.activity(), mode, &mut self.hotkey_down) {
             Action::Nothing => {}
-            Action::Start {
-                destination,
-                by_hotkey,
-            } => self.start(destination, by_hotkey),
+            Action::Start { by_hotkey } => self.start(by_hotkey),
             Action::Stop { cancelled } => self.stop(cancelled),
             Action::Discard => self.go_idle(),
             Action::CancelTranscription => self.flash(STOPPING, STOPPING_MESSAGE),
         }
     }
 
-    fn start(&mut self, destination: Destination, by_hotkey: bool) {
+    fn start(&mut self, by_hotkey: bool) {
         let settings = self.state().settings();
         if settings.selected_model.is_empty() {
             return self.flash("No model selected", ERROR_MESSAGE);
@@ -379,15 +346,11 @@ impl Session {
                 let started_at_ms = now_ms();
                 self.phase = Phase::Recording {
                     recording,
-                    destination,
                     by_hotkey,
                 };
                 self.set_cancel_key(true);
                 self.show(PillState::Recording { started_at_ms });
-                self.broadcast(DictationState::Recording {
-                    started_at_ms,
-                    destination,
-                });
+                self.broadcast(DictationState::Recording { started_at_ms });
                 // Load the model while the user speaks, so it's ready on release.
                 self.state().warm_up(&self.app, &settings.selected_model);
             }
@@ -399,12 +362,7 @@ impl Session {
     }
 
     fn stop(&mut self, cancelled: bool) {
-        let Phase::Recording {
-            recording,
-            destination,
-            ..
-        } = mem::replace(&mut self.phase, Phase::Idle)
-        else {
+        let Phase::Recording { recording, .. } = mem::replace(&mut self.phase, Phase::Idle) else {
             return;
         };
         let captured = match recording.finish() {
@@ -417,16 +375,12 @@ impl Session {
 
         self.next_id += 1;
         let session = self.next_id;
-        self.phase = Phase::Transcribing {
-            session,
-            cancelled,
-            destination,
-        };
+        self.phase = Phase::Transcribing { session, cancelled };
         let message = if cancelled { STOPPING } else { TRANSCRIBING };
         self.show(PillState::Processing {
             message: message.into(),
         });
-        self.broadcast(DictationState::Transcribing { destination });
+        self.broadcast(DictationState::Transcribing);
 
         let app = self.app.clone();
         let controller = self.controller.clone();
@@ -464,7 +418,6 @@ impl Session {
         let Phase::Transcribing {
             session: current,
             cancelled,
-            destination,
         } = self.phase
         else {
             return;
@@ -473,23 +426,10 @@ impl Session {
             return;
         }
 
-        if destination == Destination::Screen {
-            let result = match &outcome {
-                Ok(text) => DictationResult {
-                    text: Some(text.clone()),
-                    error: None,
-                },
-                Err(e) => DictationResult {
-                    text: None,
-                    error: Some(e.message().into()),
-                },
-            };
-            let _ = self.app.emit("dictation-result", result);
-        }
         match outcome {
             Ok(text) => {
                 self.go_idle();
-                if !cancelled && destination == Destination::Paste {
+                if !cancelled {
                     let restore = self.state().settings().restore_clipboard;
                     self.paster.paste(text, restore);
                 }
@@ -605,8 +545,6 @@ fn transcribe(
 mod tests {
     use super::*;
 
-    const PASTE: Destination = Destination::Paste;
-
     /// Runs `inputs` from `activity`, returning each action.
     fn run(activity: Activity, mode: RecordingMode, inputs: &[Input]) -> Vec<Action> {
         let mut hotkey_down = false;
@@ -622,10 +560,7 @@ mod tests {
         let mode = RecordingMode::Hold;
         assert_eq!(
             decide(Input::HotkeyDown, Activity::Idle, mode, &mut down),
-            Action::Start {
-                destination: PASTE,
-                by_hotkey: true
-            }
+            Action::Start { by_hotkey: true }
         );
         let recording = Activity::Recording { by_hotkey: true };
         // Key repeat while held does nothing.
@@ -703,20 +638,20 @@ mod tests {
     #[test]
     fn toggle_starts_stops_and_waits_for_transcription() {
         let mode = RecordingMode::Hold;
-        let screen = Input::Toggle(Destination::Screen);
         assert_eq!(
-            run(Activity::Idle, mode, &[screen]),
-            [Action::Start {
-                destination: Destination::Screen,
-                by_hotkey: false
-            }]
+            run(Activity::Idle, mode, &[Input::Toggle]),
+            [Action::Start { by_hotkey: false }]
         );
         assert_eq!(
-            run(Activity::Recording { by_hotkey: false }, mode, &[screen]),
+            run(
+                Activity::Recording { by_hotkey: false },
+                mode,
+                &[Input::Toggle]
+            ),
             [Action::Stop { cancelled: false }]
         );
         assert_eq!(
-            run(Activity::Transcribing, mode, &[screen]),
+            run(Activity::Transcribing, mode, &[Input::Toggle]),
             [Action::Nothing]
         );
     }
