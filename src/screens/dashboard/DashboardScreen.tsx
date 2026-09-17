@@ -13,7 +13,7 @@ import {
 } from "lucide-react";
 import { useMemo } from "react";
 import type { Route } from "@/app/routes";
-import { Button, Callout, Card, EmptyState, Hotkey, IconButton, IconTile, Page, Spinner, type Tone } from "@/components/ui";
+import { Button, Callout, Card, EmptyState, Hotkey, IconTile, Page, Spinner, type Tone } from "@/components/ui";
 import type { HistoryItem, StatsEntry } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import {
@@ -138,7 +138,7 @@ function OverviewCard({ stats, now }: { stats: StatsEntry[]; now: number }) {
       </p>
 
       <div className="relative mt-7 grid grid-cols-2 gap-x-6 gap-y-5 border-t border-line-subtle pt-6">
-        <Stat icon={Mic} tone="brand" value={formatNumber(todayCount)} label="Transcriptions today" />
+        <Stat icon={Mic} tone="neutral" value={formatNumber(todayCount)} label="Transcriptions today" />
         <Stat icon={AudioLines} tone="neutral" value={formatNumber(stats.length)} label="Total transcriptions" />
         <Stat icon={Clock} tone="neutral" value={formatMinutesSaved(minutesSaved)} label="Time saved typing" />
         <Stat icon={Hash} tone="neutral" value={formatNumber(average)} label="Average words per note" />
@@ -256,39 +256,49 @@ function RecentCard({
 
       {items && items.length > 0 && (
         <ol className="px-3 pb-3">
-          {items.slice(0, 5).map((item) => (
-            <li
-              key={item.id}
-              className={cn(
-                "group relative flex gap-6 rounded-control px-3 py-3.5 transition-colors hover:bg-hover/60",
-                // Hairline between rows, hidden next to the highlighted row.
-                "not-first:before:absolute not-first:before:inset-x-3 not-first:before:top-0 not-first:before:h-px not-first:before:bg-line-subtle",
-                "hover:before:opacity-0 [&:hover+li]:before:opacity-0",
-              )}
-            >
-              <div className="w-[76px] shrink-0 pt-px">
-                <div className="type-small font-medium text-ink tabular-nums">{formatRelative(item.createdAt, now)}</div>
-                <div className="mt-0.5 type-caption text-ink-muted tabular-nums">
-                  {item.wordCount} {item.wordCount === 1 ? "word" : "words"}
-                </div>
-              </div>
-
-              <p data-selectable className="line-clamp-2 min-w-0 flex-1 pt-px type-body text-ink">
-                {item.transcript}
-              </p>
-
-              <IconButton
-                icon={copiedKey === item.id ? Check : Copy}
-                label={copiedKey === item.id ? "Copied" : "Copy"}
-                size="sm"
-                onClick={() => copy(item.transcript, item.id)}
+          {items.slice(0, 5).map((item) => {
+            const copied = copiedKey === item.id;
+            return (
+              <li
+                key={item.id}
                 className={cn(
-                  "-my-1 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100",
-                  copiedKey === item.id && "text-success opacity-100",
+                  "group relative",
+                  // Hairline between rows, hidden next to the highlighted row.
+                  "not-first:before:absolute not-first:before:inset-x-3 not-first:before:top-0 not-first:before:h-px not-first:before:bg-line-subtle",
+                  "hover:before:opacity-0 [&:hover+li]:before:opacity-0",
                 )}
-              />
-            </li>
-          ))}
+              >
+                <button
+                  type="button"
+                  onClick={() => copy(item.transcript, item.id)}
+                  className="flex w-full cursor-pointer items-start gap-6 rounded-control px-3 py-3.5 text-left transition-colors hover:bg-hover/60 active:bg-hover"
+                >
+                  <div className="w-[76px] shrink-0 pt-px">
+                    <div className="type-small font-medium text-ink tabular-nums">
+                      {formatRelative(item.createdAt, now)}
+                    </div>
+                    <div className="mt-0.5 type-caption text-ink-muted tabular-nums">
+                      {item.wordCount} {item.wordCount === 1 ? "word" : "words"}
+                    </div>
+                  </div>
+
+                  <p className="line-clamp-2 min-w-0 flex-1 pt-px type-body text-ink">{item.transcript}</p>
+
+                  <span
+                    className={cn(
+                      "flex w-24 shrink-0 items-center justify-end gap-1.5 pt-0.5 type-caption font-medium transition-opacity",
+                      copied
+                        ? "text-success opacity-100"
+                        : "text-ink-muted opacity-0 group-hover:opacity-100 group-focus-within:opacity-100",
+                    )}
+                  >
+                    {copied ? <Check size={13} strokeWidth={2.25} /> : <Copy size={13} strokeWidth={2} />}
+                    {copied ? "Copied" : "Click to copy"}
+                  </span>
+                </button>
+              </li>
+            );
+          })}
         </ol>
       )}
     </Card>
