@@ -9,7 +9,7 @@ async function save(patch: Partial<Settings>) {
   await api.saveSettings({ ...settings, ...patch });
 }
 
-/** Native menus open outside the small pill window, so they never get clipped. */
+/** Native menus open outside small windows like the pill and menu bar panel, so they never get clipped. */
 export async function showMicrophoneMenu(settings: Settings) {
   const devices = await api.listInputDevices();
   const menu = await Menu.new({
@@ -66,6 +66,22 @@ export async function showLanguageMenu(settings: Settings) {
           action: () => choose(code),
         })),
       },
+    ],
+  });
+  await menu.popup();
+}
+
+export async function showModelMenu(settings: Settings) {
+  const models = (await api.listModels()).filter((m) => m.downloaded);
+  const menu = await Menu.new({
+    items: [
+      ...models.map((model) => ({
+        text: model.name,
+        checked: model.id === settings.selectedModel,
+        action: () => save({ selectedModel: model.id }),
+      })),
+      ...(models.length ? [{ item: "Separator" as const }] : []),
+      { text: "Manage models…", action: () => api.openMainWindow("models") },
     ],
   });
   await menu.popup();

@@ -361,9 +361,11 @@
     background: transparent;
   }
 
-  /* The recorder pill window is transparent around the pill. */
+  /* The recorder pill and menu bar panel windows are transparent around their content. */
   html.pill-window,
-  html.pill-window body {
+  html.pill-window body,
+  html.panel-window,
+  html.panel-window body {
     background: transparent;
     overflow: hidden;
   }

@@ -190,6 +190,10 @@ export const api = {
   openPermissionSettings: (kind: PermissionKind) => invoke<void>("open_permission_settings", { kind }),
 
   checkForUpdate: () => invoke<UpdateInfo>("check_for_update"),
+
+  openMainWindow: (route?: string) => invoke<void>("open_main_window", { route }),
+  hideTrayPanel: () => invoke<void>("hide_tray_panel"),
+  quitApp: () => invoke<void>("quit_app"),
 };
 
 /** Turns a rejected invoke into a readable message. */

@@ -12,25 +12,22 @@ mod pipeline;
 mod platform;
 mod settings;
 mod text;
+mod tray;
 
 use std::sync::{Arc, Mutex, OnceLock, RwLock};
 
-use tauri::{
-    AppHandle, Emitter, Manager, RunEvent, WindowEvent,
-    menu::{Menu, MenuItem},
-    tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-};
+use tauri::{AppHandle, Emitter, Manager, RunEvent, WindowEvent};
 
 use crate::{
     device::DeviceInfo,
-    dictation::{Controller, Destination, DictationState, Event},
+    dictation::{Controller, DictationState, Event},
     history::History,
     models::{ModelInfo, ModelStore},
     settings::{Settings, SettingsStore},
     engine::Engine,
 };
 
-pub const TRAY_ID: &str = "main";
+pub use tray::TRAY_ID;
 
 /// Benchmarks for development (`cargo run --release --example transcribe_wav`).
 #[doc(hidden)]
@@ -193,17 +190,18 @@ pub fn run() {
                 state.device();
             });
 
-            build_tray(app.handle(), settings.show_tray_icon)?;
+            tray::build(app.handle(), settings.show_tray_icon)?;
             Ok(())
         })
-        .on_window_event(|window, event| {
+        .on_window_event(|window, event| match (window.label(), event) {
             // Closing the main window keeps SpeakType running in the tray.
-            if window.label() == "main"
-                && let WindowEvent::CloseRequested { api, .. } = event
-            {
+            ("main", WindowEvent::CloseRequested { api, .. }) => {
                 api.prevent_close();
                 let _ = window.hide();
             }
+            // The menu bar panel behaves like a popover: it closes when you click elsewhere.
+            (tray::PANEL_LABEL, WindowEvent::Focused(false)) => tray::panel_blurred(window.app_handle()),
+            _ => {}
         })
         .invoke_handler(tauri::generate_handler![
             commands::get_status,
@@ -229,6 +227,9 @@ pub fn run() {
             commands::request_permission,
             commands::open_permission_settings,
             commands::check_for_update,
+            commands::open_main_window,
+            commands::hide_tray_panel,
+            commands::quit_app,
         ])
         .build(tauri::generate_context!())
         .expect("error while building SpeakType");
@@ -237,53 +238,9 @@ pub fn run() {
         // macOS: clicking the Dock icon brings the hidden window back.
         #[cfg(target_os = "macos")]
         if let RunEvent::Reopen { .. } = event {
-            show_main_window(app);
+            tray::open_main_window(app, None);
         }
         #[cfg(not(target_os = "macos"))]
         let _ = (app, event);
     });
-}
-
-fn show_main_window(app: &AppHandle) {
-    if let Some(window) = app.get_webview_window("main") {
-        let _ = window.show();
-        let _ = window.unminimize();
-        let _ = window.set_focus();
-    }
-}
-
-fn build_tray(app: &AppHandle, visible: bool) -> tauri::Result<()> {
-    let open = MenuItem::with_id(app, "open", "Open SpeakType", true, None::<&str>)?;
-    let dictate = MenuItem::with_id(app, "dictate", "Start / Stop Dictation", true, None::<&str>)?;
-    let quit = MenuItem::with_id(app, "quit", "Quit SpeakType", true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&open, &dictate, &quit])?;
-
-    let mut tray = TrayIconBuilder::with_id(TRAY_ID)
-        .tooltip("SpeakType")
-        .menu(&menu)
-        .show_menu_on_left_click(false)
-        .on_menu_event(|app, event| match event.id.as_ref() {
-            "open" => show_main_window(app),
-            "dictate" => app
-                .state::<AppState>()
-                .controller
-                .send(Event::Toggle(Destination::Paste)),
-            "quit" => app.exit(0),
-            _ => {}
-        })
-        .on_tray_icon_event(|tray, event| {
-            if let TrayIconEvent::Click {
-                button: MouseButton::Left,
-                button_state: MouseButtonState::Up,
-                ..
-            } = event
-            {
-                show_main_window(tray.app_handle());
-            }
-        });
-    if let Some(icon) = app.default_window_icon() {
-        tray = tray.icon(icon.clone());
-    }
-    tray.build(app)?.set_visible(visible)?;
-    Ok(())
 }

@@ -28,15 +28,14 @@ export function Sidebar({ route, onNavigate }: { route: Route; onNavigate: (rout
               aria-current={active ? "page" : undefined}
               onClick={() => onNavigate(r)}
               className={cn(
-                "group relative flex h-9 items-center gap-3 rounded-control px-3 text-left type-label transition-colors duration-100",
-                active ? "bg-white/10 text-white" : "text-white/55 hover:bg-white/5 hover:text-white",
+                "group flex h-9 items-center gap-3 rounded-control px-3 text-left type-label transition-colors duration-150",
+                active ? "bg-white text-sidebar" : "text-white/60 hover:bg-white/8 hover:text-white",
               )}
             >
-              {active && <span className="absolute top-2 bottom-2 left-0 w-[3px] rounded-full bg-accent" />}
               <Icon
                 size={17}
                 strokeWidth={2}
-                className={cn("shrink-0 transition-colors", active ? "text-accent" : "text-white/40 group-hover:text-white/70")}
+                className={cn("shrink-0 transition-colors", active ? "text-sidebar" : "text-white/45 group-hover:text-white/80")}
               />
               {label}
             </button>

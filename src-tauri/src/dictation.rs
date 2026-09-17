@@ -408,6 +408,7 @@ impl Session {
 
     fn broadcast(&self, state: DictationState) {
         let _ = self.app.emit("dictation-state", &state);
+        crate::tray::show_state(&self.app, &state);
         *self.state().dictation_state.lock().unwrap() = state;
     }
 

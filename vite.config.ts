@@ -21,6 +21,7 @@ export default defineConfig({
       input: {
         main: resolve(import.meta.dirname, "index.html"),
         pill: resolve(import.meta.dirname, "pill.html"),
+        tray: resolve(import.meta.dirname, "tray.html"),
       },
     },
   },

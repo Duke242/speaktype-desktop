@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import { UpdateDialog } from "@/components/UpdateDialog";
 import { api, type UpdateInfo } from "@/lib/api";
 import { useStore } from "@/lib/store";
+import { useTauriEvent } from "@/lib/useTauriEvent";
+import { NAV } from "./routes";
 import { useApplyTheme } from "@/lib/theme";
 import { DashboardScreen } from "@/screens/dashboard/DashboardScreen";
 import { DictionaryScreen } from "@/screens/dictionary/DictionaryScreen";
@@ -43,6 +45,10 @@ function useDailyUpdateCheck(enabled: boolean) {
 export function App() {
   const { settings, models, updateSettings } = useStore();
   const [route, setRoute] = useState<Route>("dashboard");
+  // The menu bar panel can open a specific screen.
+  useTauriEvent<string>("navigate", ({ payload }) => {
+    if (NAV.some((item) => item.route === payload)) setRoute(payload as Route);
+  });
   useApplyTheme(settings.theme);
 
   // First launch without a model: start on AI Models, once.

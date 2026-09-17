@@ -37,6 +37,21 @@
         "focus": false,
         "focusable": false,
         "visibleOnAllWorkspaces": true
+      },
+      {
+        "label": "tray",
+        "title": "SpeakType",
+        "url": "tray.html",
+        "width": 356,
+        "height": 520,
+        "visible": false,
+        "decorations": false,
+        "transparent": true,
+        "shadow": false,
+        "resizable": false,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "visibleOnAllWorkspaces": true
       }
     ],
     "security": {

@@ -6,7 +6,7 @@ import { formatClock } from "@/lib/format";
 import { useNow } from "@/lib/hooks";
 import { useApplyTheme } from "@/lib/theme";
 import { useTauriEvent } from "@/lib/useTauriEvent";
-import { showLanguageMenu, showMicrophoneMenu, showModeMenu } from "./menus";
+import { showLanguageMenu, showMicrophoneMenu, showModeMenu } from "@/lib/menus";
 
 const WAVE_BARS = 34;
 const WAVE_HEIGHT = 22;

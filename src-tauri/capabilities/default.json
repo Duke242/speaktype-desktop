@@ -4,13 +4,16 @@
   "description": "Permissions for the main window and the recorder pill",
   "windows": [
     "main",
-    "pill"
+    "pill",
+    "tray"
   ],
   "permissions": [
     "core:default",
     "core:window:allow-start-dragging",
     "core:menu:default",
     "opener:default",
-    "dialog:allow-open"
+    "dialog:allow-open",
+    "core:window:allow-set-size",
+    "core:window:allow-hide"
   ]
 }

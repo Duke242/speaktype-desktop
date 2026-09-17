@@ -397,3 +397,24 @@ mod tests {
         assert!(!is_newer("1.0.20", "2.0.0-beta"));
     }
 }
+
+// ---- Windows ----
+
+/// Opens the main window, optionally on a screen such as "settings" or "history".
+#[tauri::command]
+pub async fn open_main_window(app: AppHandle, route: Option<String>) -> CommandResult<()> {
+    crate::tray::open_main_window(&app, route.as_deref());
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn hide_tray_panel(app: AppHandle) -> CommandResult<()> {
+    crate::tray::hide_panel(&app);
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn quit_app(app: AppHandle) -> CommandResult<()> {
+    app.exit(0);
+    Ok(())
+}
