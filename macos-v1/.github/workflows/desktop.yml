@@ -5,8 +5,10 @@ name: SpeakType 2
 # pre-release with installers for all three. SpeakType 1 keeps using ci.yml.
 
 on:
+  # Feature branches are covered by their pull request, so pushes only run on
+  # main and release tags. That avoids building every commit twice.
   push:
-    branches: [main, "feat/**"]
+    branches: [main]
     tags: ["v2.*"]
     paths:
       - "desktop/**"
@@ -38,8 +40,8 @@ jobs:
     name: Frontend (types, tests, build)
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
@@ -63,7 +65,7 @@ jobs:
             os: ubuntu-24.04
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: ./.github/actions/setup-desktop-build
       - name: Format
         if: runner.os == 'Linux'
@@ -80,8 +82,8 @@ jobs:
     name: Dependency audit
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
       - name: npm audit (production dependencies)
@@ -113,7 +115,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: ./.github/actions/setup-desktop-build
       - name: Build installers
         uses: tauri-apps/tauri-action@v0
