@@ -4,7 +4,7 @@ use std::{path::PathBuf, sync::MutexGuard};
 
 use tauri::{AppHandle, Emitter, Manager};
 
-use crate::{AppState, history::HistoryItem, media, models, text, transcribe::Engine};
+use crate::{AppState, engine::Engine, history::HistoryItem, media, models, text};
 
 pub enum Error {
     NoModel,

@@ -131,9 +131,8 @@ pub struct DeviceReport {
 pub async fn get_device_info(state: State<'_, AppState>) -> CommandResult<DeviceReport> {
     let device = state.device().clone();
     let language = state.settings().language;
-    let english_ok = language == "auto" || language == "en";
     Ok(DeviceReport {
-        recommendation: device::recommend(&device, english_ok),
+        recommendation: device::recommend(&device, &language),
         device,
     })
 }
@@ -143,11 +142,12 @@ pub async fn download_model(
     app: AppHandle,
     state: State<'_, AppState>,
     id: String,
+    accelerator: Option<bool>,
 ) -> CommandResult<()> {
     let _ = app.emit("models-changed", ());
     let result = state
         .models
-        .download(&id, |progress| {
+        .download(&id, accelerator, |progress| {
             let _ = app.emit("model-progress", progress);
         })
         .await;

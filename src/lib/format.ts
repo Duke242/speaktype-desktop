@@ -51,6 +51,12 @@ export function hotkeyParts(hotkey: string): string[] {
     .map((part) => (isMac && MAC_KEY_NAMES[part]) || KEY_NAMES[part] || part);
 }
 
+/** "English only", "25 languages" or "99 languages". */
+export function formatLanguages(model: { englishOnly: boolean; languages: string[] | null }) {
+  if (model.englishOnly) return "English only";
+  return `${model.languages?.length ?? 99} languages`;
+}
+
 export function formatModelSize(mb: number) {
   return mb >= 1000 ? `${(mb / 1024).toFixed(1)} GB` : `${mb} MB`;
 }

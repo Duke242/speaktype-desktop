@@ -1,0 +1,59 @@
+//! Speech-to-text engines behind one interface.
+//!
+//! - Whisper runs through whisper.cpp. On macOS it uses Metal, and the Neural
+//!   Engine for the encoder when the model's CoreML companion is downloaded.
+//! - Parakeet runs through ONNX Runtime.
+
+mod parakeet;
+mod whisper;
+
+use std::path::Path;
+
+pub use whisper::silence_logs;
+
+use crate::models::{EngineKind, ModelInfo};
+
+enum Loaded {
+    Whisper(whisper::Whisper),
+    Parakeet(parakeet::Parakeet),
+}
+
+#[derive(Default)]
+pub struct Engine {
+    loaded: Option<(String, Loaded)>,
+}
+
+impl Engine {
+    pub fn loaded_model(&self) -> Option<&str> {
+        self.loaded.as_ref().map(|(id, _)| id.as_str())
+    }
+
+    /// Loads a model unless it is already the loaded one. The previous model is
+    /// freed first so two large models are never in memory together.
+    pub fn load(&mut self, model: &ModelInfo, path: &Path) -> Result<(), String> {
+        if self.loaded_model() == Some(model.id) {
+            return Ok(());
+        }
+        self.loaded = None;
+        let loaded = match model.engine {
+            EngineKind::Whisper => Loaded::Whisper(whisper::Whisper::load(path)?),
+            EngineKind::Parakeet => Loaded::Parakeet(parakeet::Parakeet::load(path)?),
+        };
+        self.loaded = Some((model.id.to_string(), loaded));
+        Ok(())
+    }
+
+    pub fn unload(&mut self) {
+        self.loaded = None;
+    }
+
+    /// Transcribes 16 kHz mono audio. `language` is a Whisper code or "auto";
+    /// Parakeet detects the language itself.
+    pub fn transcribe(&mut self, samples: &[f32], language: &str) -> Result<String, String> {
+        match &mut self.loaded {
+            Some((_, Loaded::Whisper(model))) => model.transcribe(samples, language),
+            Some((_, Loaded::Parakeet(model))) => model.transcribe(samples),
+            None => Err("No model loaded".into()),
+        }
+    }
+}

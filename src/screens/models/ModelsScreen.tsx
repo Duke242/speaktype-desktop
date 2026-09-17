@@ -1,4 +1,4 @@
-import { ArrowDown, ArrowRight, Check, CircleCheck, HardDrive, Laptop, RotateCw, Sparkles, Trash2, TriangleAlert, X } from "lucide-react";
+import { ArrowDown, ArrowRight, Check, CircleCheck, HardDrive, Laptop, RotateCw, Sparkles, Trash2, TriangleAlert, X, Zap } from "lucide-react";
 import { useState } from "react";
 import {
   Badge,
@@ -14,7 +14,7 @@ import {
 } from "@/components/ui";
 import { api, type ModelStatus } from "@/lib/api";
 import { cn } from "@/lib/cn";
-import { accuracyTier, formatBytes, formatModelSize, speedTier } from "@/lib/format";
+import { accuracyTier, formatBytes, formatLanguages, formatModelSize, speedTier } from "@/lib/format";
 import { useDeviceReport, useEngineStatus } from "@/lib/hooks";
 import { useStore } from "@/lib/store";
 
@@ -95,7 +95,7 @@ function RecommendedCard({
           <MetricBar label="Speed" value={model.speed} tier={speedTier(model.speed)} />
           <MetricBar label="Accuracy" value={model.accuracy} tier={accuracyTier(model.accuracy)} />
           <p className="flex items-center gap-2 border-t border-line-subtle pt-4 type-small text-ink-secondary">
-            <HardDrive size={14} /> {formatModelSize(model.sizeMb)} download
+            <HardDrive size={14} /> {formatModelSize(model.downloadMb)} download
           </p>
         </div>
       </div>
@@ -124,8 +124,9 @@ function ModelRow({ model }: { model: ModelStatus }) {
             <MetricBar label="Speed" value={model.speed} tier={speedTier(model.speed)} className="w-44" />
             <MetricBar label="Accuracy" value={model.accuracy} tier={accuracyTier(model.accuracy)} className="w-44" />
             <span className="h-4 w-px bg-line" />
-            <span>{formatModelSize(model.sizeMb)}</span>
-            <span>{model.englishOnly ? "English only" : "Multilingual"}</span>
+            <span>{formatModelSize(model.downloaded ? model.sizeMb : model.downloadMb)}</span>
+            <span>{formatLanguages(model)}</span>
+            {model.accelerator === "installed" && <span className="font-medium text-ink">Neural Engine</span>}
             {model.downloaded && !active && <span className="font-medium text-success">Installed</span>}
           </div>
         </div>
@@ -180,11 +181,25 @@ function ModelAction({ model, large }: { model: ModelStatus; large?: boolean }) 
     </>
   );
 
+  // Neural Engine files that didn't come with the download (large models) can be added later.
+  const speedUp = model.accelerator === "missing" && (
+    <Button
+      size="sm"
+      variant="ghost"
+      icon={Zap}
+      title="Runs part of the model on the Neural Engine, about 15–30% faster"
+      onClick={() => downloadModel(model.id, true)}
+    >
+      Speed up · {formatModelSize(model.acceleratorMb)}
+    </Button>
+  );
+
   if (active) {
     const loading = engine.loading === model.id;
     if (!large) {
       return (
         <div className="flex items-center gap-2">
+          {speedUp}
           {loading && <Spinner size={14} className="mr-1 text-ink-muted" />}
           {deleteButton}
         </div>
@@ -203,6 +218,7 @@ function ModelAction({ model, large }: { model: ModelStatus; large?: boolean }) 
 
   return (
     <div className="flex items-center gap-2">
+      {speedUp}
       <Button variant={large ? "accent" : "secondary"} size={size} onClick={() => updateSettings({ selectedModel: model.id })}>
         Use this model
         <ArrowRight size={16} />
@@ -248,7 +264,7 @@ function DownloadError({ model, inline }: { model: ModelStatus; inline?: boolean
 }
 
 function LanguageBadge({ model }: { model: ModelStatus }) {
-  return model.englishOnly ? <Badge tone="neutral">English</Badge> : <Badge tone="neutral">Multilingual</Badge>;
+  return <Badge>{formatLanguages(model)}</Badge>;
 }
 
 function MetricBar({ label, value, tier, className }: { label: string; value: number; tier: string; className?: string }) {

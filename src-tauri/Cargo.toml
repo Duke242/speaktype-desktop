@@ -26,6 +26,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 cpal = "0.18"
 whisper-rs = "0.16"
+transcribe-rs = { version = "0.3", default-features = false, features = ["onnx"] }
 arboard = "3"
 enigo = "0.6"
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "stream", "json"] }
@@ -38,7 +39,8 @@ symphonia = { version = "0.6", default-features = false, features = ["aac", "ala
 sysinfo = { version = "0.39", default-features = false, features = ["system"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
-whisper-rs = { version = "0.16", features = ["metal"] }
+whisper-rs = { version = "0.16", features = ["metal", "coreml"] }
+transcribe-rs = { version = "0.3", default-features = false, features = ["onnx", "ort-coreml"] }
 objc2 = "0.6"
 block2 = "0.6"
 objc2-foundation = { version = "0.3", features = ["NSString"] }

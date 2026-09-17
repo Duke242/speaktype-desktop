@@ -61,12 +61,21 @@ export interface InputDevice {
   isDefault: boolean;
 }
 
+export type EngineKind = "whisper" | "parakeet";
+
 export interface ModelStatus {
   id: string;
   name: string;
-  file: string;
+  engine: EngineKind;
   sizeMb: number;
+  /** Size of a fresh download here, including Neural Engine files included by default. */
+  downloadMb: number;
+  /** Optional Neural Engine files for Whisper on macOS. */
+  acceleratorMb: number;
+  accelerator: "none" | "missing" | "installed";
   englishOnly: boolean;
+  /** Languages it transcribes, or null for all Whisper languages. */
+  languages: string[] | null;
   description: string;
   speed: number;
   accuracy: number;
@@ -161,7 +170,7 @@ export const api = {
   listModels: () => invoke<ModelStatus[]>("list_models"),
   getEngineStatus: () => invoke<EngineStatus>("get_engine_status"),
   getDeviceInfo: () => invoke<DeviceReport>("get_device_info"),
-  downloadModel: (id: string) => invoke<void>("download_model", { id }),
+  downloadModel: (id: string, accelerator?: boolean) => invoke<void>("download_model", { id, accelerator }),
   cancelDownload: (id: string) => invoke<void>("cancel_download", { id }),
   deleteModel: (id: string) => invoke<void>("delete_model", { id }),
 

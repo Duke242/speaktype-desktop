@@ -31,6 +31,29 @@ pub fn send_paste_shortcut(enigo: Option<&mut Enigo>) -> Result<(), String> {
     super::press_combo(enigo, &[Key::Meta], Key::Other(KEYCODE_V))
 }
 
+/// Whisper models get a CoreML encoder so they run on the Neural Engine.
+pub const NEURAL_ENGINE: bool = true;
+
+/// Parakeet runs on the CPU. ONNX Runtime's CoreML provider can't run most of the
+/// int8 model, and splitting it made transcription 3–4x slower on an M3 Pro
+/// (35 s of audio: 1.2–1.4 s on CPU, 3.5–5.2 s with CoreML).
+pub const ORT_ACCELERATOR: transcribe_rs::OrtAccelerator = transcribe_rs::OrtAccelerator::CpuOnly;
+
+/// Unzips with `ditto`, which ships with macOS and keeps bundle metadata intact.
+pub fn extract_zip(zip: &std::path::Path, dest: &std::path::Path) -> Result<(), String> {
+    let status = std::process::Command::new("/usr/bin/ditto")
+        .args(["-x", "-k"])
+        .arg(zip)
+        .arg(dest)
+        .status()
+        .map_err(|e| e.to_string())?;
+    if status.success() {
+        Ok(())
+    } else {
+        Err(format!("ditto exited with {status}"))
+    }
+}
+
 /// Permissions are shown as their own screen on macOS, so there are no extra notes.
 pub fn setup_notes() -> Vec<String> {
     Vec::new()

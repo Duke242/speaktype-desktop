@@ -74,3 +74,14 @@ pub fn start_modifier_hotkey(
 }
 
 pub fn stop_modifier_hotkey() {}
+
+/// No Neural Engine; Whisper uses the GPU backend chosen at build time.
+pub const NEURAL_ENGINE: bool = false;
+
+/// Picks CUDA or another GPU provider when this build includes one, otherwise CPU.
+pub const ORT_ACCELERATOR: transcribe_rs::OrtAccelerator = transcribe_rs::OrtAccelerator::Auto;
+
+/// Only macOS downloads zipped model files.
+pub fn extract_zip(_zip: &std::path::Path, _dest: &std::path::Path) -> Result<(), String> {
+    Err("Zipped model files aren't used on this system".into())
+}

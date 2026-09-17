@@ -8,8 +8,8 @@ interface AppStore {
   models: ModelStatus[];
   progress: Record<string, DownloadProgress>;
   downloadErrors: Record<string, string>;
-  /** Downloads a model; errors are kept in `downloadErrors`. */
-  downloadModel: (id: string) => Promise<void>;
+  /** Downloads a model, or with `accelerator` its Neural Engine files; errors are kept in `downloadErrors`. */
+  downloadModel: (id: string, accelerator?: boolean) => Promise<void>;
   /** Saves a partial change. Rejects with the backend's message on failure. */
   updateSettings: (patch: Partial<Settings>) => Promise<void>;
   refreshModels: () => Promise<void>;
@@ -70,10 +70,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     [settings, refreshStatus],
   );
 
-  const downloadModel = useCallback(async (id: string) => {
+  const downloadModel = useCallback(async (id: string, accelerator?: boolean) => {
     setDownloadErrors(({ [id]: _, ...rest }) => rest);
     try {
-      await api.downloadModel(id);
+      await api.downloadModel(id, accelerator);
     } catch (error) {
       const message = errorMessage(error);
       if (!message.includes("cancelled")) setDownloadErrors((e) => ({ ...e, [id]: message }));

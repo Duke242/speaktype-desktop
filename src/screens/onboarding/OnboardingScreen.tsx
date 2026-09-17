@@ -153,7 +153,7 @@ function ModelStep() {
           <div className="min-w-0 flex-1">
             <h2 className="type-label">{model.name}</h2>
             <p className="mt-0.5 type-small text-ink-secondary">
-              {formatModelSize(model.sizeMb)} · Any language
+              {formatModelSize(model.downloadMb)} · Any language
             </p>
             {model.downloading && <ProgressBar value={fraction} className="mt-3" />}
             {downloadErrors[model.id] && <p className="mt-2 type-small text-danger">{downloadErrors[model.id]}</p>}

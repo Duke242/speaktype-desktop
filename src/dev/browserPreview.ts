@@ -15,7 +15,7 @@ export function installBrowserPreview() {
     theme: (params.get("theme") ?? "light") as "light",
     hotkey: "Fn",
     recordingMode: "hold",
-    selectedModel: "large-v3-turbo-q5",
+    selectedModel: "small-en",
     language: "auto",
     recentLanguages: ["en", "hi"],
     inputDevice: "",
@@ -59,23 +59,30 @@ export function installBrowserPreview() {
   }));
 
   const models = [
-    ["large-v3-turbo-q5", "Whisper Large v3 Turbo (compressed)", 547, false, 7.5, 9.4, true],
-    ["large-v3-turbo", "Whisper Large v3 Turbo", 1624, false, 7.0, 9.5, false],
-    ["small-en", "Whisper Small (English)", 466, true, 8.0, 8.5, true],
-    ["base-en", "Whisper Base (English)", 142, true, 9.0, 7.5, false],
-    ["tiny", "Whisper Tiny", 75, false, 9.5, 6.0, false],
-  ].map(([id, name, sizeMb, englishOnly, speed, accuracy, downloaded]) => ({
+    ["parakeet-tdt-v3", "Parakeet v3", "parakeet", 640, 0, false, 25, 9.7, 9.2, false],
+    ["parakeet-tdt-v2", "Parakeet v2 (English)", "parakeet", 631, 0, true, 1, 9.8, 9.1, false],
+    ["large-v3-turbo-q5", "Whisper Large v3 Turbo (compressed)", "whisper", 547, 1119, false, null, 7.5, 9.4, true],
+    ["large-v3-turbo", "Whisper Large v3 Turbo", "whisper", 1624, 1119, false, null, 7.0, 9.5, false],
+    ["small-en", "Whisper Small (English)", "whisper", 466, 155, true, 1, 8.0, 8.5, true],
+    ["base-en", "Whisper Base (English)", "whisper", 142, 36, true, 1, 9.0, 7.5, false],
+    ["base", "Whisper Base", "whisper", 142, 36, false, null, 9.0, 7.3, false],
+    ["tiny", "Whisper Tiny", "whisper", 75, 14, false, null, 9.5, 6.0, false],
+  ].map(([id, name, engine, sizeMb, acceleratorMb, englishOnly, languageCount, speed, accuracy, downloaded]) => ({
     id,
     name,
-    file: `ggml-${id}.bin`,
+    engine,
     sizeMb,
+    acceleratorMb,
+    downloadMb: (sizeMb as number) + ((acceleratorMb as number) <= 200 ? (acceleratorMb as number) : 0),
+    accelerator: engine === "parakeet" ? "none" : id === "small-en" ? "installed" : "missing",
     englishOnly,
-    description: "Near-flagship accuracy at a third of the size. Great for dictation in any language.",
+    languages: languageCount === null ? null : Array.from({ length: languageCount as number }, (_, i) => `l${i}`),
+    description: "A sample description for the browser preview.",
     speed,
     accuracy,
     minRamGb: 4,
     downloaded,
-    downloading: id === "base-en",
+    downloading: false,
   }));
 
   mockWindows("main");
@@ -99,12 +106,12 @@ export function installBrowserPreview() {
         case "list_models":
           return models;
         case "get_engine_status":
-          return { loaded: "large-v3-turbo-q5", loading: null };
+          return { loaded: "small-en", loading: null };
         case "get_device_info":
           return {
             device: { chip: "Apple M3 Pro", ramGb: 18, cores: 11, gpu: true, summary: "Apple M3 Pro · 18 GB · Metal", performanceTier: 0.95 },
             recommendation: {
-              modelId: "large-v3-turbo-q5",
+              modelId: "parakeet-tdt-v3",
               reason: "Fast and accurate enough for live dictation, and loads quickly on your Apple M3 Pro.",
             },
           };

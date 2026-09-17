@@ -89,10 +89,10 @@ fn apple_silicon_generation(chip: &str) -> Option<u32> {
 }
 
 /// Picks the model that best balances speed and accuracy for dictation on this machine.
-pub fn recommend(device: &DeviceInfo, english_only_ok: bool) -> Recommendation {
+pub fn recommend(device: &DeviceInfo, language: &str) -> Recommendation {
     let candidates: Vec<&ModelInfo> = CATALOG
         .iter()
-        .filter(|m| english_only_ok || !m.english_only)
+        .filter(|m| m.supports_language(language))
         .collect();
     let fits: Vec<&ModelInfo> = candidates
         .iter()
@@ -150,18 +150,24 @@ mod tests {
     }
 
     #[test]
-    fn recommends_turbo_on_capable_machines() {
-        let rec = recommend(&device("Apple M3", 16, true), true);
-        assert_eq!(rec.model_id, "large-v3-turbo-q5");
-        let rec = recommend(&device("AMD Ryzen 7", 16, false), true);
+    fn recommends_parakeet_when_the_language_allows_it() {
+        let rec = recommend(&device("Apple M3", 16, true), "auto");
+        assert_eq!(rec.model_id, "parakeet-tdt-v3");
+        let rec = recommend(&device("AMD Ryzen 7", 16, false), "de");
+        assert_eq!(rec.model_id, "parakeet-tdt-v3");
+    }
+
+    #[test]
+    fn recommends_whisper_for_languages_parakeet_lacks() {
+        let rec = recommend(&device("Apple M3", 16, true), "hi");
         assert_eq!(rec.model_id, "large-v3-turbo-q5");
     }
 
     #[test]
     fn respects_ram_and_language() {
-        let rec = recommend(&device("Intel Celeron", 2, false), true);
+        let rec = recommend(&device("Intel Celeron", 2, false), "auto");
         assert!(crate::models::find(rec.model_id).unwrap().min_ram_gb <= 2);
-        let rec = recommend(&device("Intel Celeron", 2, false), false);
-        assert!(!crate::models::find(rec.model_id).unwrap().english_only);
+        let rec = recommend(&device("Intel Celeron", 2, false), "ja");
+        assert!(crate::models::find(rec.model_id).unwrap().supports_language("ja"));
     }
 }

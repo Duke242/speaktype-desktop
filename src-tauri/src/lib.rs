@@ -2,6 +2,7 @@ mod audio;
 mod commands;
 mod device;
 mod dictation;
+mod engine;
 mod history;
 mod media;
 mod models;
@@ -11,7 +12,6 @@ mod pipeline;
 mod platform;
 mod settings;
 mod text;
-mod transcribe;
 
 use std::sync::{Arc, Mutex, OnceLock, RwLock};
 
@@ -27,10 +27,57 @@ use crate::{
     history::History,
     models::{ModelInfo, ModelStore},
     settings::{Settings, SettingsStore},
-    transcribe::Engine,
+    engine::Engine,
 };
 
 pub const TRAY_ID: &str = "main";
+
+/// Benchmarks for development (`cargo run --release --example transcribe_wav`).
+#[doc(hidden)]
+pub mod devtools {
+    use std::{path::Path, time::Instant};
+
+    /// Downloads a catalog model into `models_dir`, printing progress.
+    pub fn download(model_id: &str, models_dir: &Path, accelerator: Option<bool>) -> Result<(), String> {
+        let store = crate::models::ModelStore::new(models_dir.to_path_buf());
+        tauri::async_runtime::block_on(store.download(model_id, accelerator, |p| {
+            if p.total > 0 {
+                println!("  {}: {:.0}%", p.id, p.downloaded as f64 / p.total as f64 * 100.0);
+            }
+        }))?;
+        let status = store.statuses().into_iter().find(|s| s.info.id == model_id).ok_or("Unknown model id")?;
+        println!("downloaded={} accelerator={:?}", status.downloaded, status.accelerator);
+        Ok(())
+    }
+
+    /// Loads a catalog model from `models_dir` and transcribes a WAV file
+    /// `runs` times, printing load and transcription times.
+    pub fn benchmark(model_id: &str, models_dir: &Path, wav: &Path, runs: usize) -> Result<(), String> {
+        let model = crate::models::find(model_id).ok_or("Unknown model id")?;
+        let store = crate::models::ModelStore::new(models_dir.to_path_buf());
+        let (samples, duration) = crate::media::decode_file(wav)?;
+
+        crate::engine::silence_logs();
+        let mut engine = crate::engine::Engine::default();
+        let started = Instant::now();
+        engine.load(model, &store.path(model))?;
+        println!("{model_id}: loaded in {:.2?}", started.elapsed());
+
+        for run in 1..=runs {
+            let started = Instant::now();
+            let text = engine.transcribe(&samples, "auto")?;
+            let elapsed = started.elapsed();
+            println!(
+                "  run {run}: {duration:.1}s of audio in {elapsed:.2?} ({:.0}x real time)",
+                duration / elapsed.as_secs_f64()
+            );
+            if run == runs {
+                println!("  text: {}", text.trim());
+            }
+        }
+        Ok(())
+    }
+}
 
 pub struct AppState {
     settings: RwLock<Settings>,
@@ -75,7 +122,7 @@ impl AppState {
         }
         *self.engine_loading.lock().unwrap() = Some(model.id.to_string());
         let _ = app.emit("engine-changed", ());
-        let result = engine.load(model.id, &self.models.path(model));
+        let result = engine.load(model, &self.models.path(model));
         *self.engine_loading.lock().unwrap() = None;
         let _ = app.emit("engine-changed", ());
         result
@@ -106,7 +153,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
-            transcribe::silence_logs();
+            engine::silence_logs();
             let settings_store = SettingsStore::new(app.path().app_config_dir()?);
             let settings = settings_store.load();
             let data_dir = app.path().app_data_dir()?;
