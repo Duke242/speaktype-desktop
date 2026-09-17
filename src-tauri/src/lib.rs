@@ -16,7 +16,7 @@ mod tray;
 
 use std::sync::{Arc, Mutex, OnceLock, RwLock};
 
-use tauri::{AppHandle, Emitter, Manager, RunEvent, WindowEvent};
+use tauri::{AppHandle, Emitter, Manager, WindowEvent};
 
 use crate::{
     device::DeviceInfo,
@@ -237,7 +237,7 @@ pub fn run() {
     app.run(|app, event| {
         // macOS: clicking the Dock icon brings the hidden window back.
         #[cfg(target_os = "macos")]
-        if let RunEvent::Reopen { .. } = event {
+        if let tauri::RunEvent::Reopen { .. } = event {
             tray::open_main_window(app, None);
         }
         #[cfg(not(target_os = "macos"))]

@@ -7,11 +7,13 @@ import { IconTile } from "./IconTile";
 
 /**
  * Scrollable page body. Every screen uses the same width so titles and cards
- * line up when switching between them.
+ * line up when switching between them. The scroll track is always present
+ * (its thumb only appears when there's something to scroll), so content never
+ * shifts sideways when a page gets short enough to stop scrolling.
  */
 export function Page({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <div className="h-full overflow-y-auto">
+    <div className="h-full overflow-y-scroll">
       <div className={cn("mx-auto max-w-[960px] px-10 pt-9 pb-14", className)}>{children}</div>
     </div>
   );

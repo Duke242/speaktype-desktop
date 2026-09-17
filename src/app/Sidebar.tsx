@@ -29,13 +29,13 @@ export function Sidebar({ route, onNavigate }: { route: Route; onNavigate: (rout
               onClick={() => onNavigate(r)}
               className={cn(
                 "group flex h-9 items-center gap-3 rounded-control px-3 text-left type-label transition-colors duration-150",
-                active ? "bg-white text-sidebar" : "text-white/60 hover:bg-white/8 hover:text-white",
+                active ? "bg-white/10 font-medium text-white" : "text-white/60 hover:bg-white/5 hover:text-white",
               )}
             >
               <Icon
                 size={17}
                 strokeWidth={2}
-                className={cn("shrink-0 transition-colors", active ? "text-sidebar" : "text-white/45 group-hover:text-white/80")}
+                className={cn("shrink-0 transition-colors", active ? "text-accent" : "text-white/45 group-hover:text-white/80")}
               />
               {label}
             </button>
@@ -45,13 +45,19 @@ export function Sidebar({ route, onNavigate }: { route: Route; onNavigate: (rout
 
       <div className="flex-1" />
 
+      {/* Studio wordmark, letters spread across the sidebar's width. */}
       <a
         href="https://2048labs.com"
         target="_blank"
         rel="noreferrer"
-        className="mx-6 mb-5 type-overline text-white/25 transition-colors hover:text-white/50"
+        aria-label="2048 Labs"
+        className="mx-5 mb-6 flex justify-between border-t border-white/10 pt-5 type-section text-white/25 transition-colors hover:text-white/60"
       >
-        2048 LABS
+        {"2048 LABS".split("").map((char, i) => (
+          <span key={i} aria-hidden className={char === " " ? "w-2" : undefined}>
+            {char}
+          </span>
+        ))}
       </a>
     </nav>
   );

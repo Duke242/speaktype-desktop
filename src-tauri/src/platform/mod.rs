@@ -44,6 +44,8 @@ pub struct Permission {
 }
 
 /// A change in a single-modifier hotkey.
+// Only the macOS listener sends these so far.
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HotkeyEvent {
     Down,
