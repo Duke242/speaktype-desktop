@@ -5,7 +5,6 @@ import {
   formatBytes,
   formatClock,
   formatDuration,
-  formatMinutesSaved,
   formatLanguages,
   formatModelSize,
   formatRelative,
@@ -22,10 +21,6 @@ describe("durations and sizes", () => {
     expect(formatDuration(12)).toBe("12s");
     expect(formatDuration(95)).toBe("1m 35s");
     expect(formatDuration(4500)).toBe("1h 15m");
-    expect(formatMinutesSaved(999)).toBe("999m");
-    expect(formatMinutesSaved(1179)).toBe("19.7h");
-    expect(formatMinutesSaved(1200)).toBe("20h");
-    expect(formatMinutesSaved(12000)).toBe("200h");
   });
 
   it("formats model and byte sizes", () => {

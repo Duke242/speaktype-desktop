@@ -5,23 +5,18 @@ import {
   Clock,
   Copy,
   Cpu,
-  Hash,
-  Mic,
   Sparkles,
-  Timer,
   TriangleAlert,
-  Type,
   type LucideIcon,
 } from "lucide-react";
 import { useMemo } from "react";
 import type { Route } from "@/app/routes";
-import { Button, Callout, Card, EmptyState, Hotkey, IconTile, Meta, Page, Spinner, type Tone } from "@/components/ui";
+import { Button, Callout, Card, EmptyState, Hotkey, IconButton, Page, Spinner } from "@/components/ui";
 import type { HistoryItem, StatsEntry } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import {
   TYPING_WORDS_PER_MINUTE,
   formatDuration,
-  formatMinutesSaved,
   formatNumber,
   formatRelative,
   startOfDay,
@@ -125,38 +120,35 @@ function OverviewCard({ stats, now }: { stats: StatsEntry[]; now: number }) {
   const average = stats.length ? Math.round(totalWords / stats.length) : 0;
 
   return (
-    <Card padding="lg" className="relative flex flex-col overflow-hidden">
-      <h2 className="relative type-section">{greeting(new Date(now).getHours())}</h2>
-      <div className="relative mt-4 flex items-baseline gap-3">
-        <span className="type-display tabular-nums">
-          {formatNumber(totalWords)}
-        </span>
+    <Card padding="lg" className="flex flex-col">
+      <h2 className="type-section">{greeting(new Date(now).getHours())}</h2>
+      <div className="mt-4 flex items-baseline gap-3">
+        <span className="type-display tabular-nums">{formatNumber(totalWords)}</span>
         <span className="type-body-lg text-ink-secondary">words transcribed</span>
       </div>
-      <p className="relative mt-2 type-small text-ink-muted">
-        {minutesSaved > 0
-          ? `That's about ${formatDuration(minutesSaved * 60)} of typing saved.`
-          : "Your words and time saved will add up here."}
-      </p>
+      {minutesSaved > 0 ? (
+        <div className="mt-3 inline-flex items-center gap-1.5 self-start rounded-full bg-accent-soft px-2.5 py-1 type-small font-medium text-accent-ink">
+          <Clock size={13} strokeWidth={2.25} />
+          {formatDuration(minutesSaved * 60)} of typing saved
+        </div>
+      ) : (
+        <p className="mt-2 type-small text-ink-muted">Your words and time saved will add up here.</p>
+      )}
 
-      <div className="relative mt-7 grid grid-cols-2 gap-x-6 gap-y-5 border-t border-line-subtle pt-6">
-        <Stat icon={Mic} tone="brand" value={formatNumber(todayCount)} label="Transcriptions today" />
-        <Stat icon={AudioLines} tone="neutral" value={formatNumber(stats.length)} label="Total transcriptions" />
-        <Stat icon={Clock} tone="neutral" value={formatMinutesSaved(minutesSaved)} label="Time saved typing" />
-        <Stat icon={Hash} tone="neutral" value={formatNumber(average)} label="Average words per note" />
-      </div>
+      <dl className="mt-auto grid grid-cols-3 divide-x divide-line-subtle border-t border-line-subtle pt-6">
+        <Stat label="Today" value={formatNumber(todayCount)} className="pl-0" />
+        <Stat label="All time" value={formatNumber(stats.length)} />
+        <Stat label="Words per note" value={formatNumber(average)} />
+      </dl>
     </Card>
   );
 }
 
-function Stat({ icon, tone, value, label }: { icon: LucideIcon; tone: Tone; value: string; label: string }) {
+function Stat({ label, value, className }: { label: string; value: string; className?: string }) {
   return (
-    <div className="flex items-center gap-3">
-      <IconTile icon={icon} tone={tone} size="md" />
-      <div className="min-w-0">
-        <div className="type-metric">{value}</div>
-        <div className="type-caption text-ink-muted">{label}</div>
-      </div>
+    <div className={cn("px-6", className)}>
+      <dt className="type-caption text-ink-muted">{label}</dt>
+      <dd className="mt-1 type-metric">{value}</dd>
     </div>
   );
 }
@@ -232,13 +224,8 @@ function RecentCard({
 
   return (
     <Card padding="none" className="mt-5">
-      <div className="flex items-center px-6 pt-5 pb-4">
-        <div className="flex-1">
-          <h2 className="type-section">Recent transcriptions</h2>
-          {items && items.length > 0 && (
-            <p className="mt-0.5 type-caption text-ink-muted">{formatNumber(items.length)} in history</p>
-          )}
-        </div>
+      <div className="flex items-center px-6 pt-5 pb-3">
+        <h2 className="flex-1 type-section">Recent transcriptions</h2>
         {items && items.length > 0 && (
           <Button variant="ghost" size="sm" onClick={() => onNavigate("history")}>
             View all
@@ -262,37 +249,50 @@ function RecentCard({
       )}
 
       {items && items.length > 0 && (
-        <div className="divide-y divide-line-subtle border-t border-line-subtle">
-          {items.slice(0, 5).map((item) => (
-            <div key={item.id} className="group flex items-start gap-4 px-6 py-4 transition-colors hover:bg-hover/60">
-              <IconTile icon={AudioLines} className="mt-0.5" />
-              <div className="min-w-0 flex-1">
-                <p data-selectable className="line-clamp-2 type-body text-ink">
-                  {item.transcript}
-                </p>
-                <div className="mt-1.5 flex items-center gap-4 type-caption text-ink-muted">
-                  <Meta icon={Clock}>{formatRelative(item.createdAt, now)}</Meta>
-                  <Meta icon={Type}>
-                    {item.wordCount} {item.wordCount === 1 ? "word" : "words"}
-                  </Meta>
-                  <Meta icon={Timer}>{formatDuration(item.durationSecs)}</Meta>
+        <ol className="px-3 pb-3">
+          {items.slice(0, 5).map((item, i, shown) => (
+            <li
+              key={item.id}
+              className="group relative flex gap-4 rounded-control px-3 py-3 transition-colors hover:bg-hover/60"
+            >
+              <div className="w-[76px] shrink-0 pt-px text-right">
+                <div className="type-small font-medium text-ink tabular-nums">{formatRelative(item.createdAt, now)}</div>
+                <div className="mt-0.5 type-caption text-ink-muted tabular-nums">
+                  {item.wordCount} {item.wordCount === 1 ? "word" : "words"}
                 </div>
               </div>
-              <Button
-                variant="secondary"
-                size="sm"
+
+              {/* Timeline rail: a dot per transcript, joined by a hairline. */}
+              <div className="relative w-2 shrink-0">
+                {i > 0 && <span className="absolute -top-3 left-1/2 h-[21px] w-px -translate-x-1/2 bg-line" />}
+                <span
+                  className={cn(
+                    "absolute top-[9px] left-1/2 size-2 -translate-x-1/2 rounded-full ring-4 ring-surface",
+                    i === 0 ? "bg-accent" : "bg-line-strong",
+                  )}
+                />
+                {i < shown.length - 1 && (
+                  <span className="absolute top-[17px] -bottom-3 left-1/2 w-px -translate-x-1/2 bg-line" />
+                )}
+              </div>
+
+              <p data-selectable className="line-clamp-2 min-w-0 flex-1 pt-px type-body text-ink">
+                {item.transcript}
+              </p>
+
+              <IconButton
                 icon={copiedKey === item.id ? Check : Copy}
+                label={copiedKey === item.id ? "Copied" : "Copy"}
+                size="sm"
                 onClick={() => copy(item.transcript, item.id)}
                 className={cn(
-                  "opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100",
+                  "-my-1 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100",
                   copiedKey === item.id && "text-success opacity-100",
                 )}
-              >
-                {copiedKey === item.id ? "Copied" : "Copy"}
-              </Button>
-            </div>
+              />
+            </li>
           ))}
-        </div>
+        </ol>
       )}
     </Card>
   );
