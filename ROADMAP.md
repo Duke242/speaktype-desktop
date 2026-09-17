@@ -51,7 +51,7 @@ Each milestone is tagged `v2.0.0-alpha.N` so any build can be rolled back to.
 - [ ] Hide the Dock icon when the window is closed
 - [ ] Signed and notarized macOS build
 - [ ] Signed Windows installer
-- [ ] CI builds for macOS, Windows and Linux on every tag
+- [x] CI builds for macOS, Windows and Linux on every tag
 
 ## New in SpeakType 2
 - [ ] Windows build, tested
