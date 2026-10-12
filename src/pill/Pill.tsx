@@ -7,9 +7,7 @@ import { useNow } from "@/lib/hooks";
 import { useApplyTheme } from "@/lib/theme";
 import { useTauriEvent } from "@/lib/useTauriEvent";
 import { showLanguageMenu, showMicrophoneMenu, showModeMenu } from "@/lib/menus";
-
-const WAVE_BARS = 34;
-const WAVE_HEIGHT = 22;
+import { Waveform } from "./Waveform";
 
 // Pill sizes per phase, from the macOS recorder.
 const SIZES = {
@@ -20,15 +18,27 @@ const SIZES = {
   recordingExpanded: { width: 460, height: 44 },
 };
 
-export function Pill() {
-  const [state, setState] = useState<PillState>({ phase: "idle" });
+export function Pill({ preview = false }: { preview?: boolean }) {
+  const [state, setState] = useState<PillState>(() => preview ? { phase: "recording", startedAtMs: Date.now() } : { phase: "idle" });
   const [settings, setSettings] = useState<Settings>();
   const [hovered, setHovered] = useState(false);
-  const [levels, setLevels] = useState<number[]>(() => new Array(WAVE_BARS).fill(0));
+  const level = useRef({ value: 0, updatedAt: 0 });
   const [deviceName, setDeviceName] = useState("Default");
   const warmingSince = useRef(0);
   const now = useNow(state.phase === "warming" ? 1000 : 500, state.phase === "recording" || state.phase === "warming");
   useApplyTheme(settings?.theme ?? "system");
+
+  useEffect(() => {
+    if (!preview) return;
+    // A deterministic speech envelope for inspecting motion without a microphone.
+    const timer = window.setInterval(() => {
+      const now = performance.now();
+      const t = now / 1000;
+      const speaking = t % 6 < 4.6;
+      level.current = { value: speaking ? 0.15 + 0.65 * Math.abs(Math.sin(t * 4.2)) * (0.6 + 0.4 * Math.sin(t * 1.7) ** 2) : 0, updatedAt: now };
+    }, 33);
+    return () => window.clearInterval(timer);
+  }, [preview]);
 
   const refreshSettings = async () => {
     const next = await api.getSettings();
@@ -44,11 +54,13 @@ export function Pill() {
   useTauriEvent("settings-changed", () => refreshSettings());
   useTauriEvent<PillState>("pill-state", ({ payload }) => {
     if (payload.phase === "warming" && state.phase !== "warming") warmingSince.current = Date.now();
-    if (payload.phase === "recording" && state.phase !== "recording") setLevels(new Array(WAVE_BARS).fill(0));
+    if (payload.phase === "recording" && state.phase !== "recording") level.current = { value: 0, updatedAt: 0 };
     if (payload.phase !== "recording") setHovered(false);
     setState(payload);
   });
-  useTauriEvent<number>("pill-level", ({ payload }) => setLevels((l) => [...l.slice(1), payload]));
+  useTauriEvent<number>("pill-level", ({ payload }) => {
+    level.current = { value: payload, updatedAt: performance.now() };
+  });
 
   const expanded = state.phase === "recording" && hovered;
   const size = expanded ? SIZES.recordingExpanded : SIZES[state.phase];
@@ -78,7 +90,7 @@ export function Pill() {
         {state.phase === "recording" && (
           <div className="flex w-full animate-fade-in items-center gap-2.5 px-3.5">
             <RecordingDot />
-            <Waveform levels={levels} />
+            <Waveform level={level} />
             <span className="shrink-0 type-caption font-medium text-white/60 tabular-nums">
               {formatClock((now - state.startedAtMs) / 1000)}
             </span>
@@ -149,24 +161,6 @@ function RecordingDot() {
       <span className="absolute size-2.5 animate-ping rounded-full bg-recording/35 [animation-duration:1.4s]" />
       <span className="relative size-2.5 rounded-full bg-recording" />
     </button>
-  );
-}
-
-/**
- * Rolling loudness history, newest on the right. Levels arrive already gated
- * and smoothed from the audio thread, so each bar is simply its level.
- */
-function Waveform({ levels }: { levels: number[] }) {
-  return (
-    <div className="flex h-[22px] min-w-0 flex-1 items-center justify-end gap-[2px] overflow-hidden">
-      {levels.map((level, i) => (
-        <span
-          key={i}
-          className="w-[2.5px] shrink-0 rounded-full bg-white/90 transition-[height] duration-100 ease-out"
-          style={{ height: Math.max(3, level * WAVE_HEIGHT) }}
-        />
-      ))}
-    </div>
   );
 }
 

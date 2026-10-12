@@ -48,21 +48,8 @@ pub fn active_window_is_terminal() -> bool {
 
 /// Reads WM_CLASS ("instance\0class\0") of the window in _NET_ACTIVE_WINDOW.
 fn active_window_classes() -> Option<Vec<String>> {
-    let (conn, screen) = x11rb::connect(None).ok()?;
-    let root = conn.setup().roots.get(screen)?.root;
-    let active_atom = conn
-        .intern_atom(false, b"_NET_ACTIVE_WINDOW")
-        .ok()?
-        .reply()
-        .ok()?
-        .atom;
-    let window = conn
-        .get_property(false, root, active_atom, AtomEnum::WINDOW, 0, 1)
-        .ok()?
-        .reply()
-        .ok()?
-        .value32()?
-        .next()?;
+    let window = active_window()?;
+    let (conn, _) = x11rb::connect(None).ok()?;
     let class = conn
         .get_property(false, window, AtomEnum::WM_CLASS, AtomEnum::STRING, 0, 256)
         .ok()?
@@ -76,4 +63,21 @@ fn active_window_classes() -> Option<Vec<String>> {
             .map(|part| String::from_utf8_lossy(part).into_owned())
             .collect(),
     )
+}
+
+pub fn active_window() -> Option<u32> {
+    let (conn, screen) = x11rb::connect(None).ok()?;
+    let root = conn.setup().roots.get(screen)?.root;
+    let active_atom = conn
+        .intern_atom(false, b"_NET_ACTIVE_WINDOW")
+        .ok()?
+        .reply()
+        .ok()?
+        .atom;
+    conn.get_property(false, root, active_atom, AtomEnum::WINDOW, 0, 1)
+        .ok()?
+        .reply()
+        .ok()?
+        .value32()?
+        .next()
 }

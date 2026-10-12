@@ -58,6 +58,18 @@ pub enum HotkeyEvent {
 /// thread, so it should return quickly.
 pub type HotkeyHandler = Box<dyn Fn(HotkeyEvent) + Send + Sync>;
 
+#[cfg(not(target_os = "macos"))]
+pub fn send_live_text(enigo: &mut Option<Enigo>, text: &str) -> Result<(), String> {
+    if enigo.is_none() {
+        *enigo = Some(Enigo::new(&enigo::Settings::default()).map_err(|e| e.to_string())?);
+    }
+    enigo
+        .as_mut()
+        .ok_or("Keyboard simulation unavailable")?
+        .text(text)
+        .map_err(|e| e.to_string())
+}
+
 /// Holds the modifiers, taps `key`, then releases the modifiers even if the tap failed.
 fn press_combo(enigo: &mut Enigo, modifiers: &[Key], key: Key) -> Result<(), String> {
     let mut result = Ok(());

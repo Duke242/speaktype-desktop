@@ -51,6 +51,7 @@ pub struct Settings {
     /// Global shortcut in Tauri accelerator syntax, e.g. "Ctrl+Shift+Space".
     pub hotkey: String,
     pub recording_mode: RecordingMode,
+    pub live_typing: bool,
     /// Id from `models::CATALOG`, or empty when nothing is selected yet.
     pub selected_model: String,
     /// Whisper language code, or "auto" to detect.
@@ -82,6 +83,7 @@ impl Default for Settings {
             theme: Theme::System,
             hotkey: crate::platform::DEFAULT_HOTKEY.to_string(),
             recording_mode: RecordingMode::Hold,
+            live_typing: true,
             selected_model: String::new(),
             language: "auto".to_string(),
             recent_languages: Vec::new(),
@@ -224,6 +226,7 @@ mod tests {
             settings.save_recordings,
             "recordings stay on for people upgrading"
         );
+        assert!(settings.live_typing);
         let entry = &settings.dictionary[0];
         assert!(entry.is_enabled && entry.match_whole_word);
     }
@@ -235,6 +238,7 @@ mod tests {
             "theme",
             "hotkey",
             "recordingMode",
+            "liveTyping",
             "selectedModel",
             "language",
             "recentLanguages",

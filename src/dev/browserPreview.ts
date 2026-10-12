@@ -15,6 +15,7 @@ export function installBrowserPreview() {
     theme: (params.get("theme") ?? "light") as "light",
     hotkey: "Fn",
     recordingMode: "hold",
+    liveTyping: true,
     selectedModel: "small-en",
     language: "auto",
     recentLanguages: ["en", "hi"],
