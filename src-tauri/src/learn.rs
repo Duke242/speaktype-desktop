@@ -208,8 +208,8 @@ pub fn add_to_dictionary(
     added
 }
 
-/// Learns from a transcript the user edited, if learning is switched on.
-/// Saves the new entries and tells the windows, which offer to undo them.
+/// Learns from a transcript the user edited, if learning is switched on, and
+/// saves the new entries. Returns them so the caller can offer to undo them.
 pub fn learn(app: &AppHandle, typed: &str, edited: &str) -> Vec<DictionaryEntry> {
     let state = app.state::<AppState>();
     let mut settings = state.settings();
@@ -226,15 +226,15 @@ pub fn learn(app: &AppHandle, typed: &str, edited: &str) -> Vec<DictionaryEntry>
         return Vec::new();
     }
     let _ = app.emit("settings-changed", ());
-    let _ = app.emit("words-learned", &added);
     added
 }
 
-/// Learns from a correction made in another app, where the main window is
-/// likely hidden, so the pill says what was learned.
+/// Learns from a correction made in another app. The pill says what was
+/// learned, as the main window is likely hidden; if it's open, it offers Undo.
 pub fn learn_from_app(app: &AppHandle, typed: &str, edited: &str) {
     let added = learn(app, typed, edited);
     if !added.is_empty() {
+        let _ = app.emit("words-learned", &added);
         let words = added.into_iter().map(|e| e.replacement).collect();
         app.state::<AppState>()
             .controller

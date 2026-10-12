@@ -24,6 +24,7 @@ export function installBrowserPreview() {
     smartTrailingPunctuation: true,
     restoreClipboard: true,
     saveRecordings: true,
+    learnCorrections: true,
     alwaysShowPill: false,
     pillPosition: "bottomCenter",
     showTrayIcon: true,
@@ -32,6 +33,7 @@ export function installBrowserPreview() {
       { id: "1", trigger: "my email", replacement: "karan@example.com", isEnabled: true, matchWholeWord: true },
       { id: "2", trigger: "word fall", replacement: "Wordfall", isEnabled: true, matchWholeWord: true },
       { id: "3", trigger: "um", replacement: "", isEnabled: false, matchWholeWord: false },
+      { id: "4", trigger: "cooper netties", replacement: "Kubernetes", isEnabled: true, matchWholeWord: true, learned: true },
     ],
     hasCompletedOnboarding: params.get("onboarding") !== "1",
     hasShownModelPrompt: true,
@@ -122,6 +124,28 @@ export function installBrowserPreview() {
           return params.get("empty") ? [] : history;
         case "get_stats":
           return params.get("empty") ? [] : stats;
+        case "edit_history_item": {
+          const item = history.find((h) => h.id === a.id);
+          if (!item) return [];
+          const transcript = String(a.transcript);
+          item.transcript = transcript;
+          item.wordCount = transcript.split(/\s+/).length;
+          // Pretend any new capitalized word was a misheard name.
+          const learned = transcript
+            .split(/\s+/)
+            .map((w) => w.replace(/[^\p{L}\p{N}]/gu, ""))
+            .filter((w) => /^\p{Lu}/u.test(w) && !transcripts.some((t) => t.includes(w)))
+            .slice(0, 1)
+            .map((word) => {
+              const entry = { id: `learned-${word}`, trigger: word.toLowerCase(), replacement: word, isEnabled: true, matchWholeWord: true, learned: true };
+              settings.dictionary.push(entry);
+              return entry;
+            });
+          return learned;
+        }
+        case "forget_word":
+          settings.dictionary = settings.dictionary.filter((e) => e.id !== a.id);
+          return null;
         case "list_input_devices":
           return [
             { id: "coreaudio:1", name: "MacBook Pro Microphone", isDefault: true },

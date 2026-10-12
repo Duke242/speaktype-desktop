@@ -1,4 +1,17 @@
-import { Check, ChevronDown, Clock, Copy, Cpu, FileText, FolderOpen, Search, Timer, Trash2, Type } from "lucide-react";
+import {
+  Check,
+  ChevronDown,
+  Clock,
+  Copy,
+  Cpu,
+  FileText,
+  FolderOpen,
+  Pencil,
+  Search,
+  Timer,
+  Trash2,
+  Type,
+} from "lucide-react";
 import { useMemo, useState } from "react";
 import { AudioPlayer } from "@/components/AudioPlayer";
 import {
@@ -10,6 +23,7 @@ import {
   Meta,
   Page,
   PageHeader,
+  TextArea,
   TextField,
   useToast,
 } from "@/components/ui";
@@ -18,6 +32,7 @@ import { cn } from "@/lib/cn";
 import { formatDay, formatDuration, formatNumber, formatTime } from "@/lib/format";
 import { useCopy, useHistory } from "@/lib/hooks";
 import { useStore } from "@/lib/store";
+import { useLearnedToast } from "@/lib/useLearnedToast";
 import { groupHistory } from "./groupHistory";
 
 export function HistoryScreen() {
@@ -31,7 +46,20 @@ export function HistoryScreen() {
 
   const groups = useMemo(() => groupHistory(items ?? [], query), [items, query]);
 
+  const showLearned = useLearnedToast();
+
   const run = (action: Promise<unknown>) => action.catch((e) => toast(errorMessage(e), "error"));
+  /** Resolves once saved, so the card can close its editor; rejects to keep it open. */
+  const saveEdit = async (item: HistoryItem, transcript: string) => {
+    try {
+      const learned = await api.editHistoryItem(item.id, transcript);
+      if (learned.length > 0) showLearned(learned);
+      else toast("Transcript saved");
+    } catch (e) {
+      toast(errorMessage(e), "error");
+      throw e;
+    }
+  };
   const revealLabel = status.os === "macos" ? "Show in Finder" : status.os === "windows" ? "Show in Explorer" : "Show in folder";
 
   return (
@@ -88,6 +116,8 @@ export function HistoryScreen() {
                       expanded={expanded === item.id}
                       onToggle={() => setExpanded((id) => (id === item.id ? null : item.id))}
                       onDelete={() => setDeleting(item)}
+                      onSaveEdit={(transcript) => saveEdit(item, transcript)}
+                      learns={settings.learnCorrections}
                       onReveal={() => run(api.revealHistoryAudio(item.id))}
                       revealLabel={revealLabel}
                     />
@@ -128,6 +158,8 @@ function HistoryCard({
   expanded,
   onToggle,
   onDelete,
+  onSaveEdit,
+  learns,
   onReveal,
   revealLabel,
 }: {
@@ -135,11 +167,27 @@ function HistoryCard({
   expanded: boolean;
   onToggle: () => void;
   onDelete: () => void;
+  onSaveEdit: (transcript: string) => Promise<void>;
+  /** Whether saving an edit teaches Wordfall the corrected words. */
+  learns: boolean;
   onReveal: () => void;
   revealLabel: string;
 }) {
   const { copy, copiedKey } = useCopy();
   const copied = copiedKey === item.id;
+  const [draft, setDraft] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const editing = expanded && draft !== null;
+  const changed = draft !== null && draft.trim() !== "" && draft.trim() !== item.transcript;
+
+  const save = () => {
+    if (draft === null || !changed) return;
+    setSaving(true);
+    onSaveEdit(draft.trim())
+      .then(() => setDraft(null))
+      .catch(() => {})
+      .finally(() => setSaving(false));
+  };
 
   return (
     <Card padding="none" interactive className={cn(expanded && "border-line-strong")}>
@@ -163,17 +211,53 @@ function HistoryCard({
 
       {expanded && (
         <div className="animate-fade-in px-4 pb-4">
-          <p data-selectable className="type-body-lg whitespace-pre-wrap text-ink">
-            {item.transcript}
-          </p>
+          {editing ? (
+            <div>
+              <TextArea
+                aria-label="Transcript"
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) save();
+                  if (e.key === "Escape") {
+                    e.stopPropagation();
+                    setDraft(null);
+                  }
+                }}
+                rows={Math.min(8, Math.max(3, Math.ceil(item.transcript.length / 70)))}
+                className="type-body-lg"
+              />
+              <p className="mt-2 type-caption text-ink-muted">
+                {learns
+                  ? "Fix any misheard words. Wordfall remembers names and terms you correct, for next time."
+                  : "Fix any misheard words. Learning from corrections is off in Settings."}
+              </p>
+              <div className="mt-3 flex items-center gap-2">
+                <Button size="sm" variant="accent" icon={Check} loading={saving} disabled={!changed} onClick={save}>
+                  Save
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => setDraft(null)} disabled={saving}>
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <p data-selectable className="type-body-lg whitespace-pre-wrap text-ink">
+              {item.transcript}
+            </p>
+          )}
 
-          {item.audioPath && (
+          {!editing && item.audioPath && (
             <div className="mt-4">
               <AudioPlayer itemId={item.id} />
             </div>
           )}
 
+          {!editing && (
           <div className="mt-4 flex items-center gap-2">
+            <Button size="sm" icon={Pencil} onClick={() => setDraft(item.transcript)}>
+              Edit
+            </Button>
             <Button size="sm" icon={copied ? Check : Copy} onClick={() => copy(item.transcript, item.id)} className={cn(copied && "text-success")}>
               {copied ? "Copied" : "Copy"}
             </Button>
@@ -192,6 +276,7 @@ function HistoryCard({
               </span>
             )}
           </div>
+          )}
         </div>
       )}
     </Card>

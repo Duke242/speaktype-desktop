@@ -1,4 +1,4 @@
-import { ArrowRight, BookA, Pencil, Plus, Trash2, Wand2 } from "lucide-react";
+import { ArrowRight, BookA, Lightbulb, Pencil, Plus, Trash2, Wand2 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import {
   Badge,
@@ -53,7 +53,8 @@ export function DictionaryScreen() {
       <div className="mb-6">
         <Callout icon={Wand2} tone="neutral" title="Turn what you say into the text you want">
           Say a trigger like “my email” and Wordfall types your real address. Or fix a name the model keeps
-          mishearing. Everything runs offline.
+          mishearing. Words you correct after dictating are added here too, marked Learned. Everything runs
+          offline.
         </Callout>
       </div>
 
@@ -124,6 +125,11 @@ function RuleRow({
           <span className="type-body text-ink-muted italic">removed</span>
         )}
         {!entry.matchWholeWord && <Badge className="ml-1">Partial match</Badge>}
+        {entry.learned && (
+          <Badge tone="accent" icon={Lightbulb} className="ml-1">
+            Learned
+          </Badge>
+        )}
       </button>
       <div className="flex items-center gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
         <IconButton icon={Pencil} label="Edit rule" size="sm" onClick={onEdit} />

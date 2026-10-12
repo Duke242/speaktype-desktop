@@ -22,6 +22,8 @@ export interface DictionaryEntry {
   replacement: string;
   isEnabled: boolean;
   matchWholeWord: boolean;
+  /** Added automatically from a correction, rather than by the user. */
+  learned?: boolean;
 }
 
 export interface Settings {
@@ -38,6 +40,8 @@ export interface Settings {
   restoreClipboard: boolean;
   /** Keep each dictation's audio so it can be replayed from History. */
   saveRecordings: boolean;
+  /** Add misheard words to the dictionary when a transcript is corrected. */
+  learnCorrections: boolean;
   alwaysShowPill: boolean;
   pillPosition: PillPosition;
   showTrayIcon: boolean;
@@ -184,6 +188,10 @@ export const api = {
   getHistory: () => invoke<HistoryItem[]>("get_history"),
   getStats: () => invoke<StatsEntry[]>("get_stats"),
   deleteHistoryItem: (id: string) => invoke<void>("delete_history_item", { id }),
+  /** Saves a corrected transcript. Returns the words learned from the correction. */
+  editHistoryItem: (id: string, transcript: string) =>
+    invoke<DictionaryEntry[]>("edit_history_item", { id, transcript }),
+  forgetWord: (id: string) => invoke<void>("forget_word", { id }),
   clearHistory: () => invoke<void>("clear_history"),
   readHistoryAudio: (id: string) => invoke<ArrayBuffer>("read_history_audio", { id }),
   revealHistoryAudio: (id: string) => invoke<void>("reveal_history_audio", { id }),

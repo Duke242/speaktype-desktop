@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { UpdateDialog } from "@/components/UpdateDialog";
-import { api, type UpdateInfo } from "@/lib/api";
+import { api, type DictionaryEntry, type UpdateInfo } from "@/lib/api";
 import { useStore } from "@/lib/store";
+import { useLearnedToast } from "@/lib/useLearnedToast";
 import { useTauriEvent } from "@/lib/useTauriEvent";
 import { NAV } from "./routes";
 import { useApplyTheme } from "@/lib/theme";
@@ -48,6 +49,9 @@ export function App() {
   useTauriEvent<string>("navigate", ({ payload }) => {
     if (NAV.some((item) => item.route === payload)) setRoute(payload as Route);
   });
+  // Words learned from a correction made in another app.
+  const showLearned = useLearnedToast();
+  useTauriEvent<DictionaryEntry[]>("words-learned", ({ payload }) => showLearned(payload));
   useApplyTheme(settings.theme);
 
   // First launch without a model: start on AI Models, once.

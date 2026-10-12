@@ -7,6 +7,7 @@ import {
   Hand,
   Import,
   Keyboard,
+  Lightbulb,
   Mic,
   Monitor,
   Moon,
@@ -213,6 +214,21 @@ function GeneralTab() {
           <Switch
             checked={settings.smartTrailingPunctuation}
             onChange={(smartTrailingPunctuation) => save({ smartTrailingPunctuation })}
+          />
+        </SettingRow>
+        <SettingRow
+          icon={Lightbulb}
+          tone="neutral"
+          label="Learn from my corrections"
+          description={
+            settings.learnCorrections
+              ? "When you fix a misheard name or term, Wordfall adds it to Dictionary and listens for it next time. Learned words can be removed there."
+              : "Corrections are saved but nothing is learned from them."
+          }
+        >
+          <Switch
+            checked={settings.learnCorrections}
+            onChange={(learnCorrections) => save({ learnCorrections })}
           />
         </SettingRow>
         <SettingRow
