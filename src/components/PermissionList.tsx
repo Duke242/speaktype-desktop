@@ -1,6 +1,6 @@
 import { Hand, Mic, ShieldCheck, type LucideIcon } from "lucide-react";
 import { useEffect } from "react";
-import { Badge, Button, Card, SettingRow } from "@/components/ui";
+import { Badge, Button, SettingRow } from "@/components/ui";
 import { api, type PermissionKind } from "@/lib/api";
 import { usePermissions } from "@/lib/hooks";
 
@@ -29,7 +29,7 @@ export function PermissionList({ onChange }: { onChange?: (allGranted: boolean) 
   }, [allGranted, onChange]);
 
   return (
-    <Card padding="none" className="divide-y divide-line-subtle">
+    <div className="divide-y divide-line">
       {(permissions ?? []).map(({ kind, granted }) => {
         const copy = COPY[kind];
         return (
@@ -46,6 +46,6 @@ export function PermissionList({ onChange }: { onChange?: (allGranted: boolean) 
           </SettingRow>
         );
       })}
-    </Card>
+    </div>
   );
 }

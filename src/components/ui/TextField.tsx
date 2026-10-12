@@ -26,6 +26,8 @@ export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function T
 
 export const TextArea = forwardRef<HTMLTextAreaElement, TextareaHTMLAttributes<HTMLTextAreaElement>>(
   function TextArea({ className, ...props }, ref) {
-    return <textarea ref={ref} className={cn(field, "resize-none px-3 py-2 type-body", className)} {...props} />;
+    // A type style passed in replaces the default one; utilities don't override each other by order.
+    const typeStyle = className?.includes("type-") ? undefined : "type-body";
+    return <textarea ref={ref} className={cn(field, "resize-none px-3 py-2", typeStyle, className)} {...props} />;
   },
 );

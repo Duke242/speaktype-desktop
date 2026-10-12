@@ -1,10 +1,11 @@
 import { ArrowDown, ArrowLeft, ArrowRight, Check, Feather, Lock, Zap, type LucideIcon } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
+import { KeyRipple } from "@/components/brand/KeyRipple";
 import { LogoMark } from "@/components/brand/LogoMark";
 import { PillPreview } from "@/components/brand/PillPreview";
 import { HotkeyPicker } from "@/components/settings/HotkeyPicker";
 import { PermissionList } from "@/components/PermissionList";
-import { Button, Card, IconTile, ProgressBar } from "@/components/ui";
+import { Button, IconTile, ProgressBar } from "@/components/ui";
 import { api, type ImportSummary } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import { describeImport, formatModelSize } from "@/lib/format";
@@ -35,8 +36,8 @@ export function OnboardingScreen() {
   const blocked = step === "model" && !models.some((m) => m.downloaded);
 
   return (
-    <div className="relative flex h-full flex-col bg-app">
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-[70%] bg-glow" />
+    <div className="relative flex h-full flex-col bg-flow">
+      <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-[70%] bg-hero-wash" />
 
       <header data-tauri-drag-region className="relative flex h-14 shrink-0 items-center justify-center">
         <div className="pointer-events-none flex items-center gap-2">
@@ -124,13 +125,13 @@ function Welcome({ imported }: { imported: ImportSummary | null }) {
           Hold a key, speak naturally, and your words appear in whatever app you're using.
         </StepHeader>
       )}
-      <div className="mt-12 grid w-full grid-cols-3 gap-3">
-        {features.map(({ icon, title, description }) => (
-          <Card key={title} interactive padding="lg" className="flex flex-col items-center text-center">
-            <IconTile icon={icon} tone="brand" size="md" />
-            <h3 className="mt-4 type-section">{title}</h3>
-            <p className="mt-1.5 type-body text-ink-secondary">{description}</p>
-          </Card>
+      <div className="mt-14 grid w-full grid-cols-3 divide-x divide-line">
+        {features.map(({ icon: Icon, title, description }) => (
+          <div key={title} className="flex flex-col items-center px-6 text-center">
+            <Icon size={22} strokeWidth={1.75} className="text-accent-ink" />
+            <h3 className="mt-3 type-section">{title}</h3>
+            <p className="mt-1 type-body text-ink-secondary">{description}</p>
+          </div>
         ))}
       </div>
     </div>
@@ -143,7 +144,7 @@ function Permissions() {
       <StepHeader title="Allow access">
         Wordfall only listens while you dictate, and types the result where your cursor is.
       </StepHeader>
-      <div className="mt-10">
+      <div className="mt-10 border-y border-line">
         <PermissionList />
       </div>
     </>
@@ -163,8 +164,8 @@ function ModelStep() {
       </StepHeader>
 
       {model && (
-        <Card className="mt-10 flex items-center gap-4">
-          <IconTile icon={model.downloaded ? Check : ArrowDown} tone={model.downloaded ? "success" : "brand"} size="md" />
+        <div className="mt-10 flex items-center gap-4 border-y border-line py-5">
+          <IconTile icon={model.downloaded ? Check : ArrowDown} tone={model.downloaded ? "success" : "accent"} size="md" />
           <div className="min-w-0 flex-1">
             <h2 className="type-label">{model.name}</h2>
             <p className="mt-0.5 type-small text-ink-secondary">
@@ -182,7 +183,7 @@ function ModelStep() {
               Download
             </Button>
           )}
-        </Card>
+        </div>
       )}
       {!models.some((m) => m.downloaded) && (
         <p className="mt-4 text-center type-small text-ink-muted">
@@ -196,14 +197,15 @@ function ModelStep() {
 function Ready() {
   const { settings } = useStore();
   return (
-    <>
+    <div className="flex flex-col items-center">
+      <KeyRipple hotkey={settings.hotkey} className="mt-20 mb-16" />
       <StepHeader title="Pick your hotkey">
         Click into any text field, {settings.recordingMode === "hold" ? "hold" : "press"} it and speak.
       </StepHeader>
-      <Card className="mt-10 flex flex-col items-center gap-4 py-8">
+      <div className="mt-8 flex flex-col items-center gap-3">
         <HotkeyPicker />
         <p className="type-small text-ink-muted">You can change this later in Settings.</p>
-      </Card>
-    </>
+      </div>
+    </div>
   );
 }

@@ -8,8 +8,10 @@
  * `type-title`… No raw hex values, ad-hoc font sizes or one-off shadows.
  *
  * One typeface (Satoshi); deep blues on pale, airy surfaces, with soft
- * gradients where things flow; surfaces separated by hairlines. Strong
- * shadows are reserved for things that float: menus, dialogs and toasts.
+ * gradients where things flow. "Calm focus": one centered reading column
+ * beside a thin icon rail, big quiet titles, and lists separated by soft
+ * hairlines rather than boxed in cards. Strong shadows are reserved for
+ * things that float: menus, dialogs and toasts.
  */
 
 @font-face {
@@ -43,7 +45,7 @@
  *                light, luminous soft blue in dark.
  *   accent-ink   blue for text, icons and links on surfaces.
  *   sidebar      deep navy in both themes, with `sidebar-accent` (a pale, glowing
- *                blue) for the active item and brand marks drawn on it.
+ *                blue) for brand marks drawn on it, like the brand icon tile.
  *   success / warning / danger / info   status only
  *
  * Everything else is ink and blue-tinted grays. Icon tiles and badges are
@@ -52,7 +54,7 @@
  */
 
 :root {
-  /* Pale blue-tinted page, near-white cards on it, deep navy sidebar beside it. */
+  /* Pale blue-tinted page that deepens slightly downward, near-white surfaces on it. */
   --app: #eef3fa;
   --surface: #fcfdff;
   --surface-sunken: #f4f8fd;
@@ -89,8 +91,13 @@
   --sidebar-gradient: linear-gradient(180deg, #11305c 0%, #0b2047 38%, #081833 100%);
   --sidebar-accent: #8fd0ff;
 
-  /* A faint wash of light from the top of the page. */
+  /* The page: a faint fall of blue from top to bottom, under a wash of light from above. */
+  --app-gradient: linear-gradient(180deg, #f7faff 0%, #eef3fa 55%, #e7eef8 100%);
   --app-wash: radial-gradient(90% 60% at 50% -10%, rgb(124 182 255 / 0.18), transparent 70%);
+  /* A pool of light behind the dashboard's keycap. */
+  --hero-wash: radial-gradient(60% 55% at 50% 50%, rgb(124 182 255 / 0.22), transparent 70%);
+  /* The big keycap: a lip along the bottom edge and a soft drop shadow. */
+  --keycap-shadow: 0 1px 0 #c2d0e2, 0 10px 30px -8px rgb(13 35 70 / 0.25);
 
   --success: #0a7255;
   --success-soft: rgb(16 160 120 / 0.12);
@@ -143,7 +150,10 @@
   --sidebar-gradient: linear-gradient(180deg, #0c1f3c 0%, #071429 40%, #040b19 100%);
   --sidebar-accent: #8fd0ff;
 
+  --app-gradient: linear-gradient(180deg, #0a1529 0%, #071021 60%, #050c1a 100%);
   --app-wash: radial-gradient(90% 60% at 50% -10%, rgb(70 140 230 / 0.16), transparent 70%);
+  --hero-wash: radial-gradient(60% 55% at 50% 50%, rgb(70 140 230 / 0.2), transparent 70%);
+  --keycap-shadow: 0 1px 0 #2b4163, 0 14px 36px -8px rgb(0 0 0 / 0.6);
 
   --success: #5fd8b4;
   --success-soft: rgb(95 216 180 / 0.13);
@@ -201,6 +211,8 @@
   --color-danger-soft: var(--danger-soft);
   --color-info: var(--info);
   --color-info-soft: var(--info-soft);
+
+  --shadow-keycap: var(--keycap-shadow);
 }
 
 @theme {
@@ -229,6 +241,8 @@
   --animate-fade-in: fade-in 0.18s var(--ease-out-soft);
   --animate-pop-in: pop-in 0.2s var(--ease-out-soft);
   --animate-wave: wave 1.1s ease-in-out infinite;
+  /* Rings around the keycap swell and settle like water. Use with `motion-safe:`. */
+  --animate-ripple: ripple 5.4s ease-in-out infinite;
 
   @keyframes wave {
     0%,
@@ -237,6 +251,17 @@
     }
     50% {
       transform: scaleY(1);
+    }
+  }
+  @keyframes ripple {
+    0%,
+    100% {
+      transform: scale(0.97);
+      opacity: 0.55;
+    }
+    50% {
+      transform: scale(1.04);
+      opacity: 1;
     }
   }
   @keyframes fade-in {
@@ -254,19 +279,19 @@
 
 /* ---- Type scale: the only font sizes in the app ---- */
 
-/* Onboarding titles and the dashboard word count. */
+/* The dashboard's "Hold fn and talk." and onboarding titles. Large but light. */
 @utility type-display {
   font-size: 44px;
-  line-height: 48px;
-  font-weight: 700;
-  letter-spacing: -0.03em;
+  line-height: 52px;
+  font-weight: 500;
+  letter-spacing: -0.025em;
 }
-/* Page titles. */
+/* Page titles: big and quiet. */
 @utility type-title {
-  font-size: 24px;
-  line-height: 30px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
+  font-size: 32px;
+  line-height: 40px;
+  font-weight: 500;
+  letter-spacing: -0.022em;
 }
 /* Stat values. */
 @utility type-metric {
@@ -289,6 +314,12 @@
   line-height: 20px;
   font-weight: 500;
 }
+/* Transcripts in the dashboard and History feeds. */
+@utility type-feed {
+  font-size: 17px;
+  line-height: 26px;
+  letter-spacing: -0.005em;
+}
 @utility type-body-lg {
   font-size: 15px;
   line-height: 23px;
@@ -307,8 +338,8 @@
 }
 /* Small uppercase labels above groups. */
 @utility type-overline {
-  font-size: 11px;
-  line-height: 14px;
+  font-size: 12px;
+  line-height: 16px;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -324,18 +355,21 @@
   }
 }
 
-/* A soft accent wash from the top edge, for welcome and hero areas. */
-@utility bg-glow {
-  background-image:
-    radial-gradient(60% 50% at 50% 0%, var(--accent-soft), transparent 70%),
-    radial-gradient(35% 30% at 85% 10%, rgb(94 205 220 / 0.1), transparent 70%),
-    radial-gradient(30% 28% at 12% 18%, rgb(124 160 255 / 0.08), transparent 70%);
+/* A pool of light, brightest at the center: behind the dashboard keycap and onboarding. */
+@utility bg-hero-wash {
+  background-image: var(--hero-wash);
 }
 
-/* The page background: the app color under a faint light from above. */
+/* The page background: the app gradient under a faint light from above. */
 @utility bg-flow {
   background-color: var(--app);
-  background-image: var(--app-wash);
+  background-image: var(--app-wash), var(--app-gradient);
+}
+
+/* Fades a list out toward the bottom, for feeds that continue elsewhere. */
+@utility fade-out-bottom {
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 55%, transparent 100%);
+  mask-image: linear-gradient(180deg, #000 0%, #000 55%, transparent 100%);
 }
 
 /* The main action's fill. Pair with `text-on-accent`. */
@@ -344,7 +378,7 @@
   background-image: var(--accent-gradient);
 }
 
-/* The navy sidebar and menu bar panel header, deepening toward the bottom. */
+/* Deep navy, deepening toward the bottom: the brand icon tile. */
 @utility bg-sidebar-flow {
   background-color: var(--sidebar);
   background-image: var(--sidebar-gradient);

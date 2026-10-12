@@ -29,7 +29,6 @@ import { UpdateDialog } from "@/components/UpdateDialog";
 import {
   Badge,
   Button,
-  Card,
   EmptyState,
   Page,
   PageHeader,
@@ -62,8 +61,10 @@ export function SettingsScreen() {
 
   return (
     <Page>
-      <PageHeader title="Settings" />
-      <SegmentedControl value={tab} options={tabs} onChange={setTab} className="mb-8 w-[360px]" />
+      <PageHeader
+        title="Settings"
+        actions={<SegmentedControl value={tab} options={tabs} onChange={setTab} className={tabs.length > 2 ? "w-[340px]" : "w-[230px]"} />}
+      />
       {tab === "general" && <GeneralTab />}
       {tab === "audio" && <AudioTab />}
       {tab === "permissions" && <PermissionsTab />}
@@ -89,7 +90,7 @@ function GeneralTab() {
   return (
     <>
       <Section title="Appearance">
-        <SettingRow icon={Sun} tone="neutral" label="Theme" description="Follow your system, or pick a look.">
+        <SettingRow icon={Sun} label="Theme" description="Follow your system, or pick a look.">
           <SegmentedControl
             value={settings.theme}
             onChange={(theme) => save({ theme })}
@@ -105,7 +106,7 @@ function GeneralTab() {
       <Section title="Shortcuts">
         <SettingRow
           icon={Keyboard}
-          tone="neutral"
+         
           label="Dictation hotkey"
           description={isMac ? "Works in every app. Fn is the easiest to reach." : "Works in every app. Click to record a new one."}
         >
@@ -113,7 +114,7 @@ function GeneralTab() {
         </SettingRow>
         <SettingRow
           icon={Hand}
-          tone="neutral"
+         
           label="Recording mode"
           description={
             settings.recordingMode === "hold"
@@ -136,20 +137,20 @@ function GeneralTab() {
       <Section title="Behavior">
         <SettingRow
           icon={Keyboard}
-          tone="neutral"
+         
           label="Type while speaking"
           description="Insert short phrases as you speak. Escape stops further typing; words already inserted stay. Turn off to insert everything when you stop."
         >
           <Switch label="Type while speaking" checked={settings.liveTyping} onChange={(liveTyping) => save({ liveTyping })} />
         </SettingRow>
         {settings.liveTyping && settings.recordingMode === "hold" && settings.hotkey !== "Fn" && (
-          <p className="px-5 py-3 type-small text-ink-secondary">
+          <p className="py-3 pl-8 type-small text-ink-secondary">
             For live typing with this shortcut, choose Toggle mode. Hold mode inserts the transcript when you release the shortcut.
           </p>
         )}
         <SettingRow
           icon={Command}
-          tone="neutral"
+         
           label={isMac ? "Show menu bar icon" : "Show tray icon"}
           description="Quick access to dictation and Wordfall's window."
         >
@@ -157,7 +158,7 @@ function GeneralTab() {
         </SettingRow>
         <SettingRow
           icon={ClipboardCheck}
-          tone="neutral"
+         
           label="Restore clipboard after pasting"
           description={
             settings.restoreClipboard
@@ -169,7 +170,7 @@ function GeneralTab() {
         </SettingRow>
         <SettingRow
           icon={AudioLines}
-          tone="neutral"
+         
           label="Keep recordings"
           description={
             settings.saveRecordings
@@ -181,7 +182,7 @@ function GeneralTab() {
         </SettingRow>
         <SettingRow
           icon={PanelBottom}
-          tone="neutral"
+         
           label="Always show the recorder pill"
           description={
             settings.alwaysShowPill
@@ -191,7 +192,7 @@ function GeneralTab() {
         >
           <Switch checked={settings.alwaysShowPill} onChange={(alwaysShowPill) => save({ alwaysShowPill })} />
         </SettingRow>
-        <SettingRow icon={PanelBottom} tone="neutral" label="Recorder position" description="Where the pill appears on your screen.">
+        <SettingRow icon={PanelBottom} label="Recorder position" description="Where the pill appears on your screen.">
           <PillPositionPicker value={settings.pillPosition} onChange={(pillPosition) => save({ pillPosition })} />
         </SettingRow>
       </Section>
@@ -199,7 +200,7 @@ function GeneralTab() {
       <Section title="Transcript cleanup" description="Light, offline tidying after each dictation.">
         <SettingRow
           icon={Wand2}
-          tone="neutral"
+         
           label="Remove filler words"
           description="Takes out “um”, “uh” and similar words. The meaning of what you said never changes."
         >
@@ -207,7 +208,7 @@ function GeneralTab() {
         </SettingRow>
         <SettingRow
           icon={Sparkles}
-          tone="neutral"
+         
           label="Smart trailing punctuation"
           description="When you dictate just an email, link, number or single word, the final period is dropped so it pastes clean. Sentences are left alone."
         >
@@ -218,7 +219,7 @@ function GeneralTab() {
         </SettingRow>
         <SettingRow
           icon={Lightbulb}
-          tone="neutral"
+         
           label="Learn from my corrections"
           description={
             settings.learnCorrections
@@ -233,7 +234,7 @@ function GeneralTab() {
         </SettingRow>
         <SettingRow
           icon={BookA}
-          tone="neutral"
+         
           label="Replacements and snippets"
           description="Word fixes and spoken snippets (say “my email”, get your address) live in Dictionary."
         />
@@ -242,7 +243,27 @@ function GeneralTab() {
       <LanguageSection />
       <UpdatesSection />
       <ImportSection />
+      <StudioMark />
     </>
+  );
+}
+
+/** The studio's wordmark, letters spread wide, quietly closing the page. */
+function StudioMark() {
+  return (
+    <a
+      href="https://2048labs.com"
+      target="_blank"
+      rel="noreferrer"
+      aria-label="Made by 2048 Labs"
+      className="mx-auto mt-4 flex w-[180px] justify-between type-overline text-ink-muted transition-colors hover:text-ink"
+    >
+      {"2048 LABS".split("").map((char, i) => (
+        <span key={i} aria-hidden className={char === " " ? "w-2" : undefined}>
+          {char}
+        </span>
+      ))}
+    </a>
   );
 }
 
@@ -269,7 +290,7 @@ function LanguageSection() {
     <Section title="Spoken language">
       <SettingRow
         icon={Globe}
-        tone="neutral"
+       
         label="Language you speak"
         description="A hint for transcription. It doesn't translate, and a wrong hint can give poor results, so detection is the safest choice."
       >
@@ -282,7 +303,7 @@ function LanguageSection() {
           className="w-[240px]"
         />
       </SettingRow>
-      <div className="px-5 py-3.5 type-small text-ink-muted">
+      <div className="py-3.5 pl-8 type-small text-ink-muted">
         For languages other than English, use a multilingual model. English-only models can only write English.
       </div>
     </Section>
@@ -310,15 +331,21 @@ function UpdatesSection() {
   };
 
   return (
-    <Section title="Updates" description={`Wordfall ${status.version}`}>
-      <SettingRow icon={RefreshCw} label="Check for updates automatically" description="Once a day, in the background.">
+    <Section
+      title="Updates"
+      action={
+        <Button size="sm" variant="ghost" icon={RotateCw} loading={checking} onClick={check}>
+          {checking ? "Checking…" : "Check now"}
+        </Button>
+      }
+    >
+      <SettingRow
+        icon={RefreshCw}
+        label="Check for updates automatically"
+        description={`Once a day, in the background. You have Wordfall ${status.version}.`}
+      >
         <Switch checked={settings.autoUpdate} onChange={(autoUpdate) => save({ autoUpdate })} />
       </SettingRow>
-      <div className="px-5 py-4">
-        <Button icon={RotateCw} loading={checking} onClick={check}>
-          {checking ? "Checking…" : "Check for updates"}
-        </Button>
-      </div>
       <UpdateDialog update={update} onClose={() => setUpdate(null)} />
     </Section>
   );
@@ -356,7 +383,7 @@ function ImportSection() {
     <Section title="SpeakType 1">
       <SettingRow
         icon={Import}
-        tone="neutral"
+       
         label="Import from SpeakType 1"
         description={`Found ${describeImport(available)} on this computer. Anything already here is skipped.`}
       >
@@ -390,70 +417,60 @@ function AudioTab() {
     ...(devices ?? []).map((d) => ({ id: d.id, name: d.name, detail: undefined })),
   ];
 
+
   return (
-    <>
-      <div className="mb-3 flex items-end px-1">
-        <div className="flex-1">
-          <h2 className="type-section">Microphone</h2>
-          <p className="mt-0.5 type-small text-ink-secondary">Wordfall records from this input.</p>
-        </div>
+    <Section
+      title="Microphone"
+      description="Wordfall records from this input."
+      action={
         <Button size="sm" variant="ghost" icon={RotateCw} loading={refreshing} onClick={refresh}>
           Refresh
         </Button>
-      </div>
-
+      }
+    >
       {devices && devices.length === 0 ? (
-        <Card>
-          <EmptyState icon={Mic} title="No microphones found" description="Connect a microphone, then refresh." />
-        </Card>
+        <EmptyState icon={Mic} title="No microphones found" description="Connect a microphone, then refresh." />
       ) : (
-        <div className="flex flex-col gap-2">
-          {rows.map((row) => {
-            const selected = row.id === settings.inputDevice || (row.id === "" && !selectedExists);
-            return (
-              <button
-                key={row.id || "default"}
-                type="button"
-                onClick={() => save({ inputDevice: row.id })}
+        rows.map((row) => {
+          const selected = row.id === settings.inputDevice || (row.id === "" && !selectedExists);
+          return (
+            <button
+              key={row.id || "default"}
+              type="button"
+              role="radio"
+              aria-checked={selected}
+              onClick={() => save({ inputDevice: row.id })}
+              className="group flex w-full items-center gap-3.5 py-4 text-left"
+            >
+              <span
                 className={cn(
-                  "flex items-center gap-3.5 rounded-card border bg-surface px-4 py-3.5 text-left transition-colors",
-                  selected ? "border-accent/50" : "border-line hover:border-line-strong",
+                  "flex size-[18px] shrink-0 items-center justify-center rounded-full border-[1.5px] transition-colors",
+                  selected ? "border-accent" : "border-line-strong group-hover:border-ink-muted",
                 )}
               >
-                <span
-                  className={cn(
-                    "flex size-[18px] shrink-0 items-center justify-center rounded-full border-[1.5px] transition-colors",
-                    selected ? "border-accent" : "border-line-strong",
-                  )}
-                >
-                  {selected && <span className="size-2 rounded-full bg-accent" />}
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate type-label">{row.name}</span>
-                  {row.detail && <span className="block truncate type-caption text-ink-muted">{row.detail}</span>}
-                </span>
-                {selected && (
-                  <Badge tone="success" icon={Mic}>
-                    In use
-                  </Badge>
-                )}
-              </button>
-            );
-          })}
-        </div>
+                {selected && <span className="size-2 rounded-full bg-accent" />}
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate type-label">{row.name}</span>
+                {row.detail && <span className="block truncate type-caption text-ink-muted">{row.detail}</span>}
+              </span>
+              {selected && (
+                <Badge tone="success" icon={Mic}>
+                  In use
+                </Badge>
+              )}
+            </button>
+          );
+        })
       )}
-    </>
+    </Section>
   );
 }
 
 function PermissionsTab() {
   return (
-    <>
-      <div className="mb-3 px-1">
-        <h2 className="type-section">App permissions</h2>
-        <p className="mt-0.5 type-small text-ink-secondary">Wordfall needs both to dictate into other apps.</p>
-      </div>
+    <Section title="App permissions" description="Wordfall needs both to dictate into other apps.">
       <PermissionList />
-    </>
+    </Section>
   );
 }

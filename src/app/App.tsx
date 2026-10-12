@@ -14,7 +14,7 @@ import { OnboardingScreen } from "@/screens/onboarding/OnboardingScreen";
 import { SettingsScreen } from "@/screens/settings/SettingsScreen";
 import { StatisticsScreen } from "@/screens/statistics/StatisticsScreen";
 import type { Route } from "./routes";
-import { Sidebar } from "./Sidebar";
+import { Rail } from "./Rail";
 
 const DAY_MS = 86_400_000;
 const LAST_CHECK_KEY = "lastUpdateCheck";
@@ -69,10 +69,12 @@ export function App() {
   }
 
   return (
-    <div className="flex h-full">
+    <div className="flex h-full bg-flow">
       <UpdateDialog update={update.info} onClose={update.dismiss} />
-      <Sidebar route={route} onNavigate={setRoute} />
-      <main key={route} className="h-full min-w-0 flex-1 animate-fade-in bg-flow">
+      <Rail route={route} onNavigate={setRoute} />
+      <main key={route} className="relative h-full min-w-0 flex-1 animate-fade-in">
+        {/* The window can be dragged by the strip along the top, as with a title bar. */}
+        <div data-tauri-drag-region className="absolute inset-x-0 top-0 z-10 h-7" />
         {route === "dashboard" && <DashboardScreen onNavigate={setRoute} />}
         {route === "history" && <HistoryScreen />}
         {route === "dictionary" && <DictionaryScreen />}

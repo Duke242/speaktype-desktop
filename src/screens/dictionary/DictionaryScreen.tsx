@@ -1,14 +1,13 @@
-import { ArrowRight, BookA, Lightbulb, Pencil, Plus, Trash2, Wand2 } from "lucide-react";
+import { ArrowRight, BookA, Lightbulb, Pencil, Plus, Trash2 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import {
   Badge,
   Button,
-  Callout,
-  Card,
   ConfirmDialog,
   Dialog,
   EmptyState,
   IconButton,
+  Section,
   Page,
   PageHeader,
   Switch,
@@ -18,6 +17,7 @@ import {
 } from "@/components/ui";
 import { errorMessage, type DictionaryEntry } from "@/lib/api";
 import { cn } from "@/lib/cn";
+import { plural } from "@/lib/format";
 import { useStore } from "@/lib/store";
 
 export function DictionaryScreen() {
@@ -26,6 +26,7 @@ export function DictionaryScreen() {
   const [editing, setEditing] = useState<DictionaryEntry | "new" | null>(null);
   const [deleting, setDeleting] = useState<DictionaryEntry | null>(null);
   const entries = settings.dictionary;
+  const learnedCount = entries.filter((e) => e.learned).length;
 
   const saveEntries = (dictionary: DictionaryEntry[]) =>
     updateSettings({ dictionary }).catch((e) => toast(errorMessage(e), "error"));
@@ -46,29 +47,22 @@ export function DictionaryScreen() {
     <Page>
       <PageHeader
         title="Dictionary"
-        description={entries.length > 0 ? `${entries.length} ${entries.length === 1 ? "rule" : "rules"}` : undefined}
+        description="Turn what you say into the text you want. Say “my email” and get your address, or fix a name the model keeps mishearing. Words you correct are added here too, marked Learned."
         actions={entries.length > 0 && addButton}
       />
 
-      <div className="mb-6">
-        <Callout icon={Wand2} tone="neutral" title="Turn what you say into the text you want">
-          Say a trigger like “my email” and Wordfall types your real address. Or fix a name the model keeps
-          mishearing. Words you correct after dictating are added here too, marked Learned. Everything runs
-          offline.
-        </Callout>
-      </div>
-
       {entries.length === 0 ? (
-        <Card>
-          <EmptyState
-            icon={BookA}
-            title="No rules yet"
-            description="Add your first rule to replace a spoken phrase with any text."
-            action={addButton}
-          />
-        </Card>
+        <EmptyState
+          icon={BookA}
+          title="No rules yet"
+          description="Add your first rule to replace a spoken phrase with any text. Everything runs offline."
+          action={addButton}
+        />
       ) : (
-        <div className="flex flex-col gap-2">
+        <Section
+          title={plural(entries.length, "rule")}
+          action={learnedCount > 0 && <span className="type-caption text-ink-muted">{learnedCount} learned</span>}
+        >
           {entries.map((entry) => (
             <RuleRow
               key={entry.id}
@@ -78,7 +72,7 @@ export function DictionaryScreen() {
               onToggle={(isEnabled) => saveEntries(entries.map((e) => (e.id === entry.id ? { ...e, isEnabled } : e)))}
             />
           ))}
-        </div>
+        </Section>
       )}
 
       <RuleEditor
@@ -111,7 +105,7 @@ function RuleRow({
   onToggle: (enabled: boolean) => void;
 }) {
   return (
-    <Card padding="none" interactive className="group flex items-center gap-4 px-5 py-3.5">
+    <div className="group flex items-center gap-4 py-3.5">
       <button
         type="button"
         onClick={onEdit}
@@ -136,7 +130,7 @@ function RuleRow({
         <IconButton icon={Trash2} label="Delete rule" size="sm" tone="danger" onClick={onDelete} />
       </div>
       <Switch checked={entry.isEnabled} onChange={onToggle} label={`Enable “${entry.trigger.trim()}”`} />
-    </Card>
+    </div>
   );
 }
 

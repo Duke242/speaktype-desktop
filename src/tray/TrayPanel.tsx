@@ -80,23 +80,23 @@ function Header() {
 
   let status: { dot: string; label: string };
   if (recording) status = { dot: "bg-recording animate-pulse", label: `Recording ${formatClock((now - dictation.startedAtMs) / 1000)}` };
-  else if (transcribing) status = { dot: "bg-white/60", label: "Transcribing…" };
+  else if (transcribing) status = { dot: "bg-ink-muted", label: "Transcribing…" };
   else if (!model) status = { dot: "bg-warning", label: "No model" };
-  else if (engine.loading === model.id) status = { dot: "bg-white/60", label: "Loading model…" };
-  else status = { dot: "bg-sidebar-accent", label: "Ready" };
+  else if (engine.loading === model.id) status = { dot: "bg-ink-muted", label: "Loading model…" };
+  else status = { dot: "bg-success", label: "Ready" };
 
   const hotkey = hotkeyParts(settings.hotkey).join(" ");
   const verb = settings.recordingMode === "hold" ? "hold" : "press";
 
   return (
-    <div className="bg-sidebar-flow px-4 pt-4 pb-4 text-white">
+    <div className="px-4 pt-4 pb-4 [background-image:var(--app-wash)]">
       <div className="flex items-center gap-2.5">
-        <LogoMark className="size-7 rounded-control ring-1 ring-white/15" />
+        <LogoMark className="size-7" />
         <div className="min-w-0 flex-1">
           <div className="type-label">Wordfall</div>
-          <div className="truncate type-caption text-white/50">{model ? model.name : "Download a model to start"}</div>
+          <div className="truncate type-caption text-ink-muted">{model ? model.name : "Download a model to start"}</div>
         </div>
-        <span className="flex h-6 items-center gap-1.5 rounded-full bg-white/10 px-2.5 type-caption font-medium tabular-nums">
+        <span className="flex h-6 items-center gap-1.5 rounded-full border border-line bg-surface/70 px-2.5 type-caption font-medium text-ink-secondary tabular-nums">
           <span className={cn("size-1.5 rounded-full", status.dot)} />
           {status.label}
         </span>
@@ -114,12 +114,12 @@ function Header() {
         <button
           type="button"
           onClick={() => api.toggleDictation()}
-          className="mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-card bg-white type-label text-ink transition-opacity hover:opacity-90"
+          className="mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-card bg-primary type-label text-on-primary transition-colors hover:bg-primary-hover"
         >
           <Square size={14} fill="currentColor" className="text-recording" /> Stop and paste
         </button>
       ) : transcribing ? (
-        <div className="mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-card bg-white/10 type-label text-white/70">
+        <div className="mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-card bg-hover type-label text-ink-secondary">
           <Spinner size={14} /> Transcribing…
         </div>
       ) : (
@@ -147,23 +147,21 @@ function Today() {
   const words = today.reduce((sum, s) => sum + s.wordCount, 0);
   const minutesSaved = Math.round(words / TYPING_WORDS_PER_MINUTE);
 
-  const items = [
-    { value: formatNumber(words), label: "Words today" },
-    { value: formatNumber(today.length), label: "Dictations" },
-    {
-      value: minutesSaved < 60 ? `${minutesSaved} min` : `${Math.floor(minutesSaved / 60)}h ${minutesSaved % 60}m`,
-      label: "Time saved",
-    },
-  ];
+  const saved = minutesSaved < 60 ? `${minutesSaved} min` : `${Math.floor(minutesSaved / 60)}h ${minutesSaved % 60}m`;
+  // One quiet line, like the dashboard's.
   return (
-    <div className="grid grid-cols-3 divide-x divide-line-subtle border-b border-line-subtle">
-      {items.map((item) => (
-        <div key={item.label} className="px-4 py-3">
-          <div className="type-section tabular-nums">{item.value}</div>
-          <div className="type-caption text-ink-secondary">{item.label}</div>
-        </div>
-      ))}
-    </div>
+    <p className="flex justify-center gap-4 border-y border-line-subtle px-4 py-2.5 type-caption text-ink-muted">
+      <span>
+        <b className="font-bold text-ink tabular-nums">{formatNumber(words)}</b> words today
+      </span>
+      <span>
+        <b className="font-bold text-ink tabular-nums">{formatNumber(today.length)}</b>{" "}
+        {today.length === 1 ? "dictation" : "dictations"}
+      </span>
+      <span>
+        <b className="font-bold text-ink tabular-nums">{saved}</b> saved
+      </span>
+    </p>
   );
 }
 
@@ -217,7 +215,7 @@ function Recent() {
   return (
     <div className="border-b border-line-subtle pb-1.5">
       <div className="flex items-center px-4 pt-3 pb-1">
-        <span className="flex-1 type-small font-medium text-ink-secondary">Recent</span>
+        <span className="flex-1 type-overline text-ink-muted">Recently said</span>
         {recent.length > 0 && (
           <button
             type="button"
