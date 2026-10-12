@@ -41,7 +41,7 @@ export function OnboardingScreen() {
       <header data-tauri-drag-region className="relative flex h-14 shrink-0 items-center justify-center">
         <div className="pointer-events-none flex items-center gap-2">
           <LogoMark className="size-6" />
-          <span className="type-label">SpeakType</span>
+          <span className="type-label">Wordfall</span>
         </div>
       </header>
 
@@ -120,7 +120,7 @@ function Welcome({ imported }: { imported: ImportSummary | null }) {
           We brought over {describeImport(imported)} from SpeakType 1. A few quick steps and you're dictating again.
         </StepHeader>
       ) : (
-        <StepHeader title="Welcome to SpeakType!">
+        <StepHeader title="Welcome to Wordfall!">
           Hold a key, speak naturally, and your words appear in whatever app you're using.
         </StepHeader>
       )}
@@ -141,7 +141,7 @@ function Permissions() {
   return (
     <>
       <StepHeader title="Allow access">
-        SpeakType only listens while you dictate, and types the result where your cursor is.
+        Wordfall only listens while you dictate, and types the result where your cursor is.
       </StepHeader>
       <div className="mt-10">
         <PermissionList />

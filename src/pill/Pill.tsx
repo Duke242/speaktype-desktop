@@ -76,8 +76,8 @@ export function Pill({ preview = false }: { preview?: boolean }) {
           "relative flex items-center overflow-hidden text-white",
           "transition-[width,height,border-radius,box-shadow] duration-[450ms] ease-out-soft",
           active
-            ? "bg-pill shadow-elevated ring-1 ring-white/10"
-            : "bg-pill/85 shadow-elevated ring-1 ring-white/10 backdrop-blur-xl",
+            ? "bg-pill bg-linear-to-b from-white/[0.06] to-transparent shadow-elevated ring-1 ring-pill-wave/15"
+            : "bg-pill/85 shadow-elevated ring-1 ring-pill-wave/15 backdrop-blur-xl",
         )}
       >
         {state.phase === "idle" && <IdleBars />}
@@ -120,7 +120,11 @@ function IdleBars() {
   return (
     <div className="flex w-full items-center justify-center gap-[3px]">
       {[0.5, 0.85, 1, 0.85, 0.5].map((scale, i) => (
-        <span key={i} className="w-[2.5px] rounded-full bg-white/85" style={{ height: 12 * scale }} />
+        <span
+          key={i}
+          className="w-[2.5px] rounded-full bg-linear-to-b from-pill-wave to-pill-wave-deep"
+          style={{ height: 12 * scale }}
+        />
       ))}
     </div>
   );
@@ -132,7 +136,7 @@ function Warming({ seconds }: { seconds: number }) {
       <span
         className="size-3.5 shrink-0 animate-spin-fast rounded-full"
         style={{
-          background: "conic-gradient(from 0deg, transparent, white 295deg, transparent 296deg)",
+          background: "conic-gradient(from 0deg, transparent, var(--color-pill-wave) 295deg, transparent 296deg)",
           mask: "radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 1.5px))",
           WebkitMask: "radial-gradient(farthest-side, transparent calc(100% - 2px), #000 calc(100% - 1.5px))",
         }}

@@ -22,13 +22,13 @@ export function Switch({
       onClick={() => onChange(!checked)}
       className={cn(
         "relative inline-flex h-[22px] w-[38px] shrink-0 items-center rounded-full transition-colors duration-200 disabled:opacity-45",
-        checked ? "bg-primary" : "bg-line-strong",
+        checked ? "bg-accent" : "bg-line-strong",
       )}
     >
       <span
         className={cn(
           "absolute left-[3px] size-4 rounded-full shadow-elevated transition-[transform,background-color] duration-200 ease-out-soft",
-          checked ? "translate-x-4 bg-accent" : "bg-white",
+          checked ? "translate-x-4 bg-white" : "bg-white",
         )}
       />
     </button>

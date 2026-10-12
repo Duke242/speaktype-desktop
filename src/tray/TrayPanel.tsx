@@ -83,17 +83,17 @@ function Header() {
   else if (transcribing) status = { dot: "bg-white/60", label: "Transcribing…" };
   else if (!model) status = { dot: "bg-warning", label: "No model" };
   else if (engine.loading === model.id) status = { dot: "bg-white/60", label: "Loading model…" };
-  else status = { dot: "bg-accent", label: "Ready" };
+  else status = { dot: "bg-sidebar-accent", label: "Ready" };
 
   const hotkey = hotkeyParts(settings.hotkey).join(" ");
   const verb = settings.recordingMode === "hold" ? "hold" : "press";
 
   return (
-    <div className="bg-sidebar px-4 pt-4 pb-4 text-white">
+    <div className="bg-sidebar-flow px-4 pt-4 pb-4 text-white">
       <div className="flex items-center gap-2.5">
         <LogoMark className="size-7 rounded-control ring-1 ring-white/15" />
         <div className="min-w-0 flex-1">
-          <div className="type-label">SpeakType</div>
+          <div className="type-label">Wordfall</div>
           <div className="truncate type-caption text-white/50">{model ? model.name : "Download a model to start"}</div>
         </div>
         <span className="flex h-6 items-center gap-1.5 rounded-full bg-white/10 px-2.5 type-caption font-medium tabular-nums">
@@ -106,7 +106,7 @@ function Header() {
         <button
           type="button"
           onClick={() => api.openMainWindow("models")}
-          className="mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-card bg-accent type-label text-on-accent transition-colors hover:bg-accent-strong"
+          className="mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-card bg-accent-flow type-label text-on-accent transition-[filter] hover:brightness-110"
         >
           Choose a model <ArrowUpRight size={16} />
         </button>
@@ -126,12 +126,12 @@ function Header() {
         <button
           type="button"
           onClick={() => api.toggleDictation()}
-          className="mt-4 flex h-11 w-full items-center justify-between rounded-card bg-accent px-4 type-label text-on-accent transition-colors hover:bg-accent-strong"
+          className="mt-4 flex h-11 w-full items-center justify-between rounded-card bg-accent-flow px-4 type-label text-on-accent transition-[filter] hover:brightness-110"
         >
           <span className="flex items-center gap-2">
             <Mic size={16} /> Start dictation
           </span>
-          <span className="type-caption text-on-accent/60">
+          <span className="type-caption text-on-accent/80">
             or {verb} {hotkey}
           </span>
         </button>
@@ -293,11 +293,11 @@ function Footer() {
         onClick={() => api.openMainWindow()}
         className="flex h-8 items-center gap-1.5 rounded-control px-2.5 type-small font-medium text-ink-secondary transition-colors hover:bg-hover hover:text-ink"
       >
-        Open SpeakType <ArrowUpRight size={14} />
+        Open Wordfall <ArrowUpRight size={14} />
       </button>
       <span className="flex-1" />
       <IconButton icon={Settings} label="Settings" size="sm" onClick={() => api.openMainWindow("settings")} />
-      <IconButton icon={Power} label="Quit SpeakType" size="sm" onClick={() => api.quitApp()} />
+      <IconButton icon={Power} label="Quit Wordfall" size="sm" onClick={() => api.quitApp()} />
     </div>
   );
 }

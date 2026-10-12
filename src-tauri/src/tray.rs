@@ -40,10 +40,10 @@ const ICON_RECORDING: &[u8] = include_bytes!("../icons/tray/recording.png");
 const ICON_BUSY: &[u8] = include_bytes!("../icons/tray/busy.png");
 
 pub fn build(app: &AppHandle, visible: bool) -> tauri::Result<()> {
-    let open = MenuItem::with_id(app, "open", "Open SpeakType", true, None::<&str>)?;
+    let open = MenuItem::with_id(app, "open", "Open Wordfall", true, None::<&str>)?;
     let dictate = MenuItem::with_id(app, "dictate", "Start Dictation", true, None::<&str>)?;
     let settings = MenuItem::with_id(app, "settings", "Settings…", true, None::<&str>)?;
-    let quit = MenuItem::with_id(app, "quit", "Quit SpeakType", true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, "quit", "Quit Wordfall", true, None::<&str>)?;
     let separator = PredefinedMenuItem::separator(app)?;
     let menu = Menu::with_items(
         app,
@@ -51,7 +51,7 @@ pub fn build(app: &AppHandle, visible: bool) -> tauri::Result<()> {
     )?;
 
     TrayIconBuilder::with_id(TRAY_ID)
-        .tooltip("SpeakType")
+        .tooltip("Wordfall")
         .icon(Image::from_bytes(ICON_IDLE)?)
         .icon_as_template(true)
         .menu(&menu)
@@ -79,7 +79,7 @@ pub fn build(app: &AppHandle, visible: bool) -> tauri::Result<()> {
     Ok(())
 }
 
-/// Swaps the icon to show whether SpeakType is idle, recording or transcribing.
+/// Swaps the icon to show whether Wordfall is idle, recording or transcribing.
 pub fn show_state(app: &AppHandle, state: &DictationState) {
     let Some(tray) = app.tray_by_id(TRAY_ID) else {
         return;
