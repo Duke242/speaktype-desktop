@@ -12,6 +12,10 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 - Fix: a half-finished Parakeet download is no longer reported as installed.
 - New setting, "Keep recordings": turn it off to keep only the text of each dictation, with no audio saved (#114).
 - A model download now checks for enough free disk space before it starts, and says how much it needs if there isn't (#159).
+- Type while speaking: text appears in phrases as you talk, instead of all at once when you stop (#112).
+- Whisper models now hear the names and terms in your Dictionary as words to expect, so they're transcribed right more often.
+- Type while speaking gives each phrase the words before it, so sentences continue naturally instead of restarting.
+- A dictionary that learns (#151): fix a misheard name or term in History, or right where Wordfall typed it (macOS and Windows), and it's added to your Dictionary, marked Learned, with Undo. Switch it off under Settings → Transcript cleanup.
 
 ## [1.3.0] - 2026-07-10
 - 
