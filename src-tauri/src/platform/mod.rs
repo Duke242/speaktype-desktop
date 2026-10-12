@@ -10,6 +10,8 @@
 //!   permissions dictation needs, for onboarding and Settings.
 //! - `style_main_window`: native window chrome tweaks.
 //! - `NEURAL_ENGINE`, `extract_zip`, `ORT_ACCELERATOR`: speech model acceleration.
+//! - `FocusedField`: reads the focused text field in another app, so a
+//!   correction made after dictating can be learned. Never available on Linux.
 
 use enigo::{Direction, Enigo, Key, Keyboard};
 use serde::{Deserialize, Serialize};

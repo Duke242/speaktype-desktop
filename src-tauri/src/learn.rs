@@ -8,15 +8,25 @@
 //! Only swaps that look like mishearings are learned: a word or phrase of up to
 //! three words replaced by something that sounds similar and isn't everyday
 //! vocabulary. Rewording a sentence, or fixing "their" to "there", teaches nothing.
+//!
+//! On macOS and Windows, the field a dictation was typed into is watched for a
+//! short while afterwards (`watch_for_corrections`), so fixing a word right
+//! where it was typed teaches it too. Only that field is read, never a password
+//! field, and nothing from it is kept beyond the learned words.
+
+use std::{
+    sync::atomic::{AtomicU64, Ordering},
+    thread,
+    time::{Duration, Instant},
+};
 
 use tauri::{AppHandle, Emitter, Manager};
 
-use crate::{AppState, dictation::Event, text::DictionaryEntry};
+use crate::{AppState, dictation::Event, platform, text::DictionaryEntry};
 
 /// Longest misheard or corrected phrase, in words.
 const MAX_WORDS: usize = 3;
-/// Transcripts longer than this are compared only if they're nearly the same
-/// length, which keeps the comparison cheap.
+/// Longer texts aren't compared, which keeps the comparison cheap.
 const MAX_COMPARED_WORDS: usize = 600;
 /// More swaps than this in one edit is rewriting, not correcting.
 const MAX_CORRECTIONS: usize = 3;
@@ -242,6 +252,122 @@ pub fn learn_from_app(app: &AppHandle, typed: &str, edited: &str) {
     }
 }
 
+/// How long after typing the field is watched, and how often it's read.
+const WATCH_FOR: Duration = Duration::from_secs(45);
+const WATCH_EVERY: Duration = Duration::from_millis(800);
+/// Time for pasted text to land before the field is first read.
+const SETTLE: Duration = Duration::from_millis(900);
+/// Fields holding more text than this, like long documents, aren't watched.
+const MAX_FIELD_BYTES: usize = 200_000;
+/// How much of the text around the typed text is used to find it again.
+const ANCHOR_CHARS: usize = 40;
+
+/// Bumped by each watch, so a newer dictation ends the previous watch.
+static WATCH: AtomicU64 = AtomicU64::new(0);
+
+/// After `typed` was put into another app, watches the focused field for a
+/// while and learns from any corrections made to it. Does nothing if learning
+/// is off or the field can't be read, as on Linux.
+pub fn watch_for_corrections(app: &AppHandle, typed: &str) {
+    let typed = typed.trim();
+    if typed.is_empty() || !app.state::<AppState>().settings().learn_corrections {
+        return;
+    }
+    let generation = WATCH.fetch_add(1, Ordering::SeqCst) + 1;
+    let app = app.clone();
+    let typed = typed.to_string();
+    let spawned = thread::Builder::new()
+        .name("correction-watch".into())
+        .spawn(move || {
+            if let Some(edited) = watch(&typed, generation) {
+                learn_from_app(&app, &typed, &edited);
+            }
+        });
+    if let Err(e) = spawned {
+        eprintln!("[learn] couldn't watch for corrections: {e}");
+    }
+}
+
+/// The typed text as it reads when the user moves on: when the field loses
+/// focus, a newer dictation starts, or the watch times out.
+fn watch(typed: &str, generation: u64) -> Option<String> {
+    thread::sleep(SETTLE);
+    let field = platform::FocusedField::current()?;
+    let mut latest = field.text().filter(|t| t.len() <= MAX_FIELD_BYTES)?;
+    let span = Span::find(&latest, typed)?;
+    let started = Instant::now();
+    while started.elapsed() < WATCH_FOR && WATCH.load(Ordering::SeqCst) == generation {
+        thread::sleep(WATCH_EVERY);
+        if !field.is_focused() {
+            break;
+        }
+        match field.text() {
+            Some(text) if text.len() <= MAX_FIELD_BYTES => latest = text,
+            _ => break,
+        }
+    }
+    span.edited(&latest).map(str::to_string)
+}
+
+/// Where typed text sits in a field, remembered by the text either side so it
+/// can be found again after the user edits it or the text around it.
+#[derive(Debug)]
+struct Span {
+    before: String,
+    after: String,
+    /// Byte offset of the typed text, used to pick between repeated anchors.
+    start: usize,
+    len: usize,
+}
+
+impl Span {
+    /// The last place `typed` appears in `text`, the likeliest to be the one just typed.
+    fn find(text: &str, typed: &str) -> Option<Self> {
+        let start = text.rfind(typed)?;
+        let end = start + typed.len();
+        Some(Self {
+            before: last_chars(&text[..start], ANCHOR_CHARS).to_string(),
+            after: first_chars(&text[end..], ANCHOR_CHARS).to_string(),
+            start,
+            len: typed.len(),
+        })
+    }
+
+    /// The typed text as it reads in `text` now, if it can still be found and
+    /// hasn't grown into something much longer.
+    fn edited<'a>(&self, text: &'a str) -> Option<&'a str> {
+        let start = if self.before.is_empty() {
+            0
+        } else {
+            let near = self.start.saturating_sub(self.before.len());
+            text.match_indices(self.before.as_str())
+                .map(|(at, _)| at)
+                .min_by_key(|at| at.abs_diff(near))?
+                + self.before.len()
+        };
+        let end = if self.after.is_empty() {
+            text.len()
+        } else {
+            start + text[start..].find(self.after.as_str())?
+        };
+        let edited = &text[start..end];
+        (edited.len() <= self.len * 3 + 200).then_some(edited)
+    }
+}
+
+fn last_chars(text: &str, count: usize) -> &str {
+    text.char_indices()
+        .rev()
+        .nth(count.saturating_sub(1))
+        .map_or(text, |(at, _)| &text[at..])
+}
+
+fn first_chars(text: &str, count: usize) -> &str {
+    text.char_indices()
+        .nth(count)
+        .map_or(text, |(at, _)| &text[..at])
+}
+
 /// Roughly the 350 most frequent English words.
 const COMMON_WORDS: &str = "
 a about above after again against all almost alone along already also although always am among an and
@@ -327,6 +453,37 @@ mod tests {
         assert!(similarity(&sound("cooper netties"), &sound("Kubernetes")) >= MIN_SIMILARITY);
         assert!(similarity(&sound("report"), &sound("summary")) < MIN_SIMILARITY);
         assert_eq!(similarity(&[], &[]), 1.0);
+    }
+
+    #[test]
+    fn typed_text_is_found_again_after_edits_in_and_around_it() {
+        let typed = "Karen said the deploy failed.";
+        let field = format!("Hi team,\n\n{typed}\n\nThanks");
+        let span = Span::find(&field, typed).unwrap();
+
+        // Corrected in place.
+        let now = field.replace("Karen", "Karan");
+        assert_eq!(span.edited(&now), Some("Karan said the deploy failed."));
+        // More written above it, and the sign-off changed further down.
+        let now = format!("Quick update.\n{}", now.replace("Thanks", "Thanks!"));
+        assert_eq!(span.edited(&now), Some("Karan said the deploy failed."));
+        // The typed text was deleted along with the greeting: nothing to compare.
+        assert_eq!(span.edited("Thanks"), None);
+    }
+
+    #[test]
+    fn text_typed_at_the_start_or_end_of_a_field_is_found() {
+        let span = Span::find("Karen said hi", "Karen said hi").unwrap();
+        assert_eq!(span.edited("Karan said hi"), Some("Karan said hi"));
+        let span = Span::find("Note: Karen said hi", "Karen said hi").unwrap();
+        assert_eq!(
+            span.edited("Note: Karan said hi, and more"),
+            Some("Karan said hi, and more")
+        );
+        assert!(Span::find("something else", "Karen said hi").is_none());
+        assert_eq!(last_chars("héllo", 3), "llo");
+        assert_eq!(first_chars("héllo", 2), "hé");
+        assert_eq!(first_chars("hi", 5), "hi");
     }
 
     #[test]

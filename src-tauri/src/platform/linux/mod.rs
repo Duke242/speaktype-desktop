@@ -4,8 +4,11 @@
 //! - Wayland blocks both. We shell out to `wtype` or `ydotool` to paste, and
 //!   global shortcuts only fire while an X11 (XWayland) app has focus.
 
+mod focus;
 mod wayland;
 mod x11;
+
+pub use focus::FocusedField;
 
 use std::path::Path;
 

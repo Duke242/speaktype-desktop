@@ -20,7 +20,7 @@ use crate::{
     AppState, LockExt,
     audio::{Captured, Monitor, WHISPER_SAMPLE_RATE},
     dictation::{Controller, Event},
-    models, pipeline, platform,
+    learn, models, pipeline, platform,
     settings::Settings,
     text,
 };
@@ -243,6 +243,10 @@ fn run(
             &transcript,
             model.name,
         );
+        // Only when every phrase reached the app, so the field holds the whole transcript.
+        if !writer.paused && !writer.cancelled.load(Ordering::SeqCst) {
+            learn::watch_for_corrections(app, &transcript);
+        }
     }
     if let Some(error) = failure {
         return Some(Err(error));

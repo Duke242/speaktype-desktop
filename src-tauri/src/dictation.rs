@@ -29,7 +29,7 @@ use crate::{
     AppState, LockExt,
     audio::{Captured, Recording},
     history::now_ms,
-    live,
+    learn, live,
     paste::Paster,
     pill::{self, PillState},
     pipeline,
@@ -525,6 +525,7 @@ impl Session {
                 self.go_idle();
                 if !cancelled && !streamed {
                     let restore = self.state().settings().restore_clipboard;
+                    learn::watch_for_corrections(&self.app, &text);
                     self.paster.paste(text, restore);
                 }
                 if paused && !cancelled {

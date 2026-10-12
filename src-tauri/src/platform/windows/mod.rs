@@ -1,10 +1,14 @@
 //! Windows: regular global shortcuts only, and GPU acceleration chosen at
 //! build time.
 
+mod focus;
+
 use std::path::Path;
 
 use enigo::{Enigo, Key};
 use tauri::WebviewWindow;
+
+pub use focus::FocusedField;
 
 use super::{HotkeyHandler, Permission, PermissionKind};
 
