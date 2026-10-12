@@ -53,13 +53,15 @@ desktop/
 │   │   ├── commands.rs          Commands the interface can call
 │   │   ├── dictation.rs         Record → transcribe → paste, as a small state machine
 │   │   ├── audio.rs  engine/    Microphone capture and the Whisper and Parakeet engines
-│   │   ├── models.rs            Model catalog and downloads
+│   │   ├── cleanup.rs           Optional transcript cleanup by a local language model
+│   │   ├── models.rs            Model catalogs and downloads
 │   │   ├── history.rs  settings.rs  legacy.rs (import from SpeakType 1)
 │   │   └── platform/            Everything OS-specific
 │   │       ├── macos/  windows/  linux/
-│   └── examples/transcribe_wav.rs   Benchmark a model without the UI
+│   └── examples/                transcribe_wav.rs and clean_text.rs: try models without the UI
+├── cleanup-worker/              Helper program that runs built-in cleanup models (llama.cpp)
 ├── ROADMAP.md                   What's done and what's next
-└── scripts/release.mjs          Tags a release (maintainers)
+└── scripts/                     release.mjs (maintainers), build-cleanup-worker.mjs
 ```
 
 Each folder in `platform/` exposes the same functions (hotkeys, pasting, permissions…), so the rest of the core never checks which OS it's on. To change how something works on one system, you usually only touch that system's folder.
@@ -300,6 +302,21 @@ cargo run --release --example transcribe_wav -- parakeet-tdt-v3 ./bench-models c
 ```
 
 Model ids are in `src/models.rs` (`parakeet-tdt-v3`, `base-en`, `large-v3-turbo`…). Include before and after numbers in any pull request that's meant to make transcription faster.
+
+### Try cleanup models and prompts
+
+AI cleanup sends each transcript to a local language model (`src/cleanup.rs`). To see what a model does with some text, and how long it takes, from `desktop/src-tauri/`:
+
+```bash
+# Through a local server such as Ollama
+cargo run --release --example clean_text -- server http://localhost:11434 llama3.2 "um so send it to bob no wait to alice"
+
+# With a built-in model. Build the helper first: cargo build --release in desktop/cleanup-worker
+cargo run --release --example clean_text -- download qwen2.5-1.5b ./bench-models
+cargo run --release --example clean_text -- qwen2.5-1.5b ./bench-models "um so send it to bob no wait to alice"
+```
+
+It prints the model's reply and what SpeakType would paste. When a reply doesn't look like an edit of what was said, the transcript is pasted unchanged. Include a few before and after examples in any pull request that changes the prompt.
 
 ---
 
