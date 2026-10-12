@@ -46,6 +46,16 @@ const STOPPING: &str = "Stopping transcription...";
 const ERROR_MESSAGE: Duration = Duration::from_millis(2000);
 const NO_SPEECH_MESSAGE: Duration = Duration::from_millis(1500);
 const STOPPING_MESSAGE: Duration = Duration::from_millis(800);
+const LEARNED_MESSAGE: Duration = Duration::from_millis(2500);
+
+/// "Learned “Karan”", or "Learned “Karan” and 2 more" for several words.
+fn learned_message(words: &[String]) -> String {
+    match words {
+        [] => "Learned a new word".into(),
+        [word] => format!("Learned “{word}”"),
+        [word, rest @ ..] => format!("Learned “{word}” and {} more", rest.len()),
+    }
+}
 
 /// Broadcast to the UI as `dictation-state`.
 #[derive(Debug, Clone, Serialize)]
@@ -84,6 +94,10 @@ pub enum Event {
     },
     /// Settings changed: the pill may need to appear, hide or move.
     RefreshPill,
+    /// Words learned from a correction, to show in the pill.
+    Learned {
+        words: Vec<String>,
+    },
 }
 
 type Outcome = Result<String, pipeline::Error>;
@@ -331,6 +345,12 @@ impl Session {
                 if matches!(self.phase, Phase::Idle) {
                     pill::place(&self.app, self.state().settings().pill_position);
                     self.go_idle();
+                }
+            }
+            // Never interrupts a dictation; the words are in Dictionary either way.
+            Event::Learned { words } => {
+                if matches!(self.phase, Phase::Idle | Phase::Message { .. }) {
+                    self.flash(&learned_message(&words), LEARNED_MESSAGE);
                 }
             }
         }

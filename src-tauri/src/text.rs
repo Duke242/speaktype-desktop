@@ -19,6 +19,9 @@ pub struct DictionaryEntry {
     pub is_enabled: bool,
     #[serde(default = "yes")]
     pub match_whole_word: bool,
+    /// Added by `learn` from a correction, rather than by the user.
+    #[serde(default)]
+    pub learned: bool,
 }
 
 fn yes() -> bool {
@@ -208,6 +211,66 @@ fn dictionary_regex(trigger: &str, whole_word: bool) -> Option<Regex> {
     Regex::new(&format!("(?i){pattern}")).ok()
 }
 
+/// Most words hinted in a prompt, and the most characters of each part. Together
+/// they stay well inside the 224 tokens Whisper reads.
+const MAX_HINTS: usize = 40;
+const MAX_HINT_CHARS: usize = 400;
+const MAX_CONTEXT_CHARS: usize = 300;
+
+/// Text for Whisper to read before the audio: the words the dictionary
+/// corrects to, so names and jargon are expected rather than guessed, then the
+/// end of what was already said in this dictation, if anything.
+pub fn prompt(dictionary: &[DictionaryEntry], previous: &str) -> String {
+    let mut hints: Vec<&str> = Vec::new();
+    let mut chars = 0;
+    // Newest entries first, so recently learned words are kept when there are many.
+    for entry in dictionary.iter().rev().filter(|e| e.is_enabled) {
+        let word = entry.replacement.trim();
+        if !is_vocabulary(word) || hints.iter().any(|h| h.eq_ignore_ascii_case(word)) {
+            continue;
+        }
+        if hints.len() == MAX_HINTS || chars + word.len() + 2 > MAX_HINT_CHARS {
+            break;
+        }
+        chars += word.len() + 2;
+        hints.push(word);
+    }
+    let mut prompt = hints.join(", ");
+    if !prompt.is_empty() {
+        prompt.push('.');
+    }
+    let context = tail(previous.trim(), MAX_CONTEXT_CHARS);
+    if !context.is_empty() {
+        if !prompt.is_empty() {
+            prompt.push(' ');
+        }
+        prompt.push_str(context);
+    }
+    prompt.replace('\0', "")
+}
+
+/// A word or short name worth hinting. Snippets (an address for "my email") and
+/// filler removal (an empty replacement) aren't words Whisper should expect.
+fn is_vocabulary(text: &str) -> bool {
+    !text.is_empty()
+        && text.split_whitespace().count() <= 3
+        && text.chars().count() <= 32
+        && !text.contains(['@', '/', '\n'])
+        && text.chars().any(char::is_alphabetic)
+}
+
+/// The last `max` characters of `text`, starting at a word.
+fn tail(text: &str, max: usize) -> &str {
+    let Some((start, _)) = text.char_indices().rev().nth(max) else {
+        return text;
+    };
+    let rest = &text[start..];
+    match rest.find(char::is_whitespace) {
+        Some(space) => rest[space..].trim_start(),
+        None => "",
+    }
+}
+
 static NUMBER: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"(?i)^\+?\(?\d(?:[\d\s.,\-()/:]*\d)?$").expect(STATIC_PATTERN));
 static EMAIL: LazyLock<Regex> =
@@ -251,7 +314,50 @@ mod tests {
             replacement: replacement.to_string(),
             is_enabled: true,
             match_whole_word: whole_word,
+            learned: false,
         }
+    }
+
+    #[test]
+    fn prompt_hints_words_and_ends_with_what_was_said() {
+        let dictionary = [
+            entry("karen", "Karan", true),
+            entry("cooper netties", "Kubernetes", true),
+            entry("my email", "karan@example.com", true),
+            entry("um", "", false),
+            entry("cube our netties", "Kubernetes", true),
+        ];
+        assert_eq!(prompt(&dictionary, ""), "Kubernetes, Karan.");
+        assert_eq!(
+            prompt(&dictionary, "  so we deployed it "),
+            "Kubernetes, Karan. so we deployed it"
+        );
+        assert_eq!(prompt(&[], "hello there"), "hello there");
+        assert_eq!(prompt(&[], ""), "");
+
+        let mut disabled = entry("teh", "the", true);
+        disabled.is_enabled = false;
+        assert_eq!(prompt(&[disabled], ""), "");
+    }
+
+    #[test]
+    fn prompt_keeps_only_the_end_of_long_context_from_a_word_start() {
+        let said = "word ".repeat(200);
+        let prompt = prompt(&[], &said);
+        assert!(prompt.chars().count() <= MAX_CONTEXT_CHARS);
+        assert!(prompt.starts_with("word") && prompt.ends_with("word"));
+        assert_eq!(tail("héllo wörld", 5), "wörld");
+        assert_eq!(tail("short", 50), "short");
+    }
+
+    #[test]
+    fn prompt_hints_are_capped() {
+        let many: Vec<_> = (0..100)
+            .map(|i| entry(&format!("t{i}"), &format!("Name{i}"), true))
+            .collect();
+        let prompt = prompt(&many, "");
+        assert_eq!(prompt.split(", ").count(), MAX_HINTS);
+        assert!(prompt.starts_with("Name99"), "newest first: {prompt}");
     }
 
     #[test]

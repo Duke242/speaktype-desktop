@@ -54,10 +54,16 @@ impl Engine {
     }
 
     /// Transcribes 16 kHz mono audio. `language` is a Whisper code or "auto";
-    /// Parakeet detects the language itself.
-    pub fn transcribe(&mut self, samples: &[f32], language: &str) -> Result<String, String> {
+    /// Parakeet detects the language itself. `prompt` (see `text::prompt`) is
+    /// only used by Whisper, as Parakeet has no way to take one.
+    pub fn transcribe(
+        &mut self,
+        samples: &[f32],
+        language: &str,
+        prompt: &str,
+    ) -> Result<String, String> {
         match &mut self.loaded {
-            Some((_, Loaded::Whisper(model))) => model.transcribe(samples, language),
+            Some((_, Loaded::Whisper(model))) => model.transcribe(samples, language, prompt),
             #[cfg(parakeet)]
             Some((_, Loaded::Parakeet(model))) => model.transcribe(samples),
             None => Err("No model loaded".into()),

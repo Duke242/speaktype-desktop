@@ -4,6 +4,7 @@ mod device;
 mod dictation;
 mod engine;
 mod history;
+mod learn;
 mod legacy;
 mod live;
 mod media;
@@ -82,7 +83,7 @@ pub mod devtools {
 
         for run in 1..=runs {
             let started = Instant::now();
-            let text = engine.transcribe(&samples, "auto")?;
+            let text = engine.transcribe(&samples, "auto", "")?;
             let elapsed = started.elapsed();
             println!(
                 "  run {run}: {duration:.1}s of audio in {elapsed:.2?} ({:.0}x real time)",
@@ -342,6 +343,8 @@ pub fn run() {
             commands::get_history,
             commands::get_stats,
             commands::delete_history_item,
+            commands::edit_history_item,
+            commands::forget_word,
             commands::clear_history,
             commands::read_history_audio,
             commands::reveal_history_audio,

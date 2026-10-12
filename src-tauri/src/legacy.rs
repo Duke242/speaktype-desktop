@@ -305,6 +305,7 @@ impl V1DictionaryEntry {
             replacement: self.replacement,
             is_enabled: self.is_enabled,
             match_whole_word: self.match_whole_word,
+            learned: false,
         }
     }
 }
@@ -405,6 +406,7 @@ fn legacy_rules(raw: &str) -> Vec<DictionaryEntry> {
                 replacement: replacement.trim().into(),
                 is_enabled: true,
                 match_whole_word: true,
+                learned: false,
             })
         })
         .collect()
@@ -534,6 +536,7 @@ mod tests {
             replacement: "Figjam".into(),
             is_enabled: true,
             match_whole_word: true,
+            learned: false,
         });
         assert_eq!(v1.import_dictionary(&mut settings), 1);
         assert_eq!(v1.import_dictionary(&mut settings), 0);

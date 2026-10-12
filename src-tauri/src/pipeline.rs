@@ -12,7 +12,7 @@ use crate::{
     AppState, LockExt,
     engine::Engine,
     history::{self, HistoryItem},
-    media, models, text,
+    live, media, models, text,
 };
 
 #[derive(Debug)]
@@ -78,8 +78,14 @@ pub fn run(
         on_warming(false);
         loaded.map_err(Error::ModelLoad)?;
     }
+    // Given words to expect and only silence, Whisper may write those words.
+    let prompt = if live::has_speech(samples) {
+        text::prompt(&settings.dictionary, "")
+    } else {
+        String::new()
+    };
     let raw = engine
-        .transcribe(samples, &settings.language)
+        .transcribe(samples, &settings.language, &prompt)
         .map_err(Error::Transcribe)?;
     drop(engine);
 

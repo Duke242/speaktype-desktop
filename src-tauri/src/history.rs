@@ -162,6 +162,21 @@ impl History {
         items.and(stats).map(|()| added)
     }
 
+    /// Replaces an item's transcript, returning the one it had. Stats keep the
+    /// original word count, as they record what was dictated.
+    pub fn edit(&mut self, id: &str, transcript: &str) -> Result<Option<String>, String> {
+        let transcript = transcript.trim();
+        let Some(item) = self.items.iter_mut().find(|item| item.id == id) else {
+            return Ok(None);
+        };
+        if transcript.is_empty() {
+            return Err("A transcript can't be empty".into());
+        }
+        let previous = std::mem::replace(&mut item.transcript, transcript.to_string());
+        item.word_count = transcript.split_whitespace().count();
+        write_json(&self.items_path, &self.items).map(|()| Some(previous))
+    }
+
     /// Removes an item and its recording. Stats are kept.
     pub fn delete(&mut self, id: &str) -> Result<(), String> {
         let Some(index) = self.items.iter().position(|item| item.id == id) else {
@@ -296,6 +311,30 @@ mod tests {
         assert_eq!(reloaded.items()[1].transcript, "hello world");
         assert_eq!(reloaded.stats().len(), 2);
         assert!(!dir.0.join("history.json.tmp").exists());
+    }
+
+    #[test]
+    fn edits_replace_the_transcript_and_return_the_old_one() {
+        let dir = TempDir::new();
+        let mut history = History::load(&dir.0);
+        let item = history
+            .add("Karen said hi", 1.0, "Tiny", None)
+            .unwrap()
+            .unwrap();
+
+        let previous = history.edit(&item.id, " Karan said hi there ").unwrap();
+        assert_eq!(previous.as_deref(), Some("Karen said hi"));
+        assert!(history.edit(&item.id, "  ").is_err());
+        assert_eq!(history.edit("no such id", "text").unwrap(), None);
+
+        let reloaded = History::load(&dir.0);
+        assert_eq!(reloaded.items()[0].transcript, "Karan said hi there");
+        assert_eq!(reloaded.items()[0].word_count, 4);
+        assert_eq!(
+            reloaded.stats()[0].word_count,
+            3,
+            "stats keep what was dictated"
+        );
     }
 
     #[test]

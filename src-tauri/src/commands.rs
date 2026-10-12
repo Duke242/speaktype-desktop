@@ -17,10 +17,12 @@ use crate::{
     device::{self, DeviceInfo, Recommendation},
     dictation::{DictationState, Event},
     history::{HistoryItem, StatsEntry},
+    learn,
     legacy::{self, ImportSummary, V1Data},
     models::ModelStatus,
     platform::{self, Permission, PermissionKind},
     settings::Settings,
+    text::DictionaryEntry,
     tray,
 };
 
@@ -236,6 +238,36 @@ pub async fn delete_history_item(
 ) -> CommandResult<()> {
     state.history.lock_unpoisoned().delete(&id)?;
     let _ = app.emit("history-changed", ());
+    Ok(())
+}
+
+/// Saves a corrected transcript and learns the misheard words it fixes.
+/// Returns the words learned, so the UI can offer to undo them.
+#[tauri::command]
+pub async fn edit_history_item(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: String,
+    transcript: String,
+) -> CommandResult<Vec<DictionaryEntry>> {
+    let previous = state.history.lock_unpoisoned().edit(&id, &transcript)?;
+    let _ = app.emit("history-changed", ());
+    Ok(previous
+        .map(|previous| learn::learn(&app, &previous, transcript.trim()))
+        .unwrap_or_default())
+}
+
+/// Removes one dictionary entry, to undo a word that was learned by mistake.
+#[tauri::command]
+pub async fn forget_word(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: String,
+) -> CommandResult<()> {
+    let mut settings = state.settings();
+    settings.dictionary.retain(|entry| entry.id != id);
+    state.replace_settings(settings)?;
+    let _ = app.emit("settings-changed", ());
     Ok(())
 }
 

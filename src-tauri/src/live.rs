@@ -163,7 +163,16 @@ fn run(
         pending.extend(samples);
         while let Some(end) = phrase_end(&pending, false) {
             let carry = overlap_at(&pending, end);
-            match recognize(app, &settings, &pending[..end], replayed, false, carry > 0) {
+            let phrase = &pending[..end];
+            match recognize(
+                app,
+                &settings,
+                phrase,
+                replayed,
+                &transcript,
+                false,
+                carry > 0,
+            ) {
                 Ok(text) => {
                     append(
                         &mut transcript,
@@ -201,6 +210,7 @@ fn run(
             &settings,
             &pending[..end],
             replayed,
+            &transcript,
             end == pending.len(),
             carry > 0,
         );
@@ -244,11 +254,14 @@ fn run(
     })
 }
 
+/// `said` is the transcript so far. Whisper reads its end as context, so each
+/// phrase continues the sentence instead of being heard as a fresh start.
 fn recognize(
     app: &AppHandle,
     settings: &Settings,
     samples: &[f32],
     replayed: usize,
+    said: &str,
     final_phrase: bool,
     continues: bool,
 ) -> Result<String, pipeline::Error> {
@@ -262,8 +275,9 @@ fn recognize(
     state
         .load_model(app, &mut engine, model)
         .map_err(pipeline::Error::ModelLoad)?;
+    let prompt = text::prompt(&settings.dictionary, said);
     let raw = engine
-        .transcribe(samples, &settings.language)
+        .transcribe(samples, &settings.language, &prompt)
         .map_err(pipeline::Error::Transcribe)?;
     let processed = text::process(
         &raw,
@@ -355,7 +369,7 @@ fn rms(samples: &[f32]) -> f32 {
         .sqrt() as f32
 }
 
-fn has_speech(samples: &[f32]) -> bool {
+pub fn has_speech(samples: &[f32]) -> bool {
     samples
         .chunks(FRAME)
         .filter(|frame| rms(frame) > 0.008)
@@ -495,7 +509,7 @@ mod tests {
                 let carry = overlap_at(&pending, end);
                 if has_speech(&pending[replayed..end]) {
                     let text = engine
-                        .transcribe(&pending[..end], "en")
+                        .transcribe(&pending[..end], "en", "")
                         .expect("recognize live phrase");
                     let text = if replayed > 0 {
                         without_overlap(&transcript, &text).to_string()
@@ -516,7 +530,7 @@ mod tests {
         }
         if has_speech(&pending[replayed.min(pending.len())..]) {
             let text = engine
-                .transcribe(&pending, "en")
+                .transcribe(&pending, "en", "")
                 .expect("flush final phrase");
             phrases.push(if replayed > 0 {
                 without_overlap(&transcript, &text).to_string()
