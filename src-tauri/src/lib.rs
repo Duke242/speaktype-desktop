@@ -1,4 +1,5 @@
 mod audio;
+mod cleanup;
 mod commands;
 mod device;
 mod dictation;
@@ -17,11 +18,12 @@ mod settings;
 mod text;
 mod tray;
 
-use std::sync::{Mutex, MutexGuard, OnceLock, PoisonError, RwLock, TryLockError};
+use std::sync::{Arc, Mutex, MutexGuard, OnceLock, PoisonError, RwLock, TryLockError};
 
 use tauri::{AppHandle, Emitter, Manager, WindowEvent};
 
 use crate::{
+    cleanup::Cleaner,
     device::DeviceInfo,
     dictation::{Controller, DictationState, Event},
     engine::Engine,
@@ -30,10 +32,13 @@ use crate::{
     settings::{Settings, SettingsStore},
 };
 
-/// Benchmarks for development (`cargo run --release --example transcribe_wav`).
+/// Benchmarks for development (`cargo run --release --example transcribe_wav`,
+/// or `clean_text` for transcript cleanup).
 #[doc(hidden)]
 pub mod devtools {
     use std::{path::Path, time::Instant};
+
+    pub use crate::settings::{CleanupBackend, CleanupSettings};
 
     /// Downloads a catalog model into `models_dir`, printing progress.
     pub fn download(
@@ -54,12 +59,39 @@ pub mod devtools {
         let status = store
             .statuses()
             .into_iter()
+            .chain(store.cleanup_statuses())
             .find(|s| s.info.id == model_id)
             .ok_or("Unknown model id")?;
         println!(
             "downloaded={} accelerator={:?}",
             status.downloaded, status.accelerator
         );
+        Ok(())
+    }
+
+    /// Cleans up `text` with a built-in model from `models_dir`, or with a
+    /// local server, printing the model's reply, what would be pasted, and how
+    /// long it took. The first run includes loading the model.
+    pub fn cleanup(
+        settings: &CleanupSettings,
+        models_dir: &Path,
+        text: &str,
+        runs: usize,
+    ) -> Result<(), String> {
+        let store = crate::models::ModelStore::new(models_dir.to_path_buf());
+        let cleaner = crate::cleanup::Cleaner::default();
+        for run in 1..=runs {
+            let started = Instant::now();
+            let reply = cleaner.reply(settings, &store, text)?;
+            println!("  run {run}: {:.2?}", started.elapsed());
+            if run == runs {
+                println!("  reply: {reply}");
+                match crate::cleanup::accept(text, &reply) {
+                    Some(cleaned) => println!("  pasted: {cleaned}"),
+                    None => println!("  pasted: {text} (the reply was rejected)"),
+                }
+            }
+        }
         Ok(())
     }
 
@@ -128,6 +160,8 @@ pub(crate) struct AppState {
     pub engine: Mutex<Engine>,
     /// The model currently being loaded into memory, if any.
     pub engine_loading: Mutex<Option<String>>,
+    /// Optional transcript cleanup by a local language model.
+    pub cleaner: Arc<Cleaner>,
     pub history: Mutex<History>,
     pub controller: Controller,
     pub dictation_state: Mutex<DictationState>,
@@ -290,6 +324,7 @@ pub fn run() {
                 models: ModelStore::new(data_dir.join("models")),
                 engine: Mutex::default(),
                 engine_loading: Mutex::new(None),
+                cleaner: Arc::default(),
                 history: Mutex::new(history),
                 legacy_import: Mutex::new(legacy_import),
                 controller: Controller::spawn(app.handle().clone())?,
@@ -321,6 +356,7 @@ pub fn run() {
                     }
                     state.controller.send(Event::RefreshPill);
                     state.warm_up(&handle, &settings.selected_model);
+                    state.cleaner.warm_up(&settings.cleanup, &state.models);
                     state.device();
                 })?;
 
@@ -350,6 +386,8 @@ pub fn run() {
             commands::download_model,
             commands::cancel_download,
             commands::delete_model,
+            commands::get_cleanup_status,
+            commands::list_server_models,
             commands::get_history,
             commands::get_stats,
             commands::delete_history_item,

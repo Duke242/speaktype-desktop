@@ -14,14 +14,15 @@ use tauri_plugin_opener::OpenerExt;
 use crate::{
     AppState, LockExt,
     audio::{self, InputDevice},
+    cleanup,
     device::{self, DeviceInfo, Recommendation},
     dictation::{DictationState, Event},
     history::{HistoryItem, StatsEntry},
     learn,
     legacy::{self, ImportSummary, V1Data},
-    models::ModelStatus,
+    models::{self, ModelStatus},
     platform::{self, Permission, PermissionKind},
-    settings::Settings,
+    settings::{CleanupBackend, Settings},
     text::DictionaryEntry,
     tray,
 };
@@ -94,6 +95,20 @@ pub async fn save_settings(
     }
     if settings.selected_model != previous.selected_model {
         state.warm_up(&app, &settings.selected_model);
+    }
+    if settings.cleanup != previous.cleanup {
+        let builtin =
+            settings.cleanup.enabled && settings.cleanup.backend == CleanupBackend::Builtin;
+        let restart = !builtin || settings.cleanup.builtin_model != previous.cleanup.builtin_model;
+        let (app, cleanup) = (app.clone(), settings.cleanup.clone());
+        // Stopping waits for a cleanup in progress, so it runs off this thread.
+        tauri::async_runtime::spawn_blocking(move || {
+            let state = app.state::<AppState>();
+            if restart {
+                state.cleaner.stop();
+            }
+            state.cleaner.warm_up(&cleanup, &state.models);
+        });
     }
     if settings.show_tray_icon != previous.show_tray_icon
         && let Some(tray) = app.tray_by_id(tray::TRAY_ID)
@@ -169,6 +184,20 @@ pub async fn download_model(
     let _ = app.emit("models-changed", ());
     result?;
 
+    if models::find_cleanup(&id).is_some() {
+        // The first cleanup model downloaded becomes the one cleanup uses.
+        let mut settings = state.settings();
+        if settings.cleanup.builtin_model.is_empty() {
+            settings.cleanup.builtin_model = id.clone();
+            state.replace_settings(settings.clone())?;
+            let _ = app.emit("settings-changed", ());
+        }
+        if settings.cleanup.builtin_model == id {
+            state.cleaner.warm_up(&settings.cleanup, &state.models);
+        }
+        return Ok(());
+    }
+
     // The first downloaded model becomes the selected one.
     let mut settings = state.settings();
     if settings.selected_model.is_empty() {
@@ -194,6 +223,23 @@ pub async fn delete_model(
     state: State<'_, AppState>,
     id: String,
 ) -> CommandResult<()> {
+    if models::find_cleanup(&id).is_some() {
+        // Waits for any cleanup using it to finish.
+        let cleaner = state.cleaner.clone();
+        tauri::async_runtime::spawn_blocking(move || cleaner.stop())
+            .await
+            .map_err(|e| e.to_string())?;
+        state.models.delete(&id)?;
+        // So the next cleanup model downloaded is picked up.
+        let mut settings = state.settings();
+        if settings.cleanup.builtin_model == id {
+            settings.cleanup.builtin_model.clear();
+            state.replace_settings(settings)?;
+            let _ = app.emit("settings-changed", ());
+        }
+        let _ = app.emit("models-changed", ());
+        return Ok(());
+    }
     // Waits for any transcription using the model to finish.
     let unload_app = app.clone();
     let unload_id = id.clone();
@@ -216,6 +262,41 @@ pub async fn delete_model(
     let _ = app.emit("models-changed", ());
     let _ = app.emit("engine-changed", ());
     Ok(())
+}
+
+// ---- Cleanup ----
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CleanupStatus {
+    /// Whether this build ships the helper that runs built-in models.
+    builtin_available: bool,
+    models: Vec<ModelStatus>,
+}
+
+#[tauri::command]
+pub async fn get_cleanup_status(state: State<'_, AppState>) -> CommandResult<CleanupStatus> {
+    Ok(CleanupStatus {
+        builtin_available: cleanup::worker_path().is_some(),
+        models: state.models.cleanup_statuses(),
+    })
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ServerModels {
+    models: Vec<String>,
+    /// False when the address isn't this computer, so transcripts would leave it.
+    is_local: bool,
+}
+
+/// Checks a cleanup server's address by listing its models.
+#[tauri::command]
+pub async fn list_server_models(url: String) -> CommandResult<ServerModels> {
+    Ok(ServerModels {
+        models: cleanup::server_models(&url).await?,
+        is_local: cleanup::is_local(&url),
+    })
 }
 
 // ---- History ----

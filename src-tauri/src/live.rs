@@ -283,14 +283,17 @@ fn recognize(
     let raw = engine
         .transcribe(samples, &settings.language, &prompt)
         .map_err(pipeline::Error::Transcribe)?;
-    let processed = text::process(
-        &raw,
-        &text::Options {
-            auto_edit: settings.auto_edit,
-            // Preserve sentence punctuation within the stream.
-            smart_trailing_punctuation: final_phrase && settings.smart_trailing_punctuation,
-            dictionary: &settings.dictionary,
-        },
+    let options = text::Options {
+        auto_edit: settings.auto_edit,
+        // Preserve sentence punctuation within the stream.
+        smart_trailing_punctuation: final_phrase && settings.smart_trailing_punctuation,
+        dictionary: &settings.dictionary,
+    };
+    // No language-model cleanup here: it needs whole sentences, and would hold
+    // up every phrase. Typing live trades it for words appearing as you speak.
+    let processed = text::finish(
+        &text::normalize_transcription(&raw, options.auto_edit),
+        &options,
     );
     // Offline engines often add a period because the audio buffer ended. A
     // forced streaming boundary is not a sentence ending.

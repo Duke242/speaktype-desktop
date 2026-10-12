@@ -215,7 +215,7 @@ function Meter({ score, tier, className }: { score: number; tier: string; classN
 }
 
 /** Download, retry, or progress with cancel. */
-function DownloadAction({ model, accent }: { model: ModelStatus; accent?: boolean }) {
+export function DownloadAction({ model, accent }: { model: ModelStatus; accent?: boolean }) {
   const { progress, downloadModel, downloadErrors } = useStore();
 
   if (model.downloading) {
@@ -271,7 +271,7 @@ function SpeedUpLink({ model }: { model: ModelStatus }) {
   );
 }
 
-function DeleteButton({ model }: { model: ModelStatus }) {
+export function DeleteButton({ model }: { model: ModelStatus }) {
   const [confirming, setConfirming] = useState(false);
   return (
     <div onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>

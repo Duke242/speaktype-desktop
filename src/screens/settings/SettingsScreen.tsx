@@ -22,6 +22,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import { CleanupSection } from "@/components/settings/CleanupSection";
 import { HotkeyPicker } from "@/components/settings/HotkeyPicker";
 import { PillPositionPicker } from "@/components/settings/PillPositionPicker";
 import { PermissionList } from "@/components/PermissionList";
@@ -240,6 +241,7 @@ function GeneralTab() {
         />
       </Section>
 
+      <CleanupSection />
       <LanguageSection />
       <UpdatesSection />
       <ImportSection />

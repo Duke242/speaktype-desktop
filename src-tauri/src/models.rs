@@ -1,8 +1,11 @@
-//! Speech model catalog and downloads.
+//! Model catalogs and downloads.
 //!
 //! - Whisper: GGML files that whisper.cpp publishes on Hugging Face. On macOS
 //!   each also gets a CoreML encoder so it can run on the Neural Engine.
 //! - Parakeet: int8 ONNX exports of NVIDIA's Parakeet TDT, one folder of files.
+//! - Llama: GGUF language models for transcript cleanup, one file each, run
+//!   by the cleanup helper (see `cleanup.rs`). They have their own catalog, so
+//!   they never show up as speech models.
 
 use std::{
     collections::HashMap,
@@ -41,6 +44,8 @@ const PARAKEET_V3_LANGUAGES: &[&str] = &[
 pub enum EngineKind {
     Whisper,
     Parakeet,
+    /// A language model for transcript cleanup, run through llama.cpp.
+    Llama,
 }
 
 #[derive(Debug, Clone, Copy, Serialize)]
@@ -49,10 +54,10 @@ pub struct ModelInfo {
     pub id: &'static str,
     pub name: &'static str,
     pub engine: EngineKind,
-    /// Whisper: the GGML file name. Parakeet: the folder name.
+    /// Whisper and Llama: the file name. Parakeet: the folder name.
     #[serde(skip)]
     pub file: &'static str,
-    /// Hugging Face repo for Parakeet files.
+    /// Hugging Face repo for Parakeet and Llama files.
     #[serde(skip)]
     pub repo: &'static str,
     /// CoreML encoder for the Neural Engine, as published next to the GGML file.
@@ -216,6 +221,47 @@ pub const CATALOG: &[ModelInfo] = &[
     },
 ];
 
+/// Language models for transcript cleanup. Small ones: tidying a dictation is
+/// easy work, and it has to finish in a second or two.
+pub const CLEANUP_CATALOG: &[ModelInfo] = &[
+    ModelInfo {
+        id: "qwen2.5-1.5b",
+        name: "Qwen 2.5 1.5B",
+        engine: EngineKind::Llama,
+        file: "qwen2.5-1.5b-instruct-q4_k_m.gguf",
+        repo: "Qwen/Qwen2.5-1.5B-Instruct-GGUF",
+        size_mb: 1117,
+        description: "Quick on any computer, and writes 29 languages. The one to start with.",
+        speed: 9.0,
+        accuracy: 7.5,
+        min_ram_gb: 4,
+        ..WHISPER
+    },
+    ModelInfo {
+        id: "llama3.2-3b",
+        name: "Llama 3.2 3B",
+        engine: EngineKind::Llama,
+        file: "Llama-3.2-3B-Instruct-Q4_K_M.gguf",
+        repo: "bartowski/Llama-3.2-3B-Instruct-GGUF",
+        size_mb: 2020,
+        description: "More careful edits, about twice as slow. Best with a GPU or Apple Silicon.",
+        speed: 7.5,
+        accuracy: 8.5,
+        min_ram_gb: 8,
+        ..WHISPER
+    },
+];
+
+/// A cleanup model by id.
+pub fn find_cleanup(id: &str) -> Option<&'static ModelInfo> {
+    CLEANUP_CATALOG.iter().find(|m| m.id == id)
+}
+
+/// Any model this build can download, speech or cleanup, by id.
+fn find_any(id: &str) -> Option<&'static ModelInfo> {
+    find(id).or_else(|| find_cleanup(id))
+}
+
 /// Whether this build includes Parakeet. Intel Macs don't (see build.rs).
 pub const PARAKEET: bool = cfg!(parakeet);
 
@@ -305,7 +351,7 @@ impl ModelStore {
         self.active.lock_unpoisoned()
     }
 
-    /// The Whisper file or Parakeet folder the engine loads.
+    /// The Whisper or GGUF file, or Parakeet folder, the engine loads.
     pub fn path(&self, model: &ModelInfo) -> PathBuf {
         self.dir.join(model.file)
     }
@@ -346,18 +392,26 @@ impl ModelStore {
                     zipped: false,
                 })
                 .collect(),
+            EngineKind::Llama => vec![Asset {
+                url: format!(
+                    "https://huggingface.co/{}/resolve/main/{}",
+                    model.repo, model.file
+                ),
+                dest: self.path(model),
+                zipped: false,
+            }],
         }
     }
 
     /// Ready to transcribe. Files only appear under their final names once
     /// complete, so presence means the download finished.
     pub fn is_downloaded(&self, id: &str) -> bool {
-        find(id).is_some_and(|m| self.is_ready(m))
+        find_any(id).is_some_and(|m| self.is_ready(m))
     }
 
     fn is_ready(&self, model: &ModelInfo) -> bool {
         match model.engine {
-            EngineKind::Whisper => self.path(model).is_file(),
+            EngineKind::Whisper | EngineKind::Llama => self.path(model).is_file(),
             EngineKind::Parakeet => {
                 let dir = self.path(model);
                 PARAKEET_FILES.iter().all(|f| dir.join(f).is_file())
@@ -373,9 +427,19 @@ impl ModelStore {
         }
     }
 
+    /// Speech models.
     pub fn statuses(&self) -> Vec<ModelStatus> {
+        self.statuses_of(available())
+    }
+
+    /// Cleanup models.
+    pub fn cleanup_statuses(&self) -> Vec<ModelStatus> {
+        self.statuses_of(CLEANUP_CATALOG.iter())
+    }
+
+    fn statuses_of<'a>(&self, models: impl Iterator<Item = &'a ModelInfo>) -> Vec<ModelStatus> {
         let active = self.active();
-        available()
+        models
             .map(|m| ModelStatus {
                 info: *m,
                 downloaded: self.is_ready(m),
@@ -399,7 +463,7 @@ impl ModelStore {
     }
 
     pub fn delete(&self, id: &str) -> Result<(), String> {
-        let model = find(id).ok_or("Unknown model")?;
+        let model = find_any(id).ok_or("Unknown model")?;
         let mut paths = vec![self.path(model)];
         // Large Turbo and its compressed build share one encoder; keep it while either is installed.
         if let Some(coreml) = self.coreml_path(model) {
@@ -437,7 +501,7 @@ impl ModelStore {
         accelerator: Option<bool>,
         on_progress: impl Fn(DownloadProgress),
     ) -> Result<(), String> {
-        let model = find(id).ok_or("Unknown model")?;
+        let model = find_any(id).ok_or("Unknown model")?;
         let cancelled = Arc::new(AtomicBool::new(false));
         {
             let mut active = self.active();
@@ -740,10 +804,46 @@ mod tests {
 
     #[test]
     fn catalog_ids_are_unique() {
-        let mut ids: Vec<_> = CATALOG.iter().map(|m| m.id).collect();
+        let mut ids: Vec<_> = CATALOG
+            .iter()
+            .chain(CLEANUP_CATALOG)
+            .map(|m| m.id)
+            .collect();
         ids.sort();
         ids.dedup();
-        assert_eq!(ids.len(), CATALOG.len());
+        assert_eq!(ids.len(), CATALOG.len() + CLEANUP_CATALOG.len());
+    }
+
+    #[test]
+    fn cleanup_models_are_kept_apart_from_speech_models() {
+        let id = CLEANUP_CATALOG[0].id;
+        assert!(find(id).is_none(), "not selectable for transcription");
+        assert_eq!(find_cleanup(id).unwrap().engine, EngineKind::Llama);
+        assert!(find_cleanup("base").is_none());
+        let store = ModelStore::new(PathBuf::from("/nonexistent/models"));
+        assert!(
+            store
+                .statuses()
+                .iter()
+                .all(|s| s.info.engine != EngineKind::Llama)
+        );
+        assert_eq!(store.cleanup_statuses().len(), CLEANUP_CATALOG.len());
+    }
+
+    #[test]
+    fn cleanup_models_download_one_file() {
+        let store = ModelStore::new(PathBuf::from("/models"));
+        let model = find_cleanup("qwen2.5-1.5b").unwrap();
+        let assets = store.assets(model, true);
+        assert_eq!(assets.len(), 1);
+        assert_eq!(
+            assets[0].url,
+            "https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/qwen2.5-1.5b-instruct-q4_k_m.gguf"
+        );
+        assert_eq!(
+            assets[0].dest,
+            PathBuf::from("/models/qwen2.5-1.5b-instruct-q4_k_m.gguf")
+        );
     }
 
     #[test]
@@ -793,7 +893,7 @@ mod tests {
         fn touch(&self, model: &ModelInfo) {
             let path = self.store.path(model);
             match model.engine {
-                EngineKind::Whisper => std::fs::write(path, b"ggml").unwrap(),
+                EngineKind::Whisper | EngineKind::Llama => std::fs::write(path, b"ggml").unwrap(),
                 EngineKind::Parakeet => {
                     std::fs::create_dir_all(&path).unwrap();
                     for file in PARAKEET_FILES {
@@ -869,6 +969,18 @@ mod tests {
         std::fs::remove_file(temp.store.path(model).join(PARAKEET_FILES[1])).unwrap();
         assert!(!temp.store.is_downloaded(model.id));
         assert!(!temp.store.is_downloaded("no-such-model"));
+    }
+
+    #[test]
+    fn cleanup_models_install_and_delete_like_speech_models() {
+        let temp = TempStore::new();
+        let model = find_cleanup("qwen2.5-1.5b").unwrap();
+        assert!(!temp.store.is_downloaded(model.id));
+        temp.touch(model);
+        assert!(temp.store.is_downloaded(model.id));
+        assert!(temp.store.cleanup_statuses()[0].downloaded);
+        temp.store.delete(model.id).unwrap();
+        assert!(!temp.store.is_downloaded(model.id));
     }
 
     #[test]

@@ -44,6 +44,41 @@ pub enum Theme {
     Dark,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum CleanupBackend {
+    /// A model SpeakType downloads and runs itself.
+    Builtin,
+    /// A local server with an OpenAI-compatible API, such as Ollama or LM Studio.
+    Server,
+}
+
+/// Optional tidying of each transcript by a local language model.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct CleanupSettings {
+    pub enabled: bool,
+    pub backend: CleanupBackend,
+    /// Id from `models::CLEANUP_CATALOG`, or empty when nothing is chosen yet.
+    pub builtin_model: String,
+    /// Base URL of the server's OpenAI-compatible API, e.g. "http://localhost:11434/v1".
+    pub server_url: String,
+    /// Model name as the server knows it, e.g. "llama3.2".
+    pub server_model: String,
+}
+
+impl Default for CleanupSettings {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            backend: CleanupBackend::Builtin,
+            builtin_model: String::new(),
+            server_url: "http://localhost:11434/v1".to_string(),
+            server_model: String::new(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct Settings {
@@ -62,6 +97,7 @@ pub struct Settings {
     pub input_device: String,
     pub auto_edit: bool,
     pub smart_trailing_punctuation: bool,
+    pub cleanup: CleanupSettings,
     pub restore_clipboard: bool,
     /// Keep each dictation's audio next to its transcript, so it can be replayed.
     pub save_recordings: bool,
@@ -92,6 +128,7 @@ impl Default for Settings {
             input_device: String::new(),
             auto_edit: false,
             smart_trailing_punctuation: true,
+            cleanup: CleanupSettings::default(),
             restore_clipboard: true,
             save_recordings: true,
             learn_corrections: true,
@@ -232,6 +269,16 @@ mod tests {
         assert!(settings.live_typing);
         let entry = &settings.dictionary[0];
         assert!(entry.is_enabled && entry.match_whole_word);
+        assert_eq!(settings.cleanup, CleanupSettings::default());
+    }
+
+    #[test]
+    fn partial_cleanup_settings_keep_defaults_for_the_rest() {
+        let json = r#"{"cleanup": {"enabled": true, "backend": "server"}}"#;
+        let settings: Settings = serde_json::from_str(json).unwrap();
+        assert!(settings.cleanup.enabled);
+        assert_eq!(settings.cleanup.backend, CleanupBackend::Server);
+        assert_eq!(settings.cleanup.server_url, "http://localhost:11434/v1");
     }
 
     #[test]
@@ -248,6 +295,7 @@ mod tests {
             "inputDevice",
             "autoEdit",
             "smartTrailingPunctuation",
+            "cleanup",
             "restoreClipboard",
             "saveRecordings",
             "learnCorrections",
@@ -263,6 +311,9 @@ mod tests {
         }
         assert_eq!(value["pillPosition"], "bottomCenter");
         assert_eq!(value["recordingMode"], "hold");
+        assert_eq!(value["cleanup"]["backend"], "builtin");
+        assert_eq!(value["cleanup"]["enabled"], false);
+        assert!(value["cleanup"].get("serverUrl").is_some());
     }
 
     #[test]
