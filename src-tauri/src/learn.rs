@@ -52,8 +52,10 @@ pub fn corrections(typed: &str, edited: &str) -> Vec<Correction> {
     }
     let changes = changed_runs(&before, &after);
     let changed_words: usize = changes.iter().map(|(heard, _)| heard.len()).sum();
-    // Changing more than half the words is rewriting, not correcting.
-    if changes.len() > MAX_CORRECTIONS * 2 || changed_words * 2 > before.len() {
+    // Changing more than half the words is rewriting, not correcting. A dictation
+    // of a few words, like a name on its own, can be corrected entirely.
+    let rewritten = before.len() > MAX_WORDS && changed_words * 2 > before.len();
+    if changes.len() > MAX_CORRECTIONS * 2 || rewritten {
         return Vec::new();
     }
     let found: Vec<Correction> = changes
@@ -122,11 +124,27 @@ fn correction(heard: &[&str], meant: &[&str]) -> Option<Correction> {
     // a correction to everyday words is grammar, not a misheard name.
     let single_common = !heard.contains(' ') && is_common(&heard);
     let meant_common = meant.split_whitespace().all(is_common);
-    if single_common || meant_common || !meant.chars().any(char::is_alphabetic) {
+    if single_common
+        || meant_common
+        || is_inflection(&key(&heard), &key(&meant))
+        || !meant.chars().any(char::is_alphabetic)
+    {
         return None;
     }
     (similarity(&sound(&heard), &sound(&meant)) >= MIN_SIMILARITY)
         .then_some(Correction { heard, meant })
+}
+
+/// Whether one word is the other with an ending added, like "meeting" and
+/// "meetings" or "fix" and "fixed". That's grammar for this sentence, and
+/// replacing the word everywhere would break others.
+fn is_inflection(a: &str, b: &str) -> bool {
+    const ENDINGS: &[&str] = &["s", "es", "'s", "d", "ed", "ing", "er", "est", "ly"];
+    let (short, long) = if a.len() <= b.len() { (a, b) } else { (b, a) };
+    short.chars().count() >= 3
+        && long
+            .strip_prefix(short)
+            .is_some_and(|ending| ENDINGS.contains(&ending))
 }
 
 /// Words joined with single spaces, without the punctuation at either end.
@@ -191,19 +209,26 @@ fn is_common(word: &str) -> bool {
 }
 
 /// Adds a dictionary entry for each correction not already covered, and
-/// returns the ones added.
+/// returns the ones added. A correction that reverses a learned entry replaces
+/// it, as the latest correction wins; one that reverses the user's own entry is
+/// skipped, as theirs does.
 pub fn add_to_dictionary(
     dictionary: &mut Vec<DictionaryEntry>,
     corrections: &[Correction],
 ) -> Vec<DictionaryEntry> {
     let mut added = Vec::new();
     for correction in corrections {
-        let known = dictionary
-            .iter()
-            .any(|entry| entry.trigger.trim().eq_ignore_ascii_case(&correction.heard));
+        let same = |a: &str, b: &str| a.trim().eq_ignore_ascii_case(b);
+        let reverses = |entry: &DictionaryEntry| {
+            same(&entry.trigger, &correction.meant) && same(&entry.replacement, &correction.heard)
+        };
+        let known = dictionary.iter().any(|entry| {
+            same(&entry.trigger, &correction.heard) || (!entry.learned && reverses(entry))
+        });
         if known {
             continue;
         }
+        dictionary.retain(|entry| !(entry.learned && reverses(entry)));
         let entry = DictionaryEntry {
             id: uuid::Uuid::new_v4().to_string(),
             trigger: correction.heard.clone(),
@@ -221,22 +246,29 @@ pub fn add_to_dictionary(
 /// Learns from a transcript the user edited, if learning is switched on, and
 /// saves the new entries. Returns them so the caller can offer to undo them.
 pub fn learn(app: &AppHandle, typed: &str, edited: &str) -> Vec<DictionaryEntry> {
-    let state = app.state::<AppState>();
-    let mut settings = state.settings();
-    if !settings.learn_corrections {
-        return Vec::new();
-    }
     let found = corrections(typed, edited);
-    let added = add_to_dictionary(&mut settings.dictionary, &found);
-    if added.is_empty() {
-        return added;
-    }
-    if let Err(e) = state.replace_settings(settings) {
-        eprintln!("[learn] couldn't save learned words: {e}");
+    if found.is_empty() {
         return Vec::new();
     }
-    let _ = app.emit("settings-changed", ());
-    added
+    let updated = app.state::<AppState>().update_settings(|settings| {
+        if settings.learn_corrections {
+            add_to_dictionary(&mut settings.dictionary, &found)
+        } else {
+            Vec::new()
+        }
+    });
+    match updated {
+        Ok(added) => {
+            if !added.is_empty() {
+                let _ = app.emit("settings-changed", ());
+            }
+            added
+        }
+        Err(e) => {
+            eprintln!("[learn] couldn't save learned words: {e}");
+            Vec::new()
+        }
+    }
 }
 
 /// Learns from a correction made in another app. The pill says what was
@@ -420,6 +452,45 @@ mod tests {
             Vec::<(String, String)>::new(),
             "capitalization alone isn't a mishearing"
         );
+        // A name dictated on its own is the commonest thing to correct.
+        assert_eq!(
+            found("Karen.", "Karan."),
+            [("Karen".into(), "Karan".into())]
+        );
+        assert_eq!(
+            found("Cooper netties", "Kubernetes"),
+            [("Cooper netties".into(), "Kubernetes".into())]
+        );
+    }
+
+    #[test]
+    fn word_endings_are_grammar_not_mishearings() {
+        let none = Vec::<(String, String)>::new();
+        assert_eq!(
+            found("we fix the meeting notes", "we fixed the meetings notes"),
+            none
+        );
+        assert_eq!(found("the roadmaps slide", "the roadmap slide"), none);
+        assert!(is_inflection("meeting", "meetings") && is_inflection("fixed", "fix"));
+        assert!(!is_inflection("sara", "sarah") && !is_inflection("go", "goes"));
+    }
+
+    #[test]
+    fn the_latest_correction_replaces_a_learned_one_but_not_the_users_own() {
+        let fix = |heard: &str, meant: &str| Correction {
+            heard: heard.into(),
+            meant: meant.into(),
+        };
+        let mut dictionary = Vec::new();
+        add_to_dictionary(&mut dictionary, &[fix("Karen", "Karan")]);
+        let added = add_to_dictionary(&mut dictionary, &[fix("Karan", "Karen")]);
+        assert_eq!(added.len(), 1);
+        assert_eq!(dictionary.len(), 1, "the reversed learned entry is gone");
+        assert_eq!(dictionary[0].trigger, "Karan");
+
+        dictionary[0].learned = false;
+        assert!(add_to_dictionary(&mut dictionary, &[fix("Karen", "Karan")]).is_empty());
+        assert_eq!(dictionary.len(), 1, "the user's own entry wins");
     }
 
     #[test]

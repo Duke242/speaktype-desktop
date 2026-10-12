@@ -46,12 +46,19 @@ impl Whisper {
         let prompt_tokens = if prompt.is_empty() {
             Vec::new()
         } else {
-            self.context
-                .tokenize(prompt, MAX_PROMPT_TOKENS)
+            // The buffer must fit every token: when it's too small, whisper.cpp
+            // returns minus the count, which whisper-rs takes as a length.
+            // Whisper's tokens are byte-level, so there are never more than bytes.
+            let mut tokens = self
+                .context
+                .tokenize(prompt, prompt.len() + 1)
                 .unwrap_or_else(|e| {
                     eprintln!("[whisper] ignoring prompt: {e}");
                     Vec::new()
-                })
+                });
+            // Like whisper.cpp, keep the end: the words just said.
+            tokens.drain(..tokens.len().saturating_sub(MAX_PROMPT_TOKENS));
+            tokens
         };
         // Greedy decoding at temperature 0 with whisper.cpp's usual temperature
         // fallback, matching the defaults the macOS app gets from WhisperKit.

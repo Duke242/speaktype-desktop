@@ -19,9 +19,7 @@ export function useLearnedToast() {
       toast(learnedMessage(entries), "success", {
         label: "Undo",
         onClick: () =>
-          Promise.all(entries.map((entry) => api.forgetWord(entry.id))).catch((e) =>
-            toast(errorMessage(e), "error"),
-          ),
+          api.forgetWords(entries.map((entry) => entry.id)).catch((e) => toast(errorMessage(e), "error")),
       });
     },
     [toast],

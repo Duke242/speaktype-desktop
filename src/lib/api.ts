@@ -191,7 +191,7 @@ export const api = {
   /** Saves a corrected transcript. Returns the words learned from the correction. */
   editHistoryItem: (id: string, transcript: string) =>
     invoke<DictionaryEntry[]>("edit_history_item", { id, transcript }),
-  forgetWord: (id: string) => invoke<void>("forget_word", { id }),
+  forgetWords: (ids: string[]) => invoke<void>("forget_words", { ids }),
   clearHistory: () => invoke<void>("clear_history"),
   readHistoryAudio: (id: string) => invoke<ArrayBuffer>("read_history_audio", { id }),
   revealHistoryAudio: (id: string) => invoke<void>("reveal_history_audio", { id }),

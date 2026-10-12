@@ -150,8 +150,8 @@ export function installBrowserPreview() {
             });
           return learned;
         }
-        case "forget_word":
-          settings.dictionary = settings.dictionary.filter((e) => e.id !== a.id);
+        case "forget_words":
+          settings.dictionary = settings.dictionary.filter((e) => !(a.ids as string[]).includes(e.id));
           return null;
         case "list_input_devices":
           return [

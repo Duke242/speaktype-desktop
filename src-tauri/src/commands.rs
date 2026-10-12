@@ -257,16 +257,16 @@ pub async fn edit_history_item(
         .unwrap_or_default())
 }
 
-/// Removes one dictionary entry, to undo a word that was learned by mistake.
+/// Removes dictionary entries, to undo words that were learned by mistake.
 #[tauri::command]
-pub async fn forget_word(
+pub async fn forget_words(
     app: AppHandle,
     state: State<'_, AppState>,
-    id: String,
+    ids: Vec<String>,
 ) -> CommandResult<()> {
-    let mut settings = state.settings();
-    settings.dictionary.retain(|entry| entry.id != id);
-    state.replace_settings(settings)?;
+    state.update_settings(|settings| {
+        settings.dictionary.retain(|entry| !ids.contains(&entry.id));
+    })?;
     let _ = app.emit("settings-changed", ());
     Ok(())
 }

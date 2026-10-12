@@ -147,12 +147,22 @@ impl AppState {
     }
 
     pub fn replace_settings(&self, settings: Settings) -> Result<(), String> {
-        self.settings_store.save(&settings)?;
-        *self
+        self.update_settings(|current| *current = settings)
+    }
+
+    /// Changes settings and saves them as one step, so changes made at the same
+    /// time from different threads can't overwrite each other. Nothing changes
+    /// if saving fails.
+    pub fn update_settings<T>(&self, change: impl FnOnce(&mut Settings) -> T) -> Result<T, String> {
+        let mut settings = self
             .settings
             .write()
-            .unwrap_or_else(PoisonError::into_inner) = settings;
-        Ok(())
+            .unwrap_or_else(PoisonError::into_inner);
+        let mut updated = settings.clone();
+        let result = change(&mut updated);
+        self.settings_store.save(&updated)?;
+        *settings = updated;
+        Ok(result)
     }
 
     /// Detected once; reading the CPU and memory takes a moment.
@@ -344,7 +354,7 @@ pub fn run() {
             commands::get_stats,
             commands::delete_history_item,
             commands::edit_history_item,
-            commands::forget_word,
+            commands::forget_words,
             commands::clear_history,
             commands::read_history_audio,
             commands::reveal_history_audio,
