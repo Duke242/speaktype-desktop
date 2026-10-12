@@ -150,7 +150,7 @@ function GeneralTab() {
           icon={Command}
           tone="neutral"
           label={isMac ? "Show menu bar icon" : "Show tray icon"}
-          description="Quick access to dictation and SpeakType's window."
+          description="Quick access to dictation and Wordfall's window."
         >
           <Switch checked={settings.showTrayIcon} onChange={(showTrayIcon) => save({ showTrayIcon })} />
         </SettingRow>
@@ -160,8 +160,8 @@ function GeneralTab() {
           label="Restore clipboard after pasting"
           description={
             settings.restoreClipboard
-              ? "After SpeakType pastes, whatever you had copied is put back."
-              : "The transcript stays on your clipboard after SpeakType pastes it."
+              ? "After Wordfall pastes, whatever you had copied is put back."
+              : "The transcript stays on your clipboard after Wordfall pastes it."
           }
         >
           <Switch checked={settings.restoreClipboard} onChange={(restoreClipboard) => save({ restoreClipboard })} />
@@ -285,7 +285,7 @@ function UpdatesSection() {
     try {
       const info = await api.checkForUpdate();
       if (info.available) setUpdate(info);
-      else toast(`You're up to date. SpeakType ${info.currentVersion} is the latest version.`);
+      else toast(`You're up to date. Wordfall ${info.currentVersion} is the latest version.`);
     } catch (error) {
       toast(errorMessage(error), "error");
     } finally {
@@ -294,7 +294,7 @@ function UpdatesSection() {
   };
 
   return (
-    <Section title="Updates" description={`SpeakType ${status.version}`}>
+    <Section title="Updates" description={`Wordfall ${status.version}`}>
       <SettingRow icon={RefreshCw} label="Check for updates automatically" description="Once a day, in the background.">
         <Switch checked={settings.autoUpdate} onChange={(autoUpdate) => save({ autoUpdate })} />
       </SettingRow>
@@ -379,7 +379,7 @@ function AudioTab() {
       <div className="mb-3 flex items-end px-1">
         <div className="flex-1">
           <h2 className="type-section">Microphone</h2>
-          <p className="mt-0.5 type-small text-ink-secondary">SpeakType records from this input.</p>
+          <p className="mt-0.5 type-small text-ink-secondary">Wordfall records from this input.</p>
         </div>
         <Button size="sm" variant="ghost" icon={RotateCw} loading={refreshing} onClick={refresh}>
           Refresh
@@ -435,7 +435,7 @@ function PermissionsTab() {
     <>
       <div className="mb-3 px-1">
         <h2 className="type-section">App permissions</h2>
-        <p className="mt-0.5 type-small text-ink-secondary">SpeakType needs both to dictate into other apps.</p>
+        <p className="mt-0.5 type-small text-ink-secondary">Wordfall needs both to dictate into other apps.</p>
       </div>
       <PermissionList />
     </>

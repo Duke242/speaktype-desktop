@@ -20,7 +20,7 @@ async function allow(kind: PermissionKind) {
   }, 800);
 }
 
-/** The OS permissions SpeakType needs, with a way to grant each. Re-checks every second. */
+/** The OS permissions Wordfall needs, with a way to grant each. Re-checks every second. */
 export function PermissionList({ onChange }: { onChange?: (allGranted: boolean) => void }) {
   const permissions = usePermissions();
   const allGranted = permissions?.every((p) => p.granted);

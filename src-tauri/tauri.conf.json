@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "SpeakType",
+  "productName": "Wordfall",
   "version": "2.0.0",
   "identifier": "com.2048labs.speaktype",
   "build": {
@@ -14,7 +14,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "SpeakType",
+        "title": "Wordfall",
         "url": "index.html",
         "width": 1200,
         "height": 800,
@@ -23,7 +23,7 @@
       },
       {
         "label": "pill",
-        "title": "SpeakType Recorder",
+        "title": "Wordfall Recorder",
         "url": "pill.html",
         "width": 520,
         "height": 84,
@@ -40,7 +40,7 @@
       },
       {
         "label": "tray",
-        "title": "SpeakType",
+        "title": "Wordfall",
         "url": "tray.html",
         "width": 356,
         "height": 520,

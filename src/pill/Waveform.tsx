@@ -4,6 +4,9 @@ import { smoothLevel } from "./envelope";
 const SPACING = 4.5;
 const SAMPLE_MS = 75;
 const HEIGHT = 22;
+// Pale sky blue at the top falling to soft teal-blue, like `pill-wave` in globals.css.
+const WAVE_TOP = "#d2edff";
+const WAVE_BOTTOM = "#6cc3f0";
 
 /** Draw at the display's frame rate; microphone events only update a target. */
 export function Waveform({ level }: { level: RefObject<{ value: number; updatedAt: number }> }) {
@@ -21,6 +24,7 @@ export function Waveform({ level }: { level: RefObject<{ value: number; updatedA
     let sampleTime = 0;
     let smoothed = 0;
     let frame = 0;
+    let fill: CanvasGradient | string = WAVE_TOP;
 
     const resize = () => {
       width = element.getBoundingClientRect().width;
@@ -28,6 +32,9 @@ export function Waveform({ level }: { level: RefObject<{ value: number; updatedA
       element.width = Math.round(width * scale);
       element.height = HEIGHT * scale;
       context.setTransform(scale, 0, 0, scale, 0, 0);
+      fill = context.createLinearGradient(0, 0, 0, HEIGHT);
+      fill.addColorStop(0, WAVE_TOP);
+      fill.addColorStop(1, WAVE_BOTTOM);
     };
     const observer = new ResizeObserver(resize);
     observer.observe(element);
@@ -47,9 +54,11 @@ export function Waveform({ level }: { level: RefObject<{ value: number; updatedA
       }
 
       context.clearRect(0, 0, width, HEIGHT);
-      context.fillStyle = "rgba(255, 255, 255, 0.9)";
+      context.fillStyle = fill;
       const count = Math.ceil(width / SPACING) + 1;
       for (let i = 0; i < count; i++) {
+        // Older sound drifts away to the left and fades, like a trail of water.
+        context.globalAlpha = 1 - 0.55 * (i / count);
         // Continuous horizontal travel replaces per-event jumps and restarted
         // CSS transitions. Adjacent samples soften isolated peaks.
         const amplitude = reducedMotion.matches
@@ -61,6 +70,7 @@ export function Waveform({ level }: { level: RefObject<{ value: number; updatedA
         context.roundRect(x, (HEIGHT - height) / 2, 2.5, height, 1.25);
         context.fill();
       }
+      context.globalAlpha = 1;
       frame = requestAnimationFrame(draw);
     };
     frame = requestAnimationFrame(draw);

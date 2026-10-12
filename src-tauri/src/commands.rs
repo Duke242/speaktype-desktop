@@ -406,7 +406,7 @@ pub async fn check_for_update(app: AppHandle) -> CommandResult<UpdateInfo> {
     }
     let release: Release = reqwest::Client::new()
         .get(RELEASES_URL)
-        .header("User-Agent", "SpeakType")
+        .header("User-Agent", "Wordfall")
         .header("Accept", "application/vnd.github+json")
         .timeout(UPDATE_CHECK_TIMEOUT)
         .send()

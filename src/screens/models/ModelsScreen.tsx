@@ -24,7 +24,7 @@ export function ModelsScreen() {
     <Page>
       <PageHeader
         title="AI Models"
-        description="Every model runs on this computer. Pick the one SpeakType uses to transcribe."
+        description="Every model runs on this computer. Pick the one Wordfall uses to transcribe."
         actions={
           report && (
             <span className="flex items-center gap-2 type-small text-ink-muted">
@@ -196,7 +196,7 @@ function SelectionMark({ active }: { active: boolean }) {
       aria-hidden
       className={cn(
         "mt-0.5 grid size-[18px] shrink-0 place-items-center rounded-full transition-colors",
-        active ? "bg-primary text-accent" : "border-[1.5px] border-line-strong group-hover/row:border-ink-muted",
+        active ? "bg-accent text-on-accent" : "border-[1.5px] border-line-strong group-hover/row:border-ink-muted",
       )}
     >
       {active && <Check size={11} strokeWidth={3} />}

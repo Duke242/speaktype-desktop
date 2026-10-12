@@ -54,7 +54,7 @@ pub fn setup_notes() -> Vec<String> {
     ];
     if !wayland::has_paste_tool() {
         notes.push(
-            "Install `wtype` (Sway, Hyprland, KDE) or `ydotool` (GNOME) so SpeakType can \
+            "Install `wtype` (Sway, Hyprland, KDE) or `ydotool` (GNOME) so Wordfall can \
              paste into Wayland apps. Without one, the text is left on the clipboard."
                 .to_string(),
         );

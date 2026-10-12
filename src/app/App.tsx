@@ -68,7 +68,7 @@ export function App() {
     <div className="flex h-full">
       <UpdateDialog update={update.info} onClose={update.dismiss} />
       <Sidebar route={route} onNavigate={setRoute} />
-      <main key={route} className="h-full min-w-0 flex-1 animate-fade-in bg-app">
+      <main key={route} className="h-full min-w-0 flex-1 animate-fade-in bg-flow">
         {route === "dashboard" && <DashboardScreen onNavigate={setRoute} />}
         {route === "history" && <HistoryScreen />}
         {route === "dictionary" && <DictionaryScreen />}

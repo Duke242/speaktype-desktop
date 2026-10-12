@@ -240,7 +240,7 @@ fn import_speaktype1(
 
 pub fn run() {
     let app = tauri::Builder::default()
-        // Launching SpeakType again brings the running app forward instead of
+        // Launching Wordfall again brings the running app forward instead of
         // starting a second copy with its own tray icon and hotkey.
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             tray::open_main_window(app, None);
@@ -317,7 +317,7 @@ pub fn run() {
             Ok(())
         })
         .on_window_event(|window, event| match (window.label(), event) {
-            // Closing the main window keeps SpeakType running in the tray.
+            // Closing the main window keeps Wordfall running in the tray.
             ("main", WindowEvent::CloseRequested { api, .. }) => {
                 api.prevent_close();
                 let _ = window.hide();
@@ -358,7 +358,7 @@ pub fn run() {
             commands::quit_app,
         ])
         .build(tauri::generate_context!())
-        .expect("error while building SpeakType");
+        .expect("error while building Wordfall");
 
     app.run(|app, event| {
         // macOS: clicking the Dock icon brings the hidden window back.

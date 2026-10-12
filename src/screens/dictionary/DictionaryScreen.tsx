@@ -52,7 +52,7 @@ export function DictionaryScreen() {
 
       <div className="mb-6">
         <Callout icon={Wand2} tone="neutral" title="Turn what you say into the text you want">
-          Say a trigger like “my email” and SpeakType types your real address. Or fix a name the model keeps
+          Say a trigger like “my email” and Wordfall types your real address. Or fix a name the model keeps
           mishearing. Everything runs offline.
         </Callout>
       </div>

@@ -30,7 +30,7 @@ export function installBrowserPreview() {
     autoUpdate: true,
     dictionary: [
       { id: "1", trigger: "my email", replacement: "karan@example.com", isEnabled: true, matchWholeWord: true },
-      { id: "2", trigger: "speak type", replacement: "SpeakType", isEnabled: true, matchWholeWord: true },
+      { id: "2", trigger: "word fall", replacement: "Wordfall", isEnabled: true, matchWholeWord: true },
       { id: "3", trigger: "um", replacement: "", isEnabled: false, matchWholeWord: false },
     ],
     hasCompletedOnboarding: params.get("onboarding") !== "1",
