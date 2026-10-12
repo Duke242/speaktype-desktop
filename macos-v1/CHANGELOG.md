@@ -9,6 +9,8 @@ The format is based on Keep a Changelog, and this project adheres to Semantic Ve
 - Fix: the recorder's warming-up message was clipped mid-word, and pressing esc left it wedged on screen. It now shows the real loading stage, elapsed time, and settles back to idle.
 - Fix: the recommended model on the AI Models screen now shows download progress, a cancel button, and the actual reason a download failed (with a retry) instead of a Download button that appeared to do nothing.
 - Fix: a half-finished Parakeet download is no longer reported as installed.
+- New setting, "Keep recordings": turn it off to keep only the text of each dictation, with no audio saved (#114).
+- A model download now checks for enough free disk space before it starts, and says how much it needs if there isn't (#159).
 
 ## [1.3.0] - 2026-07-10
 - 
