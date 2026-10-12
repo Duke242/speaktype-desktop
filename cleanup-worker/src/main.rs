@@ -166,6 +166,9 @@ fn generate(
     if tokens.len() > 1 && tokens[0] == vocab.bos() && tokens[1] == vocab.bos() {
         tokens.remove(0);
     }
+    if tokens.is_empty() {
+        return Err("The prompt came out empty".into());
+    }
     let prompt_len = u32::try_from(tokens.len()).map_err(|e| e.to_string())?;
     let n_ctx = (prompt_len + max_tokens)
         .min(MAX_CONTEXT)

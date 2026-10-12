@@ -162,32 +162,42 @@ function ServerSettings({ cleanup, save }: { cleanup: CleanupSettings; save: Sav
   const [error, setError] = useState<string>();
   const [connecting, setConnecting] = useState(false);
 
-  const connect = useCallback(
-    async (address: string) => {
-      setConnecting(true);
-      setError(undefined);
-      try {
-        const found = await api.listServerModels(address);
-        setServer(found);
-        if (!cleanup.serverModel && found.models.length > 0) save({ serverModel: found.models[0] });
-      } catch (e) {
-        setServer(undefined);
-        setError(errorMessage(e));
-      } finally {
-        setConnecting(false);
-      }
-    },
-    [cleanup.serverModel, save],
-  );
+  /** Lists the server's models. Returns them, or null if nothing answered. */
+  const connect = useCallback(async (address: string) => {
+    setConnecting(true);
+    setError(undefined);
+    try {
+      const found = await api.listServerModels(address);
+      setServer(found);
+      return found.models;
+    } catch (e) {
+      setServer(undefined);
+      setError(errorMessage(e));
+      return null;
+    } finally {
+      setConnecting(false);
+    }
+  }, []);
+
+  /** Picks the server's first model when none is chosen yet. */
+  const firstModel = (models: string[] | null) =>
+    !cleanup.serverModel && models?.length ? { serverModel: models[0] } : {};
 
   // Check the saved address once, so the model list is ready.
-  useEffect(() => void connect(cleanup.serverUrl), []);
+  useEffect(() => {
+    connect(cleanup.serverUrl).then((models) => {
+      const patch = firstModel(models);
+      if (patch.serverModel) save(patch);
+    });
+  }, []);
 
-  const commitUrl = () => {
+  // One save once the server has answered: a save before it would be undone
+  // by this one, which starts from the settings as they were.
+  const commitUrl = async () => {
     const trimmed = url.trim();
     if (trimmed === cleanup.serverUrl) return;
-    save({ serverUrl: trimmed });
-    connect(trimmed);
+    const models = await connect(trimmed);
+    save({ serverUrl: trimmed, ...firstModel(models) });
   };
 
   const models = server?.models ?? [];
@@ -213,7 +223,7 @@ function ServerSettings({ cleanup, save }: { cleanup: CleanupSettings; save: Sav
             aria-label="Server address"
             className="w-[240px]"
           />
-          <Button size="sm" loading={connecting} onClick={() => connect(url.trim())}>
+          <Button size="sm" loading={connecting} onClick={() => (url.trim() === cleanup.serverUrl ? connect(url.trim()) : commitUrl())}>
             Connect
           </Button>
         </div>

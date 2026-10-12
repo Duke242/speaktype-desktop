@@ -228,6 +228,13 @@ pub async fn delete_model(
             .await
             .map_err(|e| e.to_string())?;
         state.models.delete(&id)?;
+        // So the next cleanup model downloaded is picked up.
+        let mut settings = state.settings();
+        if settings.cleanup.builtin_model == id {
+            settings.cleanup.builtin_model.clear();
+            state.replace_settings(settings)?;
+            let _ = app.emit("settings-changed", ());
+        }
         let _ = app.emit("models-changed", ());
         return Ok(());
     }

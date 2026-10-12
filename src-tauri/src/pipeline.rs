@@ -10,6 +10,7 @@ use tauri::{AppHandle, Emitter, Manager};
 
 use crate::{
     AppState, LockExt,
+    cleanup::Cleaner,
     engine::Engine,
     history::{self, HistoryItem},
     media, models, text,
@@ -99,7 +100,7 @@ pub fn run(
         dictionary: &settings.dictionary,
     };
     let mut text = text::normalize_transcription(&raw, options.auto_edit);
-    if settings.cleanup.enabled && !text.is_empty() {
+    if Cleaner::will_run(&settings.cleanup, &state.models, &text) {
         on_stage(Stage::CleaningUp);
         text = state.cleaner.clean(&settings.cleanup, &state.models, &text);
     }

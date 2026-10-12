@@ -101,11 +101,22 @@ static NOISE_LABEL: LazyLock<Regex> = LazyLock::new(|| {
 
 static WHITESPACE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\s+").expect(STATIC_PATTERN));
 
+/// Hesitation sounds that Auto Edit removes.
+const FILLERS: &str = r"uh+|um+|umm+|uhm+|erm+|hmm+";
+
 // The Swift pattern ends in a lookahead, `(?=$|[\s,.;:!?])`, which the regex crate
 // doesn't support. `remove_fillers` checks that boundary by hand instead.
 static FILLER: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?i)(^|[\s,.;:!?])(?:uh+|um+|umm+|uhm+|erm+|hmm+)").expect(STATIC_PATTERN)
+    Regex::new(&format!(r"(?i)(^|[\s,.;:!?])(?:{FILLERS})")).expect(STATIC_PATTERN)
 });
+
+static FILLER_WORD: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(&format!(r"(?i)^(?:{FILLERS})$")).expect(STATIC_PATTERN));
+
+/// Whether `word`, without punctuation, is a hesitation sound like "um".
+pub fn is_filler(word: &str) -> bool {
+    FILLER_WORD.is_match(word)
+}
 
 static SPACE_BEFORE_PUNCTUATION: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"\s+([,.;:!?])").expect(STATIC_PATTERN));

@@ -27,13 +27,13 @@ use std::{
     time::{Duration, Instant},
 };
 
-use regex::Regex;
 use serde::{Deserialize, Serialize};
 
 use crate::{
     LockExt,
     models::{self, ModelStore},
     settings::{CleanupBackend, CleanupSettings},
+    text,
 };
 
 /// Longer transcripts are left alone: they'd take too long, and are more likely
@@ -170,11 +170,6 @@ pub fn accept(original: &str, reply: &str) -> Option<String> {
 /// self-corrections go, misheard words change, but most words stay.
 const MIN_KEPT_WORDS: f64 = 0.4;
 
-/// Hesitation sounds, which an edit is meant to drop. Same as Auto Edit's in text.rs.
-static FILLER: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"^(?:uh+|um+|uhm+|erm+|hmm+)$").expect("static regex pattern is valid")
-});
-
 /// The share of `original`'s words, ignoring case, punctuation and fillers,
 /// that appear in `edited`. Short transcripts count as kept: there's too little
 /// to judge.
@@ -183,7 +178,7 @@ fn kept_words(original: &str, edited: &str) -> f64 {
         s.split(|c: char| !c.is_alphanumeric() && c != '\'')
             .filter(|w| !w.is_empty())
             .map(str::to_lowercase)
-            .filter(|w| !FILLER.is_match(w))
+            .filter(|w| !text::is_filler(w))
             .collect()
     };
     let before = words(original);
@@ -230,6 +225,23 @@ impl Cleaner {
         }
     }
 
+    /// Whether `clean` would ask a model at all, rather than return `text` at
+    /// once because cleanup is off, the text is too long, or nothing is set up.
+    pub fn will_run(settings: &CleanupSettings, models: &ModelStore, text: &str) -> bool {
+        if !settings.enabled || text.trim().is_empty() {
+            return false;
+        }
+        if text.split_whitespace().count() > MAX_WORDS {
+            return false;
+        }
+        match settings.backend {
+            CleanupBackend::Builtin => {
+                builtin_model_path(settings, models).is_ok() && worker_path().is_some()
+            }
+            CleanupBackend::Server => !settings.server_model.trim().is_empty(),
+        }
+    }
+
     /// The model's reply for `text`, before any checks.
     pub fn reply(
         &self,
@@ -257,11 +269,9 @@ impl Cleaner {
             messages: messages(text),
             max_tokens: max_tokens(text),
         };
-        let result = worker
-            .as_mut()
-            .ok_or("The cleanup helper isn't running")?
-            .call(&request, reply_timeout(text));
-        if result.is_err() {
+        let running = worker.as_mut().ok_or("The cleanup helper isn't running")?;
+        let result = running.call(&request, reply_timeout(text));
+        if running.broken {
             // It may still be generating; a fresh one is started next time.
             *worker = None;
         }
@@ -319,16 +329,13 @@ impl Cleaner {
             messages: Vec::new(),
             max_tokens: 0,
         };
-        match running.call(&request, LOAD_TIMEOUT) {
-            Ok(_) => {
-                running.loaded = Some(path.to_path_buf());
-                Ok(())
-            }
-            Err(e) => {
-                *worker = None;
-                Err(e)
-            }
+        let result = running.call(&request, LOAD_TIMEOUT);
+        if result.is_ok() {
+            running.loaded = Some(path.to_path_buf());
+        } else if running.broken {
+            *worker = None;
         }
+        result.map(|_| ())
     }
 }
 
@@ -416,6 +423,9 @@ struct Worker {
     replies: Receiver<String>,
     loaded: Option<PathBuf>,
     last_used: Instant,
+    /// Set when it stopped answering properly. An error reply from a working
+    /// helper doesn't set it, so the model stays loaded.
+    broken: bool,
 }
 
 impl Worker {
@@ -463,6 +473,7 @@ impl Worker {
             replies,
             loaded: None,
             last_used: Instant::now(),
+            broken: false,
         })
     }
 
@@ -471,31 +482,52 @@ impl Worker {
     }
 
     fn call(&mut self, request: &Request, timeout: Duration) -> Result<String, String> {
+        let result = self.exchange(request, timeout);
+        if let Err(Failure::Broken(_)) = result {
+            self.broken = true;
+        }
+        result.map_err(|failure| match failure {
+            Failure::Broken(e) | Failure::Refused(e) => e,
+        })
+    }
+
+    fn exchange(&mut self, request: &Request, timeout: Duration) -> Result<String, Failure> {
+        let broken = Failure::Broken;
         self.last_used = Instant::now();
-        let mut line = serde_json::to_vec(request).map_err(|e| e.to_string())?;
+        let mut line = serde_json::to_vec(request).map_err(|e| Failure::Refused(e.to_string()))?;
         line.push(b'\n');
         self.stdin
             .write_all(&line)
             .and_then(|()| self.stdin.flush())
-            .map_err(|e| format!("The cleanup helper stopped: {e}"))?;
+            .map_err(|e| broken(format!("The cleanup helper stopped: {e}")))?;
         let reply = match self.replies.recv_timeout(timeout) {
             Ok(reply) => reply,
             Err(RecvTimeoutError::Timeout) => {
-                return Err(format!("The cleanup model took longer than {timeout:.0?}"));
+                return Err(broken(format!(
+                    "The cleanup model took longer than {timeout:.0?}"
+                )));
             }
             Err(RecvTimeoutError::Disconnected) => {
-                return Err("The cleanup helper stopped".into());
+                return Err(broken("The cleanup helper stopped".into()));
             }
         };
         self.last_used = Instant::now();
         let reply: Reply = serde_json::from_str(&reply)
-            .map_err(|e| format!("Unreadable reply from the cleanup helper: {e}"))?;
+            .map_err(|e| broken(format!("Unreadable reply from the cleanup helper: {e}")))?;
         match (reply.text, reply.error) {
-            (_, Some(error)) => Err(error),
+            (_, Some(error)) => Err(Failure::Refused(error)),
             (Some(text), None) => Ok(text),
-            (None, None) => Err("Empty reply from the cleanup helper".into()),
+            (None, None) => Err(broken("Empty reply from the cleanup helper".into())),
         }
     }
+}
+
+enum Failure {
+    /// The helper can't be trusted with another request: it hung, quit, or
+    /// sent something unreadable.
+    Broken(String),
+    /// The helper answered with an error, and is fine for the next request.
+    Refused(String),
 }
 
 impl Drop for Worker {
@@ -533,18 +565,25 @@ pub fn is_local(url: &str) -> bool {
         .trim()
         .trim_start_matches("http://")
         .trim_start_matches("https://");
-    let authority = rest.split('/').next().unwrap_or_default();
-    let host = if authority.starts_with('[') {
-        authority
-            .split(']')
-            .next()
-            .unwrap_or_default()
-            .trim_start_matches('[')
+    let authority = rest.split(['/', '?', '#']).next().unwrap_or_default();
+    // "localhost:1@example.com" connects to example.com.
+    if authority.contains('@') {
+        return false;
+    }
+    let host = if let Some(bracketed) = authority.strip_prefix('[') {
+        bracketed.split(']').next().unwrap_or_default()
     } else {
         authority.split(':').next().unwrap_or_default()
     };
-    matches!(host, "localhost" | "::1") || host.starts_with("127.")
+    host.eq_ignore_ascii_case("localhost")
+        || host
+            .parse::<std::net::IpAddr>()
+            .is_ok_and(|ip| ip.is_loopback())
 }
+
+/// Shared, so dictations reuse its connections.
+static SERVER_CLIENT: LazyLock<reqwest::blocking::Client> =
+    LazyLock::new(reqwest::blocking::Client::new);
 
 fn server_chat(settings: &CleanupSettings, text: &str) -> Result<String, String> {
     #[derive(Serialize)]
@@ -572,7 +611,7 @@ fn server_chat(settings: &CleanupSettings, text: &str) -> Result<String, String>
         return Err("No server model chosen".into());
     }
     let base = api_base(&settings.server_url)?;
-    let response: ChatResponse = reqwest::blocking::Client::new()
+    let response: ChatResponse = SERVER_CLIENT
         .post(format!("{base}/chat/completions"))
         .timeout(reply_timeout(text))
         .json(&ChatRequest {
@@ -748,7 +787,17 @@ mod tests {
         let long = "word ".repeat(MAX_WORDS + 1);
         assert_eq!(cleaner.clean(&settings, &models, &long), long);
         // Enabled, but no model downloaded: falls back.
+        assert!(!Cleaner::will_run(&settings, &models, "um hi"));
         assert_eq!(cleaner.clean(&settings, &models, "um hi"), "um hi");
+
+        settings.backend = CleanupBackend::Server;
+        assert!(
+            !Cleaner::will_run(&settings, &models, "um hi"),
+            "no server model"
+        );
+        settings.server_model = "llama3.2".into();
+        assert!(Cleaner::will_run(&settings, &models, "um hi"));
+        assert!(!Cleaner::will_run(&settings, &models, &long));
     }
 
     #[test]
@@ -778,6 +827,10 @@ mod tests {
         assert!(!is_local("http://192.168.1.20:11434"));
         assert!(!is_local("https://api.example.com/v1"));
         assert!(!is_local("http://localhost.example.com"));
+        assert!(!is_local("http://127.0.0.1.example.com/v1"));
+        assert!(!is_local("http://localhost:1@example.com/v1"));
+        assert!(is_local("http://127.0.0.2:8080"));
+        assert!(is_local("http://LOCALHOST:11434"));
     }
 
     #[test]
