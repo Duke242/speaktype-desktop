@@ -26,7 +26,7 @@ The current focus, in order.
 
 The aim is plain: whatever the paid dictation apps ask a monthly subscription for, SpeakType does for nothing, on your own computer. Tracked in [#166](https://github.com/karansinghgit/speaktype/issues/166).
 
-- **Cleanup with a local AI model** ([#118](https://github.com/karansinghgit/speaktype/issues/118)). An optional pass that tidies up what you said: fix the odd word, format a list, write it the way that place expects. It runs on your computer, through Ollama or any compatible local endpoint, and your text is never sent anywhere. Off by default, and your raw transcript stays if it fails. Everything below leans on this.
+- **Cleanup with a local AI model** ([#118](https://github.com/karansinghgit/speaktype/issues/118)). An optional pass that tidies up what you said: fix the odd word, format a list, write it the way that place expects. It runs on your computer, either with a small model SpeakType downloads and runs itself, or through Ollama or any compatible local endpoint, and your text is never sent anywhere. Off by default, and your raw transcript stays if it fails. Everything below leans on this. *Built, and being tested before release.*
 - **Tone that fits where you're writing** ([#168](https://github.com/karansinghgit/speaktype/issues/168)). Casual in a chat, tidier in an email, no prose at all in a terminal.
 - **Speak an edit** ([#169](https://github.com/karansinghgit/speaktype/issues/169)). Select some text, hold the key, say "make this shorter" or "say this more politely", and it's replaced.
 - **Snippets** ([#167](https://github.com/karansinghgit/speaktype/issues/167)). Say "my email" and get your address.

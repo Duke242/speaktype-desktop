@@ -38,6 +38,8 @@ runs:
 
     - uses: Swatinem/rust-cache@v2
       with:
-        workspaces: desktop/src-tauri -> target
+        workspaces: |
+          desktop/src-tauri -> target
+          desktop/cleanup-worker -> target
         # Keep lint/test and release caches apart; they build different profiles.
         key: ${{ github.job }}
