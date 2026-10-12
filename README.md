@@ -13,6 +13,9 @@ npm run app:build  # build installers into src-tauri/target/release/bundle
 ```
 
 To design screens without the native app, run `npm run dev` and open http://localhost:1420. The UI runs with sample data (add `?theme=dark` or `?onboarding=1` to the URL).
+Open http://localhost:1420/pill.html to preview the recorder with a simulated speech waveform, including pauses.
+
+Live typing is enabled in Settings → Behavior. It inserts short phrases during recording, at pauses or roughly every four seconds of continuous speech (plus model processing time). Use Fn in Hold mode on macOS, or Toggle mode with other shortcuts. Native Wayland sessions retain insertion on release. Escape stops further insertion and keeps the transcript in History; text already typed remains. Switching the active app pauses live insertion for that session. Live typing leaves the clipboard untouched.
 
 ## Check
 

@@ -28,6 +28,7 @@ export interface Settings {
   theme: Theme;
   hotkey: string;
   recordingMode: RecordingMode;
+  liveTyping: boolean;
   selectedModel: string;
   language: string;
   recentLanguages: string[];

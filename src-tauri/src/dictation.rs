@@ -12,7 +12,11 @@
 use std::{
     mem,
     panic::{self, AssertUnwindSafe},
-    sync::mpsc::{self, Sender},
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+        mpsc::{self, Sender},
+    },
     thread,
     time::Duration,
 };
@@ -25,6 +29,7 @@ use crate::{
     AppState, LockExt,
     audio::{Captured, Recording},
     history::now_ms,
+    live,
     paste::Paster,
     pill::{self, PillState},
     pipeline,
@@ -70,6 +75,9 @@ pub enum Event {
     Transcribed {
         session: u64,
         outcome: Outcome,
+    },
+    LiveTypingPaused {
+        session: u64,
     },
     MessageExpired {
         generation: u64,
@@ -174,11 +182,14 @@ enum Phase {
     Recording {
         recording: Recording,
         by_hotkey: bool,
+        session: u64,
+        live: Option<live::Handle>,
     },
     Transcribing {
         session: u64,
         /// Escape was pressed while recording.
         cancelled: bool,
+        live: Option<Arc<AtomicBool>>,
     },
     /// A short status message before returning to idle.
     Message {
@@ -215,6 +226,7 @@ impl Controller {
             hotkey_down: false,
             owns_cancel_key: false,
             next_id: 0,
+            typing_paused: false,
         };
         thread::Builder::new()
             .name("dictation".into())
@@ -287,6 +299,7 @@ struct Session {
     /// Whether this session registered Escape, as opposed to the user's hotkey being Escape.
     owns_cancel_key: bool,
     next_id: u64,
+    typing_paused: bool,
 }
 
 impl Session {
@@ -303,6 +316,12 @@ impl Session {
             Event::Escape => self.input(Input::Escape),
             Event::Warming { session, warming } => self.warming(session, warming),
             Event::Transcribed { session, outcome } => self.transcribed(session, outcome),
+            Event::LiveTypingPaused { session } => {
+                if matches!(self.phase, Phase::Recording { session: s, .. } | Phase::Transcribing { session: s, .. } if s == session)
+                {
+                    self.typing_paused = true;
+                }
+            }
             Event::MessageExpired { generation } => {
                 if matches!(self.phase, Phase::Message { generation: g } if g == generation) {
                     self.go_idle();
@@ -343,10 +362,36 @@ impl Session {
         });
         match recording {
             Ok(recording) => {
+                self.next_id += 1;
+                let session = self.next_id;
+                self.typing_paused = false;
+                // Held shortcut modifiers interfere with typing on some systems.
+                // Fn events are swallowed on macOS; other shortcuts use Toggle.
+                let compatible = !by_hotkey
+                    || settings.recording_mode == RecordingMode::Toggle
+                    || settings.hotkey == "Fn";
+                let live = if settings.live_typing && compatible {
+                    platform::typing_target().and_then(|target| {
+                        live::Handle::spawn(
+                            self.app.clone(),
+                            self.controller.clone(),
+                            session,
+                            recording.monitor(),
+                            settings.clone(),
+                            target,
+                        )
+                        .map_err(|e| eprintln!("[live] couldn't start worker: {e}"))
+                        .ok()
+                    })
+                } else {
+                    None
+                };
                 let started_at_ms = now_ms();
                 self.phase = Phase::Recording {
                     recording,
                     by_hotkey,
+                    session,
+                    live,
                 };
                 self.set_cancel_key(true);
                 self.show(PillState::Recording { started_at_ms });
@@ -362,9 +407,18 @@ impl Session {
     }
 
     fn stop(&mut self, cancelled: bool) {
-        let Phase::Recording { recording, .. } = mem::replace(&mut self.phase, Phase::Idle) else {
+        let Phase::Recording {
+            recording,
+            session,
+            live,
+            ..
+        } = mem::replace(&mut self.phase, Phase::Idle)
+        else {
             return;
         };
+        if cancelled && let Some(handle) = &live {
+            handle.cancelled.store(true, Ordering::SeqCst);
+        }
         let captured = match recording.finish() {
             Ok(captured) => captured,
             Err(e) => {
@@ -373,14 +427,31 @@ impl Session {
             }
         };
 
-        self.next_id += 1;
-        let session = self.next_id;
-        self.phase = Phase::Transcribing { session, cancelled };
+        let token = live.as_ref().map(|handle| handle.cancelled.clone());
+        self.phase = Phase::Transcribing {
+            session,
+            cancelled,
+            live: token,
+        };
         let message = if cancelled { STOPPING } else { TRANSCRIBING };
         self.show(PillState::Processing {
             message: message.into(),
         });
         self.broadcast(DictationState::Transcribing);
+
+        let captured = if let Some(handle) = live {
+            match handle.finish(captured, cancelled) {
+                Ok(_) => return,
+                // If the worker crashed, preserve the full recording in history.
+                // This remains a live session, so it will never paste a duplicate.
+                Err(captured) => {
+                    self.typing_paused = true;
+                    captured
+                }
+            }
+        } else {
+            captured
+        };
 
         let app = self.app.clone();
         let controller = self.controller.clone();
@@ -418,6 +489,7 @@ impl Session {
         let Phase::Transcribing {
             session: current,
             cancelled,
+            ref live,
         } = self.phase
         else {
             return;
@@ -425,13 +497,18 @@ impl Session {
         if current != session {
             return;
         }
+        let streamed = live.is_some();
 
         match outcome {
             Ok(text) => {
+                let paused = self.typing_paused;
                 self.go_idle();
-                if !cancelled {
+                if !cancelled && !streamed {
                     let restore = self.state().settings().restore_clipboard;
                     self.paster.paste(text, restore);
+                }
+                if paused && !cancelled {
+                    self.flash("Typing paused. Saved in History.", ERROR_MESSAGE);
                 }
             }
             Err(e) => {
@@ -449,6 +526,7 @@ impl Session {
 
     /// Shows a status message in the pill, then returns to idle.
     fn flash(&mut self, message: &str, duration: Duration) {
+        self.cancel_live_typing();
         self.next_id += 1;
         let generation = self.next_id;
         self.phase = Phase::Message { generation };
@@ -472,10 +550,20 @@ impl Session {
 
     /// Returns to idle. Dropping a recording stops the microphone and discards its audio.
     fn go_idle(&mut self) {
+        self.cancel_live_typing();
         self.phase = Phase::Idle;
         self.set_cancel_key(false);
         self.show(PillState::Idle);
         self.broadcast(DictationState::Idle);
+    }
+
+    fn cancel_live_typing(&self) {
+        if let Phase::Transcribing {
+            live: Some(token), ..
+        } = &self.phase
+        {
+            token.store(true, Ordering::SeqCst);
+        }
     }
 
     fn show(&self, state: PillState) {

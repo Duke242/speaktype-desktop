@@ -3,6 +3,7 @@
 
 mod hotkey;
 mod permissions;
+mod typing;
 
 use std::{path::Path, process::Command};
 
@@ -11,6 +12,7 @@ use tauri::{TitleBarStyle, WebviewWindow};
 
 pub use hotkey::MODIFIER_HOTKEYS;
 pub use permissions::{permission_settings_url, permissions, request_permission};
+pub use typing::{send_live_text, typing_target};
 
 use super::HotkeyHandler;
 

@@ -10,6 +10,16 @@ use super::{HotkeyHandler, Permission, PermissionKind};
 
 pub const DEFAULT_HOTKEY: &str = "Ctrl+Shift+Space";
 
+pub fn typing_target() -> Option<u64> {
+    #[link(name = "user32")]
+    unsafe extern "system" {
+        fn GetForegroundWindow() -> *mut std::ffi::c_void;
+    }
+    // SAFETY: GetForegroundWindow has no arguments and returns a borrowed HWND.
+    let window = unsafe { GetForegroundWindow() };
+    (!window.is_null()).then_some(window as usize as u64)
+}
+
 /// Ctrl+V works in regular apps, Windows Terminal and the classic console.
 pub fn send_paste_shortcut(enigo: Option<&mut Enigo>) -> Result<(), String> {
     let enigo = enigo.ok_or("Keyboard simulation is unavailable")?;

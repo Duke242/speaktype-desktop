@@ -86,6 +86,33 @@ type Buffer = Arc<Mutex<Vec<f32>>>;
 pub struct Recording {
     stop_tx: Sender<()>,
     done_rx: Receiver<Captured>,
+    monitor: Monitor,
+}
+
+/// Read bounded snapshots off the audio thread, without stopping the microphone.
+#[derive(Clone)]
+pub struct Monitor {
+    buffer: Buffer,
+    sample_rate: u32,
+}
+
+impl Monitor {
+    /// `offset` is in 16 kHz samples. Quarter-second boundaries keep resampling
+    /// offsets exact for common device rates, including 44.1 kHz.
+    pub fn read(&self, offset: usize) -> Vec<f32> {
+        let samples = {
+            let buffer = self.buffer.lock_unpoisoned();
+            let start = offset * self.sample_rate as usize / WHISPER_SAMPLE_RATE as usize;
+            let quantum = self.sample_rate as usize / 4;
+            let available = buffer.len().saturating_sub(start) / quantum * quantum;
+            let count = available.min(self.sample_rate as usize * 6);
+            buffer
+                .get(start..start + count)
+                .unwrap_or_default()
+                .to_vec()
+        };
+        resample(&samples, self.sample_rate, WHISPER_SAMPLE_RATE)
+    }
 }
 
 impl Recording {
@@ -97,15 +124,17 @@ impl Recording {
         on_level: impl Fn(f32) + Send + 'static,
     ) -> Result<Recording, String> {
         let (stop_tx, stop_rx) = mpsc::channel::<()>();
-        let (ready_tx, ready_rx) = mpsc::channel::<Result<(), String>>();
+        let (ready_tx, ready_rx) = mpsc::channel::<Result<u32, String>>();
         let (done_tx, done_rx) = mpsc::channel();
         let device_id = device_id.to_string();
+        let buffer = Buffer::default();
+        let capture_buffer = buffer.clone();
 
         thread::Builder::new()
             .name("audio-capture".into())
             .spawn(move || {
                 let started = Instant::now();
-                let buffer = Buffer::default();
+                let buffer = capture_buffer;
                 let level = Arc::new(AtomicU32::new(NO_LEVEL));
                 let (stream, sample_rate) = match open_stream(&device_id, &buffer, &level) {
                     Ok(opened) => opened,
@@ -114,7 +143,7 @@ impl Recording {
                         return;
                     }
                 };
-                let _ = ready_tx.send(Ok(()));
+                let _ = ready_tx.send(Ok(sample_rate));
 
                 // Polling at half the meter's interval forwards every update
                 // without visibly delaying any.
@@ -144,10 +173,21 @@ impl Recording {
             .map_err(|e| e.to_string())?;
 
         match ready_rx.recv() {
-            Ok(Ok(())) => Ok(Recording { stop_tx, done_rx }),
+            Ok(Ok(sample_rate)) => Ok(Recording {
+                stop_tx,
+                done_rx,
+                monitor: Monitor {
+                    buffer,
+                    sample_rate,
+                },
+            }),
             Ok(Err(e)) => Err(e),
             Err(_) => Err("Audio thread exited before the microphone opened".into()),
         }
+    }
+
+    pub fn monitor(&self) -> Monitor {
+        self.monitor.clone()
     }
 
     /// Stops the microphone and returns the audio.
@@ -230,9 +270,8 @@ where
         .build_input_stream(
             *config,
             move |data: &[T], _: &_| {
-                // Only the capture thread also locks, and only after the stream
-                // is dropped, so this never waits. Recovering from poisoning keeps
-                // a panic elsewhere from panicking the audio thread too.
+                // Snapshot readers only copy a bounded slice under this lock;
+                // resampling and recognition happen after releasing it.
                 let mut buf = sink.buffer.lock_unpoisoned();
                 let start = buf.len();
                 // Downmix to mono by averaging each frame's channels.
@@ -421,6 +460,23 @@ mod tests {
     fn same_rate_is_a_copy() {
         let input = vec![0.1, -0.2, 0.3];
         assert_eq!(resample(&input, 16_000, 16_000), input);
+    }
+
+    #[test]
+    fn live_snapshots_resume_at_the_correct_sample_on_common_microphone_rates() {
+        for rate in [16_000, 44_100, 48_000] {
+            let buffer = Arc::new(Mutex::new(vec![0.2; rate as usize * 8 + rate as usize / 8]));
+            let monitor = Monitor {
+                buffer,
+                sample_rate: rate,
+            };
+            let first = monitor.read(0);
+            assert_eq!(first.len(), 6 * WHISPER_SAMPLE_RATE as usize);
+            let next = monitor.read(first.len());
+            assert_eq!(next.len(), 2 * WHISPER_SAMPLE_RATE as usize);
+            assert!(next.iter().all(|s| (s - 0.2).abs() < 1e-5));
+            assert!(monitor.read(first.len() + next.len()).is_empty());
+        }
     }
 
     #[test]
