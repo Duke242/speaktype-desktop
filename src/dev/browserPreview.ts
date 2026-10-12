@@ -22,6 +22,7 @@ export function installBrowserPreview() {
     autoEdit: false,
     smartTrailingPunctuation: true,
     restoreClipboard: true,
+    saveRecordings: true,
     alwaysShowPill: false,
     pillPosition: "bottomCenter",
     showTrayIcon: true,

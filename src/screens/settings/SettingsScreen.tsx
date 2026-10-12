@@ -1,4 +1,5 @@
 import {
+  AudioLines,
   BookA,
   ClipboardCheck,
   Command,
@@ -151,6 +152,18 @@ function GeneralTab() {
           }
         >
           <Switch checked={settings.restoreClipboard} onChange={(restoreClipboard) => save({ restoreClipboard })} />
+        </SettingRow>
+        <SettingRow
+          icon={AudioLines}
+          tone="neutral"
+          label="Keep recordings"
+          description={
+            settings.saveRecordings
+              ? "Each dictation's audio is kept on this computer, so you can replay it from History."
+              : "Only the text is kept. Recordings you already have stay until you delete them in History."
+          }
+        >
+          <Switch checked={settings.saveRecordings} onChange={(saveRecordings) => save({ saveRecordings })} />
         </SettingRow>
         <SettingRow
           icon={PanelBottom}

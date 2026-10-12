@@ -97,12 +97,16 @@ pub fn run(
 
     // The WAV is written without holding the history lock, so the UI can still
     // read history meanwhile.
-    let recordings_dir = state
-        .history
-        .lock_unpoisoned()
-        .recordings_dir()
-        .to_path_buf();
-    let audio_path = save_recording(&recordings_dir, samples);
+    let audio_path = if settings.save_recordings {
+        let recordings_dir = state
+            .history
+            .lock_unpoisoned()
+            .recordings_dir()
+            .to_path_buf();
+        save_recording(&recordings_dir, samples)
+    } else {
+        None
+    };
     let added = state
         .history
         .lock_unpoisoned()

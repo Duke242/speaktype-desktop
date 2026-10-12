@@ -35,6 +35,8 @@ export interface Settings {
   autoEdit: boolean;
   smartTrailingPunctuation: boolean;
   restoreClipboard: boolean;
+  /** Keep each dictation's audio so it can be replayed from History. */
+  saveRecordings: boolean;
   alwaysShowPill: boolean;
   pillPosition: PillPosition;
   showTrayIcon: boolean;

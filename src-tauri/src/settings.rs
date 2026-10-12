@@ -62,6 +62,8 @@ pub struct Settings {
     pub auto_edit: bool,
     pub smart_trailing_punctuation: bool,
     pub restore_clipboard: bool,
+    /// Keep each dictation's audio next to its transcript, so it can be replayed.
+    pub save_recordings: bool,
     pub always_show_pill: bool,
     pub pill_position: PillPosition,
     pub show_tray_icon: bool,
@@ -87,6 +89,7 @@ impl Default for Settings {
             auto_edit: false,
             smart_trailing_punctuation: true,
             restore_clipboard: true,
+            save_recordings: true,
             always_show_pill: false,
             pill_position: PillPosition::BottomCenter,
             show_tray_icon: true,
@@ -217,6 +220,10 @@ mod tests {
         assert_eq!(settings.pill_position, PillPosition::TopRight);
         assert_eq!(settings.hotkey, crate::platform::DEFAULT_HOTKEY);
         assert!(settings.show_tray_icon);
+        assert!(
+            settings.save_recordings,
+            "recordings stay on for people upgrading"
+        );
         let entry = &settings.dictionary[0];
         assert!(entry.is_enabled && entry.match_whole_word);
     }
@@ -235,6 +242,7 @@ mod tests {
             "autoEdit",
             "smartTrailingPunctuation",
             "restoreClipboard",
+            "saveRecordings",
             "alwaysShowPill",
             "pillPosition",
             "showTrayIcon",
