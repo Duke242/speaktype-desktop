@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "app": "tauri dev",
-    "app:build": "tauri build",
+    "app:build": "node scripts/build-cleanup-worker.mjs && tauri build --config src-tauri/tauri.cleanup.conf.json",
+    "worker:build": "node scripts/build-cleanup-worker.mjs",
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "tauri": "tauri",

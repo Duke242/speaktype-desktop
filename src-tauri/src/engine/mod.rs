@@ -44,6 +44,7 @@ impl Engine {
             EngineKind::Parakeet => Loaded::Parakeet(parakeet::Parakeet::load(path)?),
             #[cfg(not(parakeet))]
             EngineKind::Parakeet => return Err("Parakeet models don't run on Intel Macs".into()),
+            EngineKind::Llama => return Err("This is a cleanup model, not a speech model".into()),
         };
         self.loaded = Some((model.id, loaded));
         Ok(())

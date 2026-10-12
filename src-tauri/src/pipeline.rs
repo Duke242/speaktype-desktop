@@ -54,16 +54,26 @@ impl fmt::Display for Error {
 
 impl std::error::Error for Error {}
 
+/// What the pipeline is busy with, for the pill.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Stage {
+    /// Waiting for the speech model to load.
+    Loading,
+    Transcribing,
+    /// A local language model is tidying the transcript.
+    CleaningUp,
+}
+
 /// Transcribes 16 kHz mono audio with the selected model, saves the recording
 /// and the result to history, and returns the history item.
 ///
-/// `on_warming` is called with `true` before the model starts loading and
-/// `false` once it is done, whether or not loading succeeded.
+/// `on_stage` is called as the work moves along. Loading is always followed by
+/// Transcribing, whether or not loading succeeded.
 pub fn run(
     app: &AppHandle,
     samples: &[f32],
     duration_secs: f64,
-    on_warming: impl Fn(bool),
+    on_stage: impl Fn(Stage),
 ) -> Result<HistoryItem, Error> {
     let state = app.state::<AppState>();
     let settings = state.settings();
@@ -71,11 +81,11 @@ pub fn run(
         .filter(|m| state.models.is_downloaded(m.id))
         .ok_or(Error::NoModel)?;
 
-    let mut engine = lock_engine(&state, &on_warming);
+    let mut engine = lock_engine(&state, &on_stage);
     if engine.loaded_model() != Some(model.id) {
-        on_warming(true);
+        on_stage(Stage::Loading);
         let loaded = state.load_model(app, &mut engine, model);
-        on_warming(false);
+        on_stage(Stage::Transcribing);
         loaded.map_err(Error::ModelLoad)?;
     }
     let raw = engine
@@ -83,14 +93,18 @@ pub fn run(
         .map_err(Error::Transcribe)?;
     drop(engine);
 
-    let text = text::process(
-        &raw,
-        &text::Options {
-            auto_edit: settings.auto_edit,
-            smart_trailing_punctuation: settings.smart_trailing_punctuation,
-            dictionary: &settings.dictionary,
-        },
-    );
+    let options = text::Options {
+        auto_edit: settings.auto_edit,
+        smart_trailing_punctuation: settings.smart_trailing_punctuation,
+        dictionary: &settings.dictionary,
+    };
+    let mut text = text::normalize_transcription(&raw, options.auto_edit);
+    if settings.cleanup.enabled && !text.is_empty() {
+        on_stage(Stage::CleaningUp);
+        text = state.cleaner.clean(&settings.cleanup, &state.models, &text);
+    }
+    // After cleanup, so dictionary rules and snippets always have the last word.
+    let text = text::finish(&text, &options);
     if text.is_empty() {
         return Err(Error::NoSpeech);
     }
@@ -129,13 +143,13 @@ pub fn run(
 }
 
 /// If a warm-up holds the engine, the model is still loading, so report that while waiting.
-fn lock_engine<'a>(state: &'a AppState, on_warming: &impl Fn(bool)) -> MutexGuard<'a, Engine> {
+fn lock_engine<'a>(state: &'a AppState, on_stage: &impl Fn(Stage)) -> MutexGuard<'a, Engine> {
     if let Some(engine) = state.engine.try_lock_unpoisoned() {
         return engine;
     }
-    on_warming(true);
+    on_stage(Stage::Loading);
     let engine = state.engine.lock_unpoisoned();
-    on_warming(false);
+    on_stage(Stage::Transcribing);
     engine
 }
 

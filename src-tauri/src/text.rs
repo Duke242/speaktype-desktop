@@ -32,9 +32,16 @@ pub struct Options<'a> {
 }
 
 /// Full pipeline: engine cleanup, then dictionary, then trailing punctuation.
+/// Dictation runs the two halves separately, with optional language-model
+/// cleanup in between.
+#[cfg(test)]
 pub fn process(raw: &str, options: &Options) -> String {
-    let text = normalize_transcription(raw, options.auto_edit);
-    let text = apply_dictionary(&text, options.dictionary);
+    finish(&normalize_transcription(raw, options.auto_edit), options)
+}
+
+/// Dictionary rules, then trailing punctuation.
+pub fn finish(text: &str, options: &Options) -> String {
+    let text = apply_dictionary(text, options.dictionary);
     if options.smart_trailing_punctuation {
         strip_trailing_period(&text)
     } else {
