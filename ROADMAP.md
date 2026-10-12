@@ -52,6 +52,8 @@ product, and why, see [ROADMAP.md](../ROADMAP.md) at the root of the repo.
 - [x] CI builds for macOS, Windows and Linux on every tag
 
 ## New in SpeakType 2
+- [x] AI cleanup with a local language model: built in (llama.cpp, in its own helper process) or through a local server (Ollama, LM Studio)
+- [ ] AI cleanup tested with real models on macOS, Windows and Linux, and the prompt tuned from what people dictate
 - [ ] Windows build, tested
 - [ ] Linux build, tested (X11 and Wayland)
 - [ ] Single-modifier hotkeys on Windows and Linux

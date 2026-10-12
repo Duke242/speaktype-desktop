@@ -24,6 +24,20 @@ export interface DictionaryEntry {
   matchWholeWord: boolean;
 }
 
+export type CleanupBackend = "builtin" | "server";
+
+/** Optional tidying of each transcript by a local language model. */
+export interface CleanupSettings {
+  enabled: boolean;
+  backend: CleanupBackend;
+  /** Id of a downloaded cleanup model, or "" when none is chosen. */
+  builtinModel: string;
+  /** Base URL of an OpenAI-compatible API, e.g. "http://localhost:11434/v1". */
+  serverUrl: string;
+  /** Model name as the server knows it. */
+  serverModel: string;
+}
+
 export interface Settings {
   theme: Theme;
   hotkey: string;
@@ -34,6 +48,7 @@ export interface Settings {
   inputDevice: string;
   autoEdit: boolean;
   smartTrailingPunctuation: boolean;
+  cleanup: CleanupSettings;
   restoreClipboard: boolean;
   alwaysShowPill: boolean;
   pillPosition: PillPosition;
@@ -63,7 +78,7 @@ export interface InputDevice {
   isDefault: boolean;
 }
 
-export type EngineKind = "whisper" | "parakeet";
+export type EngineKind = "whisper" | "parakeet" | "llama";
 
 export interface ModelStatus {
   id: string;
@@ -84,6 +99,18 @@ export interface ModelStatus {
   minRamGb: number;
   downloaded: boolean;
   downloading: boolean;
+}
+
+export interface CleanupStatus {
+  /** Whether this build includes the helper that runs built-in models. */
+  builtinAvailable: boolean;
+  models: ModelStatus[];
+}
+
+export interface ServerModels {
+  models: string[];
+  /** False when the address isn't this computer, so transcripts would leave it. */
+  isLocal: boolean;
 }
 
 export interface DownloadProgress {
@@ -177,6 +204,9 @@ export const api = {
   downloadModel: (id: string, accelerator?: boolean) => invoke<void>("download_model", { id, accelerator }),
   cancelDownload: (id: string) => invoke<void>("cancel_download", { id }),
   deleteModel: (id: string) => invoke<void>("delete_model", { id }),
+
+  getCleanupStatus: () => invoke<CleanupStatus>("get_cleanup_status"),
+  listServerModels: (url: string) => invoke<ServerModels>("list_server_models", { url }),
 
   getHistory: () => invoke<HistoryItem[]>("get_history"),
   getStats: () => invoke<StatsEntry[]>("get_stats"),
