@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
 
 ## [Unreleased]
+- A calmer new layout: a thin icon rail replaces the sidebar, the dashboard becomes one quiet invitation ("Hold fn and talk.") with your recent words flowing beneath it, and every screen now reads as a single centered column with soft dividers instead of boxed cards.
 - SpeakType 2 is now Wordfall, with a calm new look: deep blues and soft gradients in light and dark themes, a new app and menu bar icon, and a recorder whose waveform falls like rain. Your settings, dictionary and history carry over unchanged.
 - Models are now warmed up as soon as they finish downloading (and when you pick one), so the first dictation no longer stalls on "warming up".
 - Fix: the recorder's warming-up message was clipped mid-word, and pressing esc left it wedged on screen. It now shows the real loading stage, elapsed time, and settles back to idle.
