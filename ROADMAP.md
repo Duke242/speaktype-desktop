@@ -67,6 +67,7 @@ why, see [macos-v1/ROADMAP.md](macos-v1/ROADMAP.md).
 - [ ] The same rules for other languages
 - [x] Snippets: a spoken phrase that expands into saved text (#167)
 - [x] Finish and send: Return while recording inserts the transcript and presses Return
+- [x] Pause music and videos while dictating, browsers included, and resume them afterwards (#63)
 - [x] Share the dictionary and snippets between computers or with a team, through a synced folder; export and import them as a file
 - [ ] Sharing through a Wordfall account, without a synced folder
 
