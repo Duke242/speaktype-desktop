@@ -110,18 +110,35 @@ pub fn run(
         return Err(Error::NoSpeech);
     }
 
+    Ok(save(app, samples, duration_secs, &text, model.name))
+}
+
+/// Save one history entry for the entire live session, rather than one per phrase.
+pub fn save(
+    app: &AppHandle,
+    samples: &[f32],
+    duration_secs: f64,
+    text: &str,
+    model_name: &str,
+) -> HistoryItem {
+    let state = app.state::<AppState>();
+
     // The WAV is written without holding the history lock, so the UI can still
     // read history meanwhile.
-    let recordings_dir = state
-        .history
-        .lock_unpoisoned()
-        .recordings_dir()
-        .to_path_buf();
-    let audio_path = save_recording(&recordings_dir, samples);
+    let audio_path = if state.settings().save_recordings {
+        let recordings_dir = state
+            .history
+            .lock_unpoisoned()
+            .recordings_dir()
+            .to_path_buf();
+        save_recording(&recordings_dir, samples)
+    } else {
+        None
+    };
     let added = state
         .history
         .lock_unpoisoned()
-        .add(&text, duration_secs, model.name, audio_path);
+        .add(text, duration_secs, model_name, audio_path);
     let _ = app.emit("history-changed", ());
 
     // Saving is best effort: the text is still returned if the disk write failed.
@@ -132,15 +149,15 @@ pub fn run(
             None
         }
     };
-    Ok(item.unwrap_or_else(|| HistoryItem {
+    item.unwrap_or_else(|| HistoryItem {
         id: String::new(),
         created_at: history::now_ms(),
         word_count: text.split_whitespace().count(),
-        transcript: text,
+        transcript: text.to_string(),
         duration_secs,
-        model: model.name.into(),
+        model: model_name.into(),
         audio_path: None,
-    }))
+    })
 }
 
 /// If a warm-up holds the engine, the model is still loading, so report that while waiting.

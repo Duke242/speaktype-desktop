@@ -16,6 +16,15 @@ use super::{HotkeyHandler, Permission, PermissionKind};
 
 pub const DEFAULT_HOTKEY: &str = "Ctrl+Shift+Space";
 
+pub fn typing_target() -> Option<u64> {
+    // Native Wayland focus cannot be verified through X11. Keep the existing
+    // insert-on-release path rather than send live text to an unknown window.
+    if wayland::is_session() {
+        return None;
+    }
+    x11::active_window().map(u64::from)
+}
+
 pub fn send_paste_shortcut(enigo: Option<&mut Enigo>) -> Result<(), String> {
     if wayland::is_session() {
         match wayland::send_paste() {

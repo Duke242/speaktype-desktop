@@ -42,6 +42,7 @@ export interface Settings {
   theme: Theme;
   hotkey: string;
   recordingMode: RecordingMode;
+  liveTyping: boolean;
   selectedModel: string;
   language: string;
   recentLanguages: string[];
@@ -50,6 +51,8 @@ export interface Settings {
   smartTrailingPunctuation: boolean;
   cleanup: CleanupSettings;
   restoreClipboard: boolean;
+  /** Keep each dictation's audio so it can be replayed from History. */
+  saveRecordings: boolean;
   alwaysShowPill: boolean;
   pillPosition: PillPosition;
   showTrayIcon: boolean;

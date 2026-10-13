@@ -12,7 +12,7 @@ import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 
 const PRE_RELEASE_NOTES = `An early build of SpeakType 2 for macOS, Windows and Linux. Expect rough edges.
-See desktop/ROADMAP.md for what's left.
+See ROADMAP.md for what's left.
 
 The Windows installer isn't signed yet: on the SmartScreen prompt, click More info, then Run anyway.`;
 

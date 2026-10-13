@@ -86,6 +86,7 @@ pub struct Settings {
     /// Global shortcut in Tauri accelerator syntax, e.g. "Ctrl+Shift+Space".
     pub hotkey: String,
     pub recording_mode: RecordingMode,
+    pub live_typing: bool,
     /// Id from `models::CATALOG`, or empty when nothing is selected yet.
     pub selected_model: String,
     /// Whisper language code, or "auto" to detect.
@@ -98,6 +99,8 @@ pub struct Settings {
     pub smart_trailing_punctuation: bool,
     pub cleanup: CleanupSettings,
     pub restore_clipboard: bool,
+    /// Keep each dictation's audio next to its transcript, so it can be replayed.
+    pub save_recordings: bool,
     pub always_show_pill: bool,
     pub pill_position: PillPosition,
     pub show_tray_icon: bool,
@@ -116,6 +119,7 @@ impl Default for Settings {
             theme: Theme::System,
             hotkey: crate::platform::DEFAULT_HOTKEY.to_string(),
             recording_mode: RecordingMode::Hold,
+            live_typing: true,
             selected_model: String::new(),
             language: "auto".to_string(),
             recent_languages: Vec::new(),
@@ -124,6 +128,7 @@ impl Default for Settings {
             smart_trailing_punctuation: true,
             cleanup: CleanupSettings::default(),
             restore_clipboard: true,
+            save_recordings: true,
             always_show_pill: false,
             pill_position: PillPosition::BottomCenter,
             show_tray_icon: true,
@@ -254,6 +259,11 @@ mod tests {
         assert_eq!(settings.pill_position, PillPosition::TopRight);
         assert_eq!(settings.hotkey, crate::platform::DEFAULT_HOTKEY);
         assert!(settings.show_tray_icon);
+        assert!(
+            settings.save_recordings,
+            "recordings stay on for people upgrading"
+        );
+        assert!(settings.live_typing);
         let entry = &settings.dictionary[0];
         assert!(entry.is_enabled && entry.match_whole_word);
         assert_eq!(settings.cleanup, CleanupSettings::default());
@@ -275,6 +285,7 @@ mod tests {
             "theme",
             "hotkey",
             "recordingMode",
+            "liveTyping",
             "selectedModel",
             "language",
             "recentLanguages",
@@ -283,6 +294,7 @@ mod tests {
             "smartTrailingPunctuation",
             "cleanup",
             "restoreClipboard",
+            "saveRecordings",
             "alwaysShowPill",
             "pillPosition",
             "showTrayIcon",

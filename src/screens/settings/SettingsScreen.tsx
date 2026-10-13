@@ -1,4 +1,5 @@
 import {
+  AudioLines,
   BookA,
   ClipboardCheck,
   Command,
@@ -134,6 +135,19 @@ function GeneralTab() {
 
       <Section title="Behavior">
         <SettingRow
+          icon={Keyboard}
+          tone="neutral"
+          label="Type while speaking"
+          description="Insert short phrases as you speak. Escape stops further typing; words already inserted stay. Turn off to insert everything when you stop."
+        >
+          <Switch label="Type while speaking" checked={settings.liveTyping} onChange={(liveTyping) => save({ liveTyping })} />
+        </SettingRow>
+        {settings.liveTyping && settings.recordingMode === "hold" && settings.hotkey !== "Fn" && (
+          <p className="px-5 py-3 type-small text-ink-secondary">
+            For live typing with this shortcut, choose Toggle mode. Hold mode inserts the transcript when you release the shortcut.
+          </p>
+        )}
+        <SettingRow
           icon={Command}
           tone="neutral"
           label={isMac ? "Show menu bar icon" : "Show tray icon"}
@@ -152,6 +166,18 @@ function GeneralTab() {
           }
         >
           <Switch checked={settings.restoreClipboard} onChange={(restoreClipboard) => save({ restoreClipboard })} />
+        </SettingRow>
+        <SettingRow
+          icon={AudioLines}
+          tone="neutral"
+          label="Keep recordings"
+          description={
+            settings.saveRecordings
+              ? "Each dictation's audio is kept on this computer, so you can replay it from History."
+              : "Only the text is kept. Recordings you already have stay until you delete them in History."
+          }
+        >
+          <Switch checked={settings.saveRecordings} onChange={(saveRecordings) => save({ saveRecordings })} />
         </SettingRow>
         <SettingRow
           icon={PanelBottom}

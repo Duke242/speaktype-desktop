@@ -271,6 +271,15 @@ unsafe fn handle_event(event_type: u32, event: CGEventRef) -> CGEventRef {
         return event;
     }
 
+    // Our Unicode events must not cancel a dictation while Fn is held. The
+    // explicit tag avoids ignoring real user keystrokes or other applications.
+    // SAFETY: normal keyboard events carry the source user-data field.
+    if unsafe { CGEventGetIntegerValueField(event, super::typing::SOURCE_USER_DATA) }
+        == super::typing::LIVE_EVENT_TAG
+    {
+        return event;
+    }
+
     // SAFETY: flags-changed and key-down events both carry a keycode.
     let keycode = unsafe { CGEventGetIntegerValueField(event, KEYCODE_FIELD) };
     let (reported, is_fn) = {

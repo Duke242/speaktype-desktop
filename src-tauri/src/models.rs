@@ -328,6 +328,8 @@ const READ_TIMEOUT: Duration = Duration::from_secs(30);
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(15);
 /// How often download progress is reported.
 const PROGRESS_INTERVAL: Duration = Duration::from_millis(200);
+/// Left free after a download, so a model never fills the disk to the brim.
+const SPARE_BYTES: u64 = 200 * 1024 * 1024;
 
 pub struct ModelStore {
     dir: PathBuf,
@@ -550,6 +552,13 @@ impl ModelStore {
             sizes.push(size);
         }
         let total: u64 = sizes.iter().sum();
+        // A zip and its extracted folder are both on disk until it's unpacked.
+        let needed = missing
+            .iter()
+            .zip(&sizes)
+            .map(|(asset, &size)| if asset.zipped { size * 2 } else { size })
+            .sum();
+        check_space(needed, free_space(&self.dir))?;
 
         let mut done = 0;
         let report = |downloaded: u64| {
@@ -715,6 +724,48 @@ fn auto_accelerator(model: &ModelInfo) -> bool {
         && model.accelerator_mb <= AUTO_ACCELERATOR_MB
 }
 
+/// Refuses a download of `needed` bytes that wouldn't fit in `available`. When
+/// free space is unknown the download goes ahead, rather than blocking it on a guess.
+fn check_space(needed: u64, available: Option<u64>) -> Result<(), String> {
+    let with_spare = needed.saturating_add(SPARE_BYTES);
+    match available {
+        Some(available) if with_spare > available => Err(format!(
+            "Not enough disk space: this download needs {} and only {} is free",
+            format_bytes(with_spare),
+            format_bytes(available)
+        )),
+        _ => Ok(()),
+    }
+}
+
+/// Free space on the disk holding `dir`, which may not exist yet.
+fn free_space(dir: &Path) -> Option<u64> {
+    let existing = dir.ancestors().find(|p| p.exists())?;
+    // On Windows `canonicalize` gives `\\?\C:\…`, which doesn't match mount points.
+    let path = if cfg!(windows) {
+        std::path::absolute(existing).ok()?
+    } else {
+        existing.canonicalize().ok()?
+    };
+    let disks = sysinfo::Disks::new_with_refreshed_list();
+    disks
+        .list()
+        .iter()
+        .filter(|disk| path.starts_with(disk.mount_point()))
+        .max_by_key(|disk| disk.mount_point().components().count())
+        .map(|disk| disk.available_space())
+}
+
+fn format_bytes(bytes: u64) -> String {
+    const MB: f64 = 1024.0 * 1024.0;
+    let mb = bytes as f64 / MB;
+    if mb >= 1000.0 {
+        format!("{:.1} GB", mb / 1024.0)
+    } else {
+        format!("{} MB", mb.ceil() as u64)
+    }
+}
+
 fn with_suffix(path: &Path, suffix: &str) -> PathBuf {
     let mut name = path.file_name().unwrap_or_default().to_os_string();
     name.push(suffix);
@@ -724,6 +775,32 @@ fn with_suffix(path: &Path, suffix: &str) -> PathBuf {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn downloads_that_dont_fit_are_refused_before_they_start() {
+        const MB: u64 = 1024 * 1024;
+        assert!(check_space(500 * MB, Some(2000 * MB)).is_ok());
+        assert!(
+            check_space(500 * MB, None).is_ok(),
+            "unknown space doesn't block"
+        );
+        let err = check_space(1624 * MB, Some(900 * MB)).unwrap_err();
+        assert_eq!(
+            err,
+            "Not enough disk space: this download needs 1.8 GB and only 900 MB is free"
+        );
+        assert!(
+            check_space(500 * MB, Some(600 * MB)).is_err(),
+            "keeps some space spare"
+        );
+    }
+
+    #[test]
+    fn free_space_is_found_for_a_folder_that_doesnt_exist_yet() {
+        let dir =
+            std::env::temp_dir().join(format!("speaktype-test-{}/models", uuid::Uuid::new_v4()));
+        assert!(free_space(&dir).is_some_and(|bytes| bytes > 0));
+    }
 
     #[test]
     fn catalog_ids_are_unique() {

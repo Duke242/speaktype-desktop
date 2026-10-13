@@ -6,6 +6,7 @@ mod dictation;
 mod engine;
 mod history;
 mod legacy;
+mod live;
 mod media;
 mod models;
 mod paste;
