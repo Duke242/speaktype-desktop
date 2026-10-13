@@ -141,9 +141,11 @@ function GeneralTab() {
          
           label="Recording mode"
           description={
-            settings.recordingMode === "hold"
-              ? "Hold the hotkey while you talk, and let go when you're done. Double-tap it to keep recording hands-free, then press it once to stop."
-              : "Press the hotkey to start recording, and press it again to stop."
+            {
+              hold: "Hold the hotkey while you talk, and let go when you're done. Double-tap it to keep recording hands-free, then press it once to stop.",
+              toggle: "Press the hotkey to start recording, and press it again to stop.",
+              hybrid: "Hold the hotkey while you talk, or tap it to keep recording hands-free and press it again to stop.",
+            }[settings.recordingMode]
           }
         >
           <SegmentedControl
@@ -152,8 +154,9 @@ function GeneralTab() {
             options={[
               { value: "hold", label: "Hold to talk" },
               { value: "toggle", label: "Toggle" },
+              { value: "hybrid", label: "Hold or tap" },
             ]}
-            className="w-[220px]"
+            className="w-[330px]"
           />
         </SettingRow>
         <SettingRow
@@ -178,9 +181,9 @@ function GeneralTab() {
         >
           <Switch label="Type while speaking" checked={settings.liveTyping} onChange={(liveTyping) => save({ liveTyping })} />
         </SettingRow>
-        {settings.liveTyping && settings.recordingMode === "hold" && settings.hotkey !== "Fn" && (
+        {settings.liveTyping && settings.recordingMode !== "toggle" && settings.hotkey !== "Fn" && (
           <p className="py-3 pl-8 type-small text-ink-secondary">
-            For live typing with this shortcut, choose Toggle mode. Hold mode inserts the transcript when you release the shortcut.
+            For live typing with this shortcut, choose Toggle mode. Other modes insert the transcript when you stop.
           </p>
         )}
         <SettingRow

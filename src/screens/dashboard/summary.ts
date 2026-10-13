@@ -24,9 +24,9 @@ export function summarize(stats: readonly StatsEntry[], now: number): Summary {
   };
 }
 
-/** "Hold" or "Press", for "Hold fn and talk." */
+/** "Hold" or "Press", for "Hold fn and talk." Hybrid mode holds too. */
 export function hotkeyVerb(mode: RecordingMode) {
-  return mode === "hold" ? "Hold" : "Press";
+  return mode === "toggle" ? "Press" : "Hold";
 }
 
 /** What to call the user's machine: "this Mac" on macOS. */

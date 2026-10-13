@@ -6,7 +6,7 @@ why, see [macos-v1/ROADMAP.md](macos-v1/ROADMAP.md).
 ## Parity with SpeakType 1 (macOS)
 
 ### Dictation
-- [x] Hold-to-talk and toggle modes
+- [x] Hold-to-talk and toggle modes, plus "Hold or tap" (a quick tap keeps recording until the next press)
 - [x] Fn and single-modifier hotkeys (Right ⌘, Left ⌥…)
 - [x] Custom shortcut hotkeys
 - [x] Escape stops without pasting, keeps the transcript in History

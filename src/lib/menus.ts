@@ -31,6 +31,7 @@ export async function showModeMenu(settings: Settings) {
     items: [
       { text: "Hold to talk", checked: settings.recordingMode === "hold", action: () => save({ recordingMode: "hold" }) },
       { text: "Toggle on and off", checked: settings.recordingMode === "toggle", action: () => save({ recordingMode: "toggle" }) },
+      { text: "Hold or tap", checked: settings.recordingMode === "hybrid", action: () => save({ recordingMode: "hybrid" }) },
     ],
   });
   await menu.popup();

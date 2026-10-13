@@ -70,7 +70,7 @@ export function HistoryScreen() {
           title="No transcriptions yet"
           description={
             <span className="inline-flex flex-wrap items-center justify-center gap-1.5">
-              {settings.recordingMode === "hold" ? "Hold" : "Press"} <Hotkey value={settings.hotkey} /> in any app
+              {settings.recordingMode === "toggle" ? "Press" : "Hold"} <Hotkey value={settings.hotkey} /> in any app
               and start talking.
             </span>
           }

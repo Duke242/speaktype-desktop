@@ -109,8 +109,8 @@ export function Pill({ preview = false }: { preview?: boolean }) {
               <div className="flex shrink-0 animate-pop-in items-center gap-1.5 pl-1">
                 <Chip icon={Mic} label={deviceName} onClick={() => showMicrophoneMenu(settings)} />
                 <Chip
-                  icon={settings.recordingMode === "hold" ? Hand : Repeat}
-                  label={settings.recordingMode === "hold" ? "Hold" : "Toggle"}
+                  icon={settings.recordingMode === "toggle" ? Repeat : Hand}
+                  label={{ hold: "Hold", toggle: "Toggle", hybrid: "Hybrid" }[settings.recordingMode]}
                   onClick={() => showModeMenu(settings)}
                 />
                 <Chip
