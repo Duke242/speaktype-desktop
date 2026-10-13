@@ -104,6 +104,8 @@ export interface Settings {
   voiceCommands: boolean;
   /** "Meet at 3, actually 4" is written "meet at 4". */
   selfCorrections: boolean;
+  /** Spoken lists, numbers, dates and times are written out. */
+  smartFormatting: boolean;
   hasCompletedOnboarding: boolean;
   hasShownModelPrompt: boolean;
   /** Set once SpeakType 1's data has been brought over. */

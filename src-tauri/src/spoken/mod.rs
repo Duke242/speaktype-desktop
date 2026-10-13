@@ -1,16 +1,23 @@
 //! Rule-based edits for the way people talk, applied after transcription:
-//! voice commands ("scratch that", "new line") and corrections made
-//! mid-sentence ("meet at 3, actually 4").
+//! voice commands ("scratch that", "new line"), corrections made mid-sentence
+//! ("meet at 3, actually 4"), and spoken numbers, dates, times and lists.
 //!
 //! English only, and cautious on purpose: when a rule isn't sure what was
 //! meant, the words stay as they were said.
 
 mod commands;
 mod corrections;
+mod lists;
 mod numbers;
 
 pub use commands::apply as apply_commands;
 pub use corrections::apply as apply_corrections;
+
+/// Spoken lists, numbers, dates and times, written the way you'd type them.
+/// Lists go first, while "one, two, three" are still words.
+pub fn format(text: &str) -> String {
+    numbers::apply(&lists::apply(text))
+}
 
 /// A word in a transcript and where it sits.
 #[derive(Debug, Clone, Copy)]
@@ -125,6 +132,19 @@ fn capitalize(text: &str) -> String {
     }
 }
 
+/// Replaces byte ranges, given in order and not overlapping.
+fn splice(text: &str, edits: &[(usize, usize, String)]) -> String {
+    let mut out = String::with_capacity(text.len());
+    let mut at = 0;
+    for (start, end, with) in edits {
+        out.push_str(&text[at..*start]);
+        out.push_str(with);
+        at = *end;
+    }
+    out.push_str(&text[at..]);
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -164,5 +184,9 @@ mod tests {
         assert!(ends_phrase(text, &w[1]) && ends_phrase(text, &w[2]) && ends_phrase(text, &w[3]));
         assert!(!ends_phrase(text, &w[0]));
         assert_eq!(capitalize("éa"), "Éa");
+        assert_eq!(
+            splice("abcdef", &[(1, 2, "X".into()), (4, 6, String::new())]),
+            "aXcd"
+        );
     }
 }

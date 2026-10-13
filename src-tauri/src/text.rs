@@ -38,7 +38,9 @@ pub struct Options<'a> {
     pub voice_commands: bool,
     /// "Meet at 3, actually 4" becomes "meet at 4".
     pub self_corrections: bool,
-    /// The two rules above only understand English.
+    /// Spoken lists, numbers, dates and times written out.
+    pub smart_formatting: bool,
+    /// The three rules above only understand English.
     pub english: bool,
 }
 
@@ -55,8 +57,8 @@ pub fn process(raw: &str, options: &Options) -> String {
     finish(&normalize_transcription(raw, options.auto_edit), options)
 }
 
-/// Voice commands and corrections, then dictionary rules and trailing
-/// punctuation.
+/// Voice commands, corrections and formatting, then dictionary rules and
+/// trailing punctuation.
 pub fn finish(text: &str, options: &Options) -> String {
     let english = |on: bool| on && options.english;
     let mut text = text.to_string();
@@ -65,6 +67,10 @@ pub fn finish(text: &str, options: &Options) -> String {
     }
     if english(options.self_corrections) {
         text = spoken::apply_corrections(&text);
+    }
+    let format = english(options.smart_formatting);
+    if format {
+        text = spoken::format(&text);
     }
     let text = apply_dictionary(&text, options.dictionary);
     if options.smart_trailing_punctuation {
@@ -565,6 +571,7 @@ mod tests {
             dictionary,
             voice_commands: true,
             self_corrections: true,
+            smart_formatting: true,
             english: true,
         }
     }
@@ -574,8 +581,11 @@ mod tests {
         let dictionary = [entry("word fall", "Wordfall", true)];
         let options = options(&dictionary);
         assert_eq!(
-            process("um, meet at 3 pm, actually 4 pm in word fall.", &options),
-            "meet at 4 pm in Wordfall."
+            process(
+                "um, meet at three pm, actually four pm in word fall.",
+                &options
+            ),
+            "meet at 4 PM in Wordfall."
         );
         assert_eq!(
             process(
@@ -583,6 +593,13 @@ mod tests {
                 &options
             ),
             "Use Wordfall\nThanks"
+        );
+        assert_eq!(
+            process(
+                "todo: first, twenty five emails. Second, call Bob.",
+                &options
+            ),
+            "todo:\n1. 25 emails\n2. Call Bob"
         );
     }
 
@@ -613,6 +630,11 @@ mod tests {
             "We're close, actually we're done.",
             "We need 5, actually 2 more.",
             "We sold 10, actually 5 more than last year.",
+            "One coffee, two teas, three waters.",
+            "One problem. Two problems. Three problems.",
+            "Bullet point is a weird phrase.",
+            "First, I'm sorry. Second time's the charm.",
+            "I'll march first and you follow.",
         ] {
             assert_eq!(process(said, &options), said);
         }
@@ -621,13 +643,13 @@ mod tests {
     #[test]
     fn spoken_rules_are_off_for_other_languages_and_when_switched_off() {
         let mut options = options(&[]);
-        let said = "meet at 3 pm, actually 4 pm";
+        let said = "meet at three pm, actually four pm";
         options.english = false;
         assert_eq!(process(said, &options), said);
         options.english = true;
-        assert_eq!(process(said, &options), "meet at 4 pm");
         options.self_corrections = false;
-        assert_eq!(process(said, &options), said);
+        assert_eq!(process(said, &options), "meet at 3 PM, actually 4 PM");
+        options.smart_formatting = false;
         options.voice_commands = false;
         assert_eq!(process("one new line two", &options), "one new line two");
         assert!(is_english("auto") && is_english("en") && !is_english("de"));
