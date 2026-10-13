@@ -263,6 +263,7 @@ Automated tests can't press your hotkey or paste into another app. For anything 
 **Dictation**
 - [ ] Hold the hotkey, speak, release: the text appears in a text editor, a browser text field and a terminal.
 - [ ] Toggle mode (Settings → Recording mode): press once to start and again to stop.
+- [ ] Hold mode: double-tap the hotkey, let go and keep talking; the pill shows a lock. Press the hotkey once to stop.
 - [ ] <kbd>Esc</kbd> while recording stops without pasting, and the transcript still shows up in History.
 - [ ] Pressing another key while holding the hotkey cancels the recording.
 - [ ] With "Restore clipboard" on, whatever you had copied before is still on the clipboard afterwards.
