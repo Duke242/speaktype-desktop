@@ -593,6 +593,8 @@ fn server_chat(settings: &CleanupSettings, text: &str) -> Result<String, String>
         temperature: f32,
         max_tokens: u32,
         stream: bool,
+        /// Thinking first would make cleanup take many seconds, so turn it off.
+        reasoning_effort: &'static str,
     }
     #[derive(Deserialize)]
     struct ChatResponse {
@@ -620,6 +622,7 @@ fn server_chat(settings: &CleanupSettings, text: &str) -> Result<String, String>
             temperature: 0.0,
             max_tokens: max_tokens(text),
             stream: false,
+            reasoning_effort: "none",
         })
         .send()
         .and_then(|r| r.error_for_status())
