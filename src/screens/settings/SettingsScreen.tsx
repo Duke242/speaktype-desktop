@@ -281,7 +281,7 @@ function GeneralTab() {
           icon={BookA}
          
           label="Replacements and snippets"
-          description="Word fixes and spoken snippets (say “my email”, get your address) live in Dictionary."
+          description="Word fixes and snippets (say “my calendar link”, get the link) live in Dictionary."
         />
       </Section>
 

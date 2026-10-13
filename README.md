@@ -27,7 +27,7 @@ Copying the selection takes care with the app it goes to (`src-tauri/src/command
 - With nothing selected, VS Code and JetBrains IDEs copy the whole current line. In code editors, a copy ending in a line break is taken as no selection ("Select some text first"), which also turns away selections of whole lines down to the next one; select up to the end of the last line instead.
 - Text and images on the clipboard are put back afterwards. Anything else, like copied files, can't be, so it isn't cleared before copying: copying with nothing selected leaves it in place, while copying a selection replaces it, as Ctrl+C would.
 
-Settings → Commands and formatting turns on rules for English dictation, all on by default: "scratch that", "new line" and "new paragraph" as commands, keeping only the correction in "meet at 3, actually 4", and writing spoken lists, numbers, dates, times, prices and percentages as you'd type them. They live in `src-tauri/src/spoken/` and leave the text alone when unsure. Voice commands apply to dictation pasted when you finish, not to live typing, where "new line" would press Return.
+Settings → Commands and formatting turns on rules for English dictation, all on by default: "scratch that", "new line" and "new paragraph" as commands, keeping only the correction in "meet at 3, actually 4", and writing spoken lists, numbers, dates, times, prices and percentages as you'd type them. They live in `src-tauri/src/spoken/` and leave the text alone when unsure. Voice commands apply to dictation pasted when you finish, not to live typing, where "new line" would press Return. Snippets ("my calendar link" → the link) are in Dictionary → Snippets.
 
 ## Meetings
 

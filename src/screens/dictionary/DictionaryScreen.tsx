@@ -1,5 +1,5 @@
-import { ArrowRight, BookA, Lightbulb, Pencil, Plus, Trash2 } from "lucide-react";
-import { useEffect, useState, type ReactNode } from "react";
+import { ArrowRight, BookA, Lightbulb, Pencil, Plus, TextQuote, Trash2 } from "lucide-react";
+import { useEffect, useState } from "react";
 import {
   Badge,
   Button,
@@ -8,6 +8,7 @@ import {
   EmptyState,
   IconButton,
   Section,
+  SegmentedControl,
   Page,
   PageHeader,
   Switch,
@@ -19,8 +20,40 @@ import { errorMessage, type DictionaryEntry } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import { plural } from "@/lib/format";
 import { useStore } from "@/lib/store";
+import { Field } from "./Field";
+import { SnippetsTab } from "./SnippetsTab";
+
+type Tab = "replacements" | "snippets";
 
 export function DictionaryScreen() {
+  const [tab, setTab] = useState<Tab>("replacements");
+  return (
+    <Page>
+      <PageHeader
+        title="Dictionary"
+        description={
+          tab === "replacements"
+            ? "Turn what you say into the text you want. Fix a name the model keeps mishearing, or remove a word you never mean. Words you correct are added here too, marked Learned."
+            : "Say a short phrase and get longer text, like your calendar link or address. Everything runs offline."
+        }
+        actions={
+          <SegmentedControl
+            value={tab}
+            onChange={setTab}
+            options={[
+              { value: "replacements", label: "Replacements", icon: BookA },
+              { value: "snippets", label: "Snippets", icon: TextQuote },
+            ]}
+            className="w-[270px]"
+          />
+        }
+      />
+      {tab === "replacements" ? <ReplacementsTab /> : <SnippetsTab />}
+    </Page>
+  );
+}
+
+function ReplacementsTab() {
   const { settings, updateSettings } = useStore();
   const toast = useToast();
   const [editing, setEditing] = useState<DictionaryEntry | "new" | null>(null);
@@ -37,31 +70,30 @@ export function DictionaryScreen() {
     saveEntries(exists ? entries.map((e) => (e.id === entry.id ? entry : e)) : [entry, ...entries]);
   };
 
-  const addButton = (
-    <Button variant="primary" icon={Plus} onClick={() => setEditing("new")}>
-      Add rule
-    </Button>
-  );
-
   return (
-    <Page>
-      <PageHeader
-        title="Dictionary"
-        description="Turn what you say into the text you want. Say “my email” and get your address, or fix a name the model keeps mishearing. Words you correct are added here too, marked Learned."
-        actions={entries.length > 0 && addButton}
-      />
-
+    <>
       {entries.length === 0 ? (
         <EmptyState
           icon={BookA}
           title="No rules yet"
           description="Add your first rule to replace a spoken phrase with any text. Everything runs offline."
-          action={addButton}
+          action={
+            <Button variant="primary" icon={Plus} onClick={() => setEditing("new")}>
+              Add rule
+            </Button>
+          }
         />
       ) : (
         <Section
           title={plural(entries.length, "rule")}
-          action={learnedCount > 0 && <span className="type-caption text-ink-muted">{learnedCount} learned</span>}
+          action={
+            <span className="flex items-center gap-3">
+              {learnedCount > 0 && <span className="type-caption text-ink-muted">{learnedCount} learned</span>}
+              <Button size="sm" variant="ghost" icon={Plus} onClick={() => setEditing("new")}>
+                Add rule
+              </Button>
+            </span>
+          }
         >
           {entries.map((entry) => (
             <RuleRow
@@ -89,7 +121,7 @@ export function DictionaryScreen() {
         description={deleting && `“${deleting.trigger.trim()}” will no longer be replaced.`}
         confirmLabel="Delete"
       />
-    </Page>
+    </>
   );
 }
 
@@ -211,17 +243,5 @@ function RuleEditor({
         <button type="submit" hidden />
       </form>
     </Dialog>
-  );
-}
-
-function Field({ label, hint, children }: { label: string; hint: string; children: ReactNode }) {
-  return (
-    <div>
-      <div className="mb-2">
-        <div className="type-label">{label}</div>
-        <div className="type-small text-ink-secondary">{hint}</div>
-      </div>
-      {children}
-    </div>
   );
 }

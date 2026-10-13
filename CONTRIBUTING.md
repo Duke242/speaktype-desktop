@@ -55,6 +55,7 @@ SpeakType 2 is one app for macOS, Windows and Linux. It has two halves:
 │   │   ├── audio.rs  engine/    Microphone capture and the Whisper and Parakeet engines
 │   │   ├── cleanup.rs           Optional transcript cleanup by a local language model
 │   │   ├── text.rs  spoken/     Rule-based tidying: dictionary, voice commands, corrections, formatting
+│   │   ├── snippets.rs          Snippets: spoken phrases that expand into saved text
 │   │   ├── meeting/             Meeting notes: capture, live transcript, storage, summaries
 │   │   ├── models.rs            Model catalogs and downloads
 │   │   ├── history.rs  settings.rs  legacy.rs (import from SpeakType 1)

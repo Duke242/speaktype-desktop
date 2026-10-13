@@ -58,6 +58,11 @@ export function installBrowserPreview() {
     voiceCommands: true,
     selfCorrections: true,
     smartFormatting: true,
+    snippets: [
+      { id: "s1", trigger: "my calendar link", expansion: "https://cal.com/karan", isEnabled: true },
+      { id: "s2", trigger: "my address", expansion: "1 Market Street\nSan Francisco, CA 94105", isEnabled: true },
+      { id: "s3", trigger: "sign off", expansion: "Thanks,\nKaran", isEnabled: false },
+    ],
     hasCompletedOnboarding: params.get("onboarding") !== "1",
     hasShownModelPrompt: true,
     hasImportedV1: false,
