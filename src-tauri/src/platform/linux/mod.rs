@@ -50,6 +50,17 @@ pub fn send_paste_shortcut(enigo: Option<&mut Enigo>) -> Result<(), String> {
     super::press_combo(enigo, modifiers, Key::Unicode('v'))
 }
 
+pub fn send_return_key(enigo: Option<&mut Enigo>) -> Result<(), String> {
+    if wayland::is_session() {
+        match wayland::send_return() {
+            Ok(()) => return Ok(()),
+            Err(e) => eprintln!("[paste] {e}"),
+        }
+    }
+    let enigo = enigo.ok_or("Keyboard simulation is unavailable")?;
+    super::press_combo(enigo, &[], Key::Return)
+}
+
 /// Whether the copy shortcut can be pressed safely. Wayland doesn't say
 /// which app has focus, so a terminal can't be told apart, and there Ctrl+C
 /// would stop the running program instead of copying.

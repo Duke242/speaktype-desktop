@@ -86,7 +86,7 @@ function Header() {
   else status = { dot: "bg-success", label: "Ready" };
 
   const hotkey = hotkeyParts(settings.hotkey).join(" ");
-  const verb = settings.recordingMode === "hold" ? "hold" : "press";
+  const verb = settings.recordingMode === "toggle" ? "press" : "hold";
 
   return (
     <div className="px-4 pt-4 pb-4 [background-image:var(--app-wash)]">
@@ -182,7 +182,7 @@ function QuickSettings() {
     {
       icon: Hand,
       label: "Mode",
-      value: settings.recordingMode === "hold" ? "Hold to talk" : "Toggle",
+      value: { hold: "Hold to talk", toggle: "Toggle", hybrid: "Hold or tap" }[settings.recordingMode],
       onClick: () => showModeMenu(settings),
     },
   ];

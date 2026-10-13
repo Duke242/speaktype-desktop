@@ -26,6 +26,18 @@ pub fn send_paste() -> Result<(), String> {
     Err("No Wayland paste tool worked (tried wtype and ydotool)".into())
 }
 
+/// Presses Return through a helper tool, as [`send_paste`] presses Ctrl+V.
+pub fn send_return() -> Result<(), String> {
+    if on_path("wtype") && run("wtype", &["-k", "Return"]) {
+        return Ok(());
+    }
+    // 28 is the Linux input code for Enter.
+    if on_path("ydotool") && run("ydotool", &["key", "28:1", "28:0"]) {
+        return Ok(());
+    }
+    Err("No Wayland key tool worked (tried wtype and ydotool)".into())
+}
+
 fn run(program: &str, args: &[&str]) -> bool {
     Command::new(program)
         .args(args)

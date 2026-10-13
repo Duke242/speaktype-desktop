@@ -6,7 +6,7 @@ why, see [macos-v1/ROADMAP.md](macos-v1/ROADMAP.md).
 ## Parity with SpeakType 1 (macOS)
 
 ### Dictation
-- [x] Hold-to-talk and toggle modes
+- [x] Hold-to-talk and toggle modes, plus "Hold or tap" (a quick tap keeps recording until the next press)
 - [x] Fn and single-modifier hotkeys (Right ⌘, Left ⌥…)
 - [x] Custom shortcut hotkeys
 - [x] Escape stops without pasting, keeps the transcript in History
@@ -66,6 +66,7 @@ why, see [macos-v1/ROADMAP.md](macos-v1/ROADMAP.md).
 - [x] Voice commands ("scratch that", "new line", "new paragraph"), mid-sentence corrections ("at 3, actually 4"), and spoken lists, numbers, dates, times, money and percentages, for English
 - [ ] The same rules for other languages
 - [x] Snippets: a spoken phrase that expands into saved text (#167)
+- [x] Finish and send: Return while recording inserts the transcript and presses Return
 - [x] Share the dictionary and snippets between computers or with a team, through a synced folder; export and import them as a file
 - [ ] Sharing through a Wordfall account, without a synced folder
 

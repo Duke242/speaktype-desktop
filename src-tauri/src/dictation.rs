@@ -11,7 +11,8 @@
 //!
 //! In Hold mode, double-tapping the hotkey locks recording on, so the user can
 //! let go and keep talking. The next press stops it. This works the same for
-//! every kind of hotkey, since it only looks at presses and releases.
+//! every kind of hotkey, since it only looks at presses and releases. Hybrid
+//! mode is Hold mode where a single quick tap locks.
 
 use std::{
     mem,
@@ -45,6 +46,8 @@ use crate::{
 };
 
 const CANCEL_KEY: &str = "Escape";
+/// Finishes a recording and sends it, when Finish and send is on.
+const SEND_KEY: &str = "Enter";
 
 const TRANSCRIBING: &str = "Transcribing...";
 const CLEANING_UP: &str = "Cleaning up...";
@@ -98,6 +101,8 @@ pub enum Event {
     /// Start or stop from the UI or tray, regardless of recording mode.
     Toggle,
     Escape,
+    /// Return while recording, with Finish and send on.
+    Send,
     /// A transcription worker moved on to another stage.
     Stage {
         session: u64,
@@ -156,6 +161,7 @@ enum Input {
     HotkeyInterrupted,
     Toggle,
     Escape,
+    Send,
     /// No second tap came after a quick tap in Hold mode.
     TapExpired,
 }
@@ -227,6 +233,8 @@ enum Action {
     AwaitSecondTap,
     /// Hold mode: keeps recording until the hotkey is pressed again.
     Lock,
+    /// Stops recording, transcribes, and presses Return once the text is in.
+    Send,
 }
 
 /// Decides what `input`, arriving at `now`, does.
@@ -242,7 +250,7 @@ fn decide(
     hotkey: &mut Hotkey,
     now: Instant,
 ) -> Action {
-    let hold = mode == RecordingMode::Hold;
+    let hold = mode.holds();
     let within_tap = |since: Option<Instant>| since.is_some_and(|t| now - t <= DOUBLE_TAP);
     match input {
         Input::HotkeyDown(shortcut) => {
@@ -302,6 +310,12 @@ fn decide(
                         Action::Nothing
                     }
                 }
+                // Hybrid mode: a quick tap keeps recording until the next press.
+                Activity::Recording { .. }
+                    if within_tap(hotkey.pressed_at) && mode == RecordingMode::Hybrid =>
+                {
+                    Action::Lock
+                }
                 Activity::Recording { .. } if within_tap(hotkey.pressed_at) => {
                     hotkey.tapped_at = Some(now);
                     Action::AwaitSecondTap
@@ -349,6 +363,16 @@ fn decide(
             Activity::Idle => Action::Start { by: None },
             Activity::Recording { .. } => Action::Stop { cancelled: false },
             Activity::Transcribing => Action::Nothing,
+        },
+        Input::Send => match activity {
+            // With the hotkey held in Hold mode, Return is just another key,
+            // which makes the hotkey part of a shortcut.
+            Activity::Recording {
+                by: Some(by),
+                locked: false,
+            } if hold && hotkey.down(by) => Action::Nothing,
+            Activity::Recording { .. } => Action::Send,
+            _ => Action::Nothing,
         },
         Input::Escape => match activity {
             // Still transcribed and saved to history, but not pasted.
@@ -412,6 +436,8 @@ impl Controller {
             phase: Phase::Idle,
             hotkey: Hotkey::default(),
             owns_cancel_key: false,
+            owns_send_key: false,
+            sending: None,
             next_id: 0,
             typing_paused: false,
             command_session: None,
@@ -488,6 +514,10 @@ struct Session {
     hotkey: Hotkey,
     /// Whether this session registered Escape, as opposed to the user's hotkey being Escape.
     owns_cancel_key: bool,
+    /// Whether this session registered Return, for Finish and send.
+    owns_send_key: bool,
+    /// The session finished with Return, to be sent once it's typed.
+    sending: Option<u64>,
     next_id: u64,
     typing_paused: bool,
     /// The session recording or running a command, if any.
@@ -511,6 +541,7 @@ impl Session {
             Event::CommandHotkeyUp => self.input(Input::HotkeyUp(Shortcut::Command)),
             Event::Toggle => self.input(Input::Toggle),
             Event::Escape => self.input(Input::Escape),
+            Event::Send => self.input(Input::Send),
             Event::Stage { session, stage } => self.stage(session, stage),
             Event::Transcribed { session, outcome } => self.transcribed(session, outcome),
             Event::LiveTypingPaused { session } => {
@@ -560,6 +591,12 @@ impl Session {
             Action::CancelTranscription => self.flash(STOPPING, STOPPING_MESSAGE),
             Action::AwaitSecondTap => self.await_second_tap(),
             Action::Lock => self.lock(),
+            Action::Send => {
+                if let Phase::Recording { session, .. } = self.phase {
+                    self.sending = Some(session);
+                }
+                self.stop(false);
+            }
         }
     }
 
@@ -622,9 +659,8 @@ impl Session {
                 self.typing_paused = false;
                 // Held shortcut modifiers interfere with typing on some systems.
                 // Fn events are swallowed on macOS; other shortcuts use Toggle.
-                let compatible = !by_hotkey
-                    || settings.recording_mode == RecordingMode::Toggle
-                    || settings.hotkey == "Fn";
+                let compatible =
+                    !by_hotkey || !settings.recording_mode.holds() || settings.hotkey == "Fn";
                 let live = if settings.live_typing && compatible && !command {
                     platform::typing_target().and_then(|target| {
                         live::Handle::spawn(
@@ -653,6 +689,8 @@ impl Session {
                     live,
                 };
                 self.set_cancel_key(true);
+                // An edit replaces the selection, so there's nothing to send.
+                self.set_send_key(settings.finish_and_send && !command);
                 self.show(PillState::Recording {
                     started_at_ms,
                     locked: false,
@@ -695,6 +733,7 @@ impl Session {
             return;
         };
         let target = self.target.take();
+        self.set_send_key(false);
         if cancelled && let Some(handle) = &live {
             handle.cancelled.store(true, Ordering::SeqCst);
         }
@@ -800,6 +839,7 @@ impl Session {
             return;
         }
         let streamed = live.is_some();
+        let send = self.sending.take() == Some(session);
 
         match outcome {
             Ok(text) => {
@@ -807,11 +847,17 @@ impl Session {
                 self.go_idle();
                 if !cancelled && !streamed {
                     let restore = self.state().settings().restore_clipboard;
-                    // An edit isn't a dictation to learn corrections from.
-                    if self.command_session != Some(session) {
+                    // An edit isn't a dictation to learn corrections from, and
+                    // a sent message leaves the field.
+                    if self.command_session != Some(session) && !send {
                         learn::watch_for_corrections(&self.app, &text);
                     }
-                    self.paster.paste(text, restore);
+                    self.paster.paste(text, restore, send);
+                }
+                // Live typing has put the text in already, unless the user moved
+                // to another app, where Return would go somewhere unexpected.
+                if !cancelled && streamed && send && !paused {
+                    self.paster.send();
                 }
                 if paused && !cancelled {
                     self.flash("Typing paused. Saved in History.", ERROR_MESSAGE);
@@ -837,6 +883,7 @@ impl Session {
         let generation = self.next_id;
         self.phase = Phase::Message { generation };
         self.set_cancel_key(false);
+        self.set_send_key(false);
         self.show(PillState::Processing {
             message: message.into(),
         });
@@ -861,6 +908,7 @@ impl Session {
         self.playback.resume();
         self.phase = Phase::Idle;
         self.set_cancel_key(false);
+        self.set_send_key(false);
         self.show(PillState::Idle);
         self.broadcast(DictationState::Idle);
     }
@@ -916,6 +964,32 @@ impl Session {
         match result {
             Ok(()) => self.owns_cancel_key = true,
             Err(e) => eprintln!("[dictation] couldn't register Escape: {e}"),
+        }
+    }
+
+    /// Return is only claimed while recording, so it types as usual otherwise.
+    fn set_send_key(&mut self, active: bool) {
+        if active == self.owns_send_key {
+            return;
+        }
+        let shortcuts = self.app.global_shortcut();
+        if !active {
+            let _ = shortcuts.unregister(SEND_KEY);
+            self.owns_send_key = false;
+            return;
+        }
+        if shortcuts.is_registered(SEND_KEY) {
+            return;
+        }
+        let controller = self.controller.clone();
+        let result = shortcuts.on_shortcut(SEND_KEY, move |_, _, event| {
+            if event.state == ShortcutState::Pressed {
+                controller.send(Event::Send);
+            }
+        });
+        match result {
+            Ok(()) => self.owns_send_key = true,
+            Err(e) => eprintln!("[dictation] couldn't register Return: {e}"),
         }
     }
 }
@@ -1007,6 +1081,15 @@ mod tests {
     /// Runs `inputs`, each at its time in milliseconds, from idle in Hold mode,
     /// moving between activities as the session would. Returns each action.
     fn hold(inputs: &[(u64, Input)]) -> Vec<Action> {
+        timed(RecordingMode::Hold, inputs)
+    }
+
+    /// Like [`hold`], in Hybrid mode.
+    fn hybrid(inputs: &[(u64, Input)]) -> Vec<Action> {
+        timed(RecordingMode::Hybrid, inputs)
+    }
+
+    fn timed(mode: RecordingMode, inputs: &[(u64, Input)]) -> Vec<Action> {
         let mut hotkey = Hotkey::default();
         let mut activity = Activity::Idle;
         let start = Instant::now();
@@ -1014,7 +1097,7 @@ mod tests {
             .iter()
             .map(|&(ms, input)| {
                 let now = start + Duration::from_millis(ms);
-                let action = decide(input, activity, RecordingMode::Hold, &mut hotkey, now);
+                let action = decide(input, activity, mode, &mut hotkey, now);
                 activity = match (action, activity) {
                     (Action::Start { by }, _) => recording(by),
                     (Action::Stop { .. }, _) => Activity::Transcribing,
@@ -1086,6 +1169,51 @@ mod tests {
                 ]
             );
         }
+    }
+
+    #[test]
+    fn hybrid_mode_locks_on_a_tap_and_stops_on_the_next_press() {
+        use Input::*;
+        for shortcut in [DICTATION, COMMAND] {
+            assert_eq!(
+                hybrid(&[
+                    (0, HotkeyDown(shortcut)),
+                    (150, HotkeyUp(shortcut)),
+                    (6_000, HotkeyDown(shortcut)),
+                    (6_100, HotkeyUp(shortcut)),
+                ]),
+                [
+                    Action::Start { by: Some(shortcut) },
+                    Action::Lock,
+                    Action::Nothing,
+                    STOP
+                ]
+            );
+        }
+    }
+
+    #[test]
+    fn hybrid_mode_holds_to_talk_on_a_long_press() {
+        use Input::*;
+        assert_eq!(
+            hybrid(&[(0, HotkeyDown(DICTATION)), (2_000, HotkeyUp(DICTATION))]),
+            [START, STOP]
+        );
+        // A shortcut like ⌘C, from a single-modifier hotkey, is still discarded.
+        assert_eq!(
+            hybrid(&[(0, HotkeyDown(DICTATION)), (80, HotkeyInterrupted)]),
+            [START, Action::Discard]
+        );
+        // Only the shortcut that started the recording locks it.
+        assert_eq!(
+            hybrid(&[
+                (0, HotkeyDown(DICTATION)),
+                (50, HotkeyDown(COMMAND)),
+                (120, HotkeyUp(COMMAND)),
+                (3_000, HotkeyUp(DICTATION)),
+            ]),
+            [START, Action::Nothing, Action::Nothing, STOP]
+        );
     }
 
     #[test]
@@ -1435,6 +1563,55 @@ mod tests {
             run(Activity::Transcribing, mode, &[Input::Toggle]),
             [Action::Nothing]
         );
+    }
+
+    #[test]
+    fn return_sends_a_hands_free_recording() {
+        use Input::*;
+        let send = Action::Send;
+        // Toggle mode, from the hotkey or the UI.
+        for by in [Some(DICTATION), None] {
+            assert_eq!(run(recording(by), RecordingMode::Toggle, &[Send]), [send]);
+        }
+        assert_eq!(run(recording(None), RecordingMode::Hold, &[Send]), [send]);
+        // Locked on by a double tap in Hold mode.
+        assert_eq!(
+            hold(&[
+                (0, HotkeyDown(DICTATION)),
+                (100, HotkeyUp(DICTATION)),
+                (250, HotkeyDown(DICTATION)),
+                (320, HotkeyUp(DICTATION)),
+                (3_000, Send),
+            ]),
+            [
+                START,
+                Action::AwaitSecondTap,
+                Action::Lock,
+                Action::Nothing,
+                send
+            ]
+        );
+    }
+
+    #[test]
+    fn return_with_the_hotkey_held_is_part_of_a_shortcut() {
+        use Input::*;
+        // The modifier listener reports the interruption, which discards.
+        assert_eq!(
+            hold(&[
+                (0, HotkeyDown(DICTATION)),
+                (900, Send),
+                (910, HotkeyInterrupted)
+            ]),
+            [START, Action::Nothing, Action::Discard]
+        );
+        // Not while idle or transcribing either.
+        for activity in [Activity::Idle, Activity::Transcribing] {
+            assert_eq!(
+                run(activity, RecordingMode::Toggle, &[Send]),
+                [Action::Nothing]
+            );
+        }
     }
 
     #[test]

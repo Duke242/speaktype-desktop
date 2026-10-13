@@ -3,7 +3,7 @@
 import { invoke } from "@tauri-apps/api/core";
 
 export type Theme = "system" | "light" | "dark";
-export type RecordingMode = "hold" | "toggle";
+export type RecordingMode = "hold" | "toggle" | "hybrid";
 
 export type PillPosition =
   | "topLeft"
@@ -83,6 +83,7 @@ export interface Settings {
   hotkey: string;
   recordingMode: RecordingMode;
   liveTyping: boolean;
+  finishAndSend: boolean;
   selectedModel: string;
   language: string;
   recentLanguages: string[];

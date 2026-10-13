@@ -47,6 +47,11 @@ pub fn send_paste_shortcut(enigo: Option<&mut Enigo>) -> Result<(), String> {
     super::press_combo(enigo, &[Key::Meta], Key::Other(KEYCODE_V))
 }
 
+pub fn send_return_key(enigo: Option<&mut Enigo>) -> Result<(), String> {
+    let enigo = enigo.ok_or("Keyboard simulation is unavailable")?;
+    super::press_combo(enigo, &[], Key::Return)
+}
+
 /// macOS virtual keycode for C (kVK_ANSI_C).
 const KEYCODE_C: u32 = 0x08;
 

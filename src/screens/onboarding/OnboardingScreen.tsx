@@ -200,7 +200,7 @@ function Ready() {
     <div className="flex flex-col items-center">
       <KeyRipple hotkey={settings.hotkey} className="mt-20 mb-16" />
       <StepHeader title="Pick your hotkey">
-        Click into any text field, {settings.recordingMode === "hold" ? "hold" : "press"} it and speak.
+        Click into any text field, {settings.recordingMode === "toggle" ? "press" : "hold"} it and speak.
       </StepHeader>
       <div className="mt-8 flex flex-col items-center gap-3">
         <HotkeyPicker />
