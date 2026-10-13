@@ -66,11 +66,10 @@ impl Whisper {
             return self.run(samples, Some(language), &prompt_tokens);
         }
         // English-only models have nothing to detect.
-        let parts = if self.context.is_multilingual() {
-            parts(samples)
-        } else {
-            vec![0..samples.len()]
-        };
+        if !self.context.is_multilingual() {
+            return self.run(samples, None, &prompt_tokens);
+        }
+        let parts = parts(samples);
         let mut texts = Vec::with_capacity(parts.len());
         let mut languages = Vec::with_capacity(parts.len());
         for part in parts {
@@ -224,6 +223,12 @@ mod tests {
             .collect()
     }
 
+    fn assert_whole(samples: &[f32]) {
+        let parts = parts(samples);
+        assert_eq!(parts.len(), 1, "{parts:?}");
+        assert_covers(&parts, samples.len());
+    }
+
     fn assert_covers(parts: &[Range<usize>], len: usize) {
         assert_eq!(parts.first().map(|p| p.start), Some(0));
         assert_eq!(parts.last().map(|p| p.end), Some(len));
@@ -246,16 +251,15 @@ mod tests {
     #[test]
     fn short_dictations_and_short_pauses_stay_whole() {
         let short = audio(&[(true, 20), (false, 6), (true, 20)]);
-        assert_eq!(parts(&short), [0..short.len()]);
+        assert_whole(&short);
         let breath = audio(&[(true, 30), (false, 2), (true, 30)]);
-        assert_eq!(parts(&breath), [0..breath.len()]);
-        assert_eq!(parts(&[]), [0..0]);
+        assert_whole(&breath);
+        assert_whole(&[]);
     }
 
     #[test]
     fn leading_and_trailing_silence_never_make_a_part_of_their_own() {
-        let samples = audio(&[(false, 10), (true, 30), (false, 15)]);
-        assert_eq!(parts(&samples), [0..samples.len()]);
+        assert_whole(&audio(&[(false, 10), (true, 30), (false, 15)]));
     }
 
     #[test]
