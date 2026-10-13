@@ -17,7 +17,7 @@ export function installBrowserPreview() {
     theme: (params.get("theme") ?? "light") as "light",
     hotkey: os === "macos" ? "Fn" : "Ctrl+Shift+Space",
     recordingMode: "hold",
-    liveTyping: true,
+    liveTyping: false,
     selectedModel: "small-en",
     language: "auto",
     recentLanguages: ["en", "hi"],
