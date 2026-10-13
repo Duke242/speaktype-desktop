@@ -386,7 +386,7 @@ pub fn run() {
             commands::save_settings,
             commands::list_input_devices,
             commands::get_sync_status,
-            commands::choose_sync_folder,
+            commands::pick_sync_folder,
             commands::sync_now,
             commands::export_library,
             commands::import_library,

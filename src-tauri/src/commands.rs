@@ -139,21 +139,15 @@ pub async fn get_sync_status() -> CommandResult<sync::Status> {
     Ok(sync::status())
 }
 
-/// Asks for a folder to share the dictionary and snippets through, and syncs
-/// with it. `None` if the user cancelled.
+/// Asks for a folder to share the dictionary and snippets through. Saving it
+/// in settings starts sharing. `None` if the user cancelled.
 #[tauri::command]
-pub async fn choose_sync_folder(app: AppHandle) -> CommandResult<Option<sync::Status>> {
+pub async fn pick_sync_folder(app: AppHandle) -> CommandResult<Option<String>> {
     tauri::async_runtime::spawn_blocking(move || {
-        let Some(folder) = sync::pick_folder(&app) else {
-            return Ok(None);
-        };
-        let state = app.state::<AppState>();
-        state.update_settings(|s| s.sync_folder = folder.to_string_lossy().into_owned())?;
-        let _ = app.emit("settings-changed", ());
-        Ok(Some(sync::sync_now(&app)))
+        sync::pick_folder(&app).map(|folder| folder.to_string_lossy().into_owned())
     })
     .await
-    .map_err(|e| e.to_string())?
+    .map_err(|e| e.to_string())
 }
 
 #[tauri::command]

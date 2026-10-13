@@ -25,6 +25,8 @@ import { useCallback, useEffect, useState } from "react";
 import { CleanupSection } from "@/components/settings/CleanupSection";
 import { HotkeyPicker } from "@/components/settings/HotkeyPicker";
 import { PillPositionPicker } from "@/components/settings/PillPositionPicker";
+import { SharingSection } from "@/components/settings/SharingSection";
+import { SpokenSection } from "@/components/settings/SpokenSection";
 import { PermissionList } from "@/components/PermissionList";
 import { UpdateDialog } from "@/components/UpdateDialog";
 import {
@@ -247,12 +249,14 @@ function GeneralTab() {
           icon={BookA}
          
           label="Replacements and snippets"
-          description="Word fixes and spoken snippets (say “my email”, get your address) live in Dictionary."
+          description="Word fixes and snippets (say “my calendar link”, get the link) live in Dictionary."
         />
       </Section>
 
+      <SpokenSection />
       <CleanupSection />
       <LanguageSection />
+      <SharingSection />
       <UpdatesSection />
       <ImportSection />
     </>
