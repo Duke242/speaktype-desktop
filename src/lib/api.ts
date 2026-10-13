@@ -100,6 +100,8 @@ export interface Settings {
   showTrayIcon: boolean;
   autoUpdate: boolean;
   dictionary: DictionaryEntry[];
+  /** "Scratch that", "new line" and "new paragraph" act as commands. */
+  voiceCommands: boolean;
   hasCompletedOnboarding: boolean;
   hasShownModelPrompt: boolean;
   /** Set once SpeakType 1's data has been brought over. */

@@ -9,6 +9,8 @@ use std::sync::LazyLock;
 use regex::{NoExpand, Regex};
 use serde::{Deserialize, Serialize};
 
+use crate::spoken;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DictionaryEntry {
@@ -32,6 +34,15 @@ pub struct Options<'a> {
     pub auto_edit: bool,
     pub smart_trailing_punctuation: bool,
     pub dictionary: &'a [DictionaryEntry],
+    /// "Scratch that", "new line" and "new paragraph".
+    pub voice_commands: bool,
+    /// Voice commands only understand English.
+    pub english: bool,
+}
+
+/// Whether the spoken language setting allows English: chosen, or detected.
+pub fn is_english(language: &str) -> bool {
+    language == "auto" || language == "en" || language.starts_with("en-")
 }
 
 /// Full pipeline: engine cleanup, then dictionary, then trailing punctuation.
@@ -42,9 +53,14 @@ pub fn process(raw: &str, options: &Options) -> String {
     finish(&normalize_transcription(raw, options.auto_edit), options)
 }
 
-/// Dictionary rules, then trailing punctuation.
+/// Voice commands, then dictionary rules and trailing punctuation.
 pub fn finish(text: &str, options: &Options) -> String {
-    let text = apply_dictionary(text, options.dictionary);
+    let english = |on: bool| on && options.english;
+    let mut text = text.to_string();
+    if english(options.voice_commands) {
+        text = spoken::apply_commands(&text);
+    }
+    let text = apply_dictionary(&text, options.dictionary);
     if options.smart_trailing_punctuation {
         strip_trailing_period(&text)
     } else {
@@ -536,17 +552,75 @@ mod tests {
         assert_eq!(strip_trailing_period("é"), "é");
     }
 
+    fn options(dictionary: &[DictionaryEntry]) -> Options<'_> {
+        Options {
+            auto_edit: true,
+            smart_trailing_punctuation: true,
+            dictionary,
+            voice_commands: true,
+            english: true,
+        }
+    }
+
+    #[test]
+    fn voice_commands_run_before_the_dictionary() {
+        let dictionary = [entry("word fall", "Wordfall", true)];
+        let options = options(&dictionary);
+        assert_eq!(
+            process(
+                "Try word fall. Scratch that. Use word fall new line thanks",
+                &options
+            ),
+            "Use Wordfall\nThanks"
+        );
+    }
+
+    #[test]
+    fn everyday_sentences_pass_through_unchanged() {
+        let options = options(&[]);
+        for said in [
+            "I think we should ship it behind a flag first and watch the numbers.",
+            "Let's move the design review to Thursday afternoon so the whole team can make it.",
+            "Remind me to send the invoice to the client before the end of the week.",
+            "One of the two options is better, actually.",
+            "Sorry I'm late, the train was delayed.",
+            "I mean, it works.",
+            "No wait, I'm not ready.",
+            "We drew a new line in the sand.",
+            "The first and second drafts are done.",
+            "Give me one second.",
+            "She has two dogs and one cat.",
+            "May I ask a question?",
+            "I actually think the second one is fine.",
+            // Found in review: each of these was rewritten.
+            "It's a brand new line.",
+        ] {
+            assert_eq!(process(said, &options), said);
+        }
+    }
+
+    #[test]
+    fn voice_commands_are_off_for_other_languages_and_when_switched_off() {
+        let mut options = options(&[]);
+        let said = "one new line two";
+        options.english = false;
+        assert_eq!(process(said, &options), said);
+        options.english = true;
+        assert_eq!(process(said, &options), "one\nTwo");
+        options.voice_commands = false;
+        assert_eq!(process(said, &options), said);
+        assert!(is_english("auto") && is_english("en") && !is_english("de"));
+    }
+
     #[test]
     fn process_respects_the_punctuation_toggle() {
         let on = Options {
-            auto_edit: false,
             smart_trailing_punctuation: true,
-            dictionary: &[],
+            ..options(&[])
         };
         let off = Options {
-            auto_edit: false,
             smart_trailing_punctuation: false,
-            dictionary: &[],
+            ..options(&[])
         };
         assert_eq!(process("Hello.", &on), "Hello");
         assert_eq!(process("Hello.", &off), "Hello.");

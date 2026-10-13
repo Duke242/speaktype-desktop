@@ -145,6 +145,8 @@ pub struct Settings {
     pub show_tray_icon: bool,
     pub auto_update: bool,
     pub dictionary: Vec<DictionaryEntry>,
+    /// "Scratch that", "new line" and "new paragraph" act as commands.
+    pub voice_commands: bool,
     pub has_completed_onboarding: bool,
     /// Set once SpeakType 1's data has been brought over, so it only happens once.
     pub has_imported_v1: bool,
@@ -180,6 +182,7 @@ impl Default for Settings {
             show_tray_icon: true,
             auto_update: true,
             dictionary: Vec::new(),
+            voice_commands: true,
             has_completed_onboarding: false,
             has_imported_v1: false,
             has_shown_model_prompt: false,
@@ -313,6 +316,7 @@ mod tests {
         assert!(!settings.live_typing);
         assert!(settings.boost_quiet_speech);
         assert!(!settings.pause_media && !settings.launch_at_login);
+        assert!(settings.voice_commands);
         let entry = &settings.dictionary[0];
         assert!(entry.is_enabled && entry.match_whole_word);
         assert_eq!(settings.cleanup, CleanupSettings::default());
@@ -358,6 +362,7 @@ mod tests {
             "showTrayIcon",
             "autoUpdate",
             "dictionary",
+            "voiceCommands",
             "hasCompletedOnboarding",
             "hasShownModelPrompt",
             "meetings",
