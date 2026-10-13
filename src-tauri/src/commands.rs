@@ -24,6 +24,7 @@ use crate::{
     platform::{self, Permission, PermissionKind},
     settings::{CleanupBackend, Settings},
     text::DictionaryEntry,
+    tone::{self, AppCategory},
     tray,
 };
 
@@ -318,6 +319,45 @@ pub async fn list_server_models(url: String) -> CommandResult<ServerModels> {
 }
 
 // ---- History ----
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ToneApp {
+    name: &'static str,
+    category: AppCategory,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LastApp {
+    #[serde(flatten)]
+    app: platform::FrontApp,
+    category: AppCategory,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AppTone {
+    /// Apps Wordfall already knows, by category.
+    built_in: Vec<ToneApp>,
+    /// The app dictated into last, so the user can see what it's called.
+    last_app: Option<LastApp>,
+}
+
+#[tauri::command]
+pub async fn get_app_tone(state: State<'_, AppState>) -> CommandResult<AppTone> {
+    let rules = state.settings().tone.apps;
+    Ok(AppTone {
+        built_in: tone::built_in_apps()
+            .into_iter()
+            .map(|(name, category)| ToneApp { name, category })
+            .collect(),
+        last_app: tone::last_app().map(|app| LastApp {
+            category: tone::classify(&app, &rules),
+            app,
+        }),
+    })
+}
 
 #[tauri::command]
 pub async fn get_history(state: State<'_, AppState>) -> CommandResult<Vec<HistoryItem>> {

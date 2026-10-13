@@ -395,13 +395,14 @@ impl Meetings {
         let lines = summary::transcript_lines(&meeting.segments, meeting.labelled());
         let started = std::time::Instant::now();
         let result = summary::summarize(&lines, |messages| {
-            state.cleaner.complete(
-                &settings.cleanup,
-                &state.models,
+            let prompt = cleanup::Prompt {
                 messages,
-                summary::MAX_TOKENS,
-                NOTES_TIMEOUT,
-            )
+                max_tokens: summary::MAX_TOKENS,
+                timeout: NOTES_TIMEOUT,
+            };
+            state
+                .cleaner
+                .complete(&settings.cleanup, &state.models, &prompt)
         });
         eprintln!(
             "[meetings] notes for {} words in {:.1?}",

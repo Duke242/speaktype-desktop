@@ -38,9 +38,10 @@ use crate::{
     paste::Paster,
     pill::{self, PillState},
     pipeline,
-    platform::{self, HotkeyEvent},
+    platform::{self, FrontApp, HotkeyEvent},
     playback::Playback,
     settings::RecordingMode,
+    tone,
 };
 
 const CANCEL_KEY: &str = "Escape";
@@ -342,6 +343,7 @@ impl Controller {
             owns_cancel_key: false,
             next_id: 0,
             typing_paused: false,
+            target: None,
         };
         thread::Builder::new()
             .name("dictation".into())
@@ -416,6 +418,8 @@ struct Session {
     owns_cancel_key: bool,
     next_id: u64,
     typing_paused: bool,
+    /// The app being dictated into, being found since recording started.
+    target: Option<tone::Detection>,
 }
 
 impl Session {
@@ -555,6 +559,7 @@ impl Session {
                 } else {
                     None
                 };
+                self.target = Some(tone::Detection::start());
                 let started_at_ms = now_ms();
                 self.phase = Phase::Recording {
                     recording,
@@ -606,6 +611,7 @@ impl Session {
         else {
             return;
         };
+        let target = self.target.take();
         if cancelled && let Some(handle) = &live {
             handle.cancelled.store(true, Ordering::SeqCst);
         }
@@ -652,7 +658,9 @@ impl Session {
         let worker = thread::Builder::new()
             .name("transcription".into())
             .spawn(move || {
-                let outcome = transcribe(&app, &controller, session, &captured);
+                // Waited for here, off the controller thread.
+                let target = target.and_then(tone::Detection::app);
+                let outcome = transcribe(&app, &controller, session, &captured, target.as_ref());
                 controller.send(Event::Transcribed { session, outcome });
             });
         if let Err(e) = worker {
@@ -818,11 +826,18 @@ fn transcribe(
     controller: &Controller,
     session: u64,
     captured: &Captured,
+    target: Option<&FrontApp>,
 ) -> Outcome {
     let on_stage = |stage| controller.send(Event::Stage { session, stage });
     // Without an outcome the session would stay transcribing until Escape.
     panic::catch_unwind(AssertUnwindSafe(|| {
-        pipeline::run(app, &captured.samples, captured.duration_secs, on_stage)
+        pipeline::run(
+            app,
+            &captured.samples,
+            captured.duration_secs,
+            target,
+            on_stage,
+        )
     }))
     .unwrap_or_else(|_| Err(pipeline::Error::Transcribe("The engine crashed".into())))
     .map(|item| item.transcript)

@@ -14,7 +14,9 @@ use crate::{
     engine::Engine,
     gain,
     history::{self, HistoryItem},
-    live, media, models, text,
+    live, media, models,
+    platform::FrontApp,
+    text, tone,
 };
 
 #[derive(Debug)]
@@ -70,11 +72,13 @@ pub enum Stage {
 /// and the result to history, and returns the history item.
 ///
 /// `on_stage` is called as the work moves along. Loading is always followed by
-/// Transcribing, whether or not loading succeeded.
+/// Transcribing, whether or not loading succeeded. `target` is the app being
+/// dictated into, which sets the tone.
 pub fn run(
     app: &AppHandle,
     samples: &[f32],
     duration_secs: f64,
+    target: Option<&FrontApp>,
     on_stage: impl Fn(Stage),
 ) -> Result<HistoryItem, Error> {
     let state = app.state::<AppState>();
@@ -112,10 +116,16 @@ pub fn run(
         smart_trailing_punctuation: settings.smart_trailing_punctuation,
         dictionary: &settings.dictionary,
     };
+    let style = tone::Style::new(&settings.tone, target);
     let mut text = text::normalize_transcription(&raw, options.auto_edit);
     if Cleaner::will_run(&settings.cleanup, &state.models, &text) {
         on_stage(Stage::CleaningUp);
-        text = state.cleaner.clean(&settings.cleanup, &state.models, &text);
+        let hint = style.hint();
+        text = state
+            .cleaner
+            .clean_for(&settings.cleanup, &state.models, &text, hint.as_ref());
+    } else {
+        text = style.adjust(&text);
     }
     // After cleanup, so dictionary rules and snippets always have the last word.
     let text = text::finish(&text, &options);
