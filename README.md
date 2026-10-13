@@ -1,6 +1,6 @@
 # SpeakType 2
 
-The cross-platform SpeakType app for macOS, Windows and Linux. It's developed alongside SpeakType 1 (`speaktype/`) and replaces it once everything in [ROADMAP.md](ROADMAP.md) is done.
+The cross-platform SpeakType app for macOS, Windows and Linux. It's developed alongside SpeakType 1, the macOS-only Swift app, and replaces it once everything in [ROADMAP.md](ROADMAP.md) is done.
 
 ## Develop
 
@@ -42,7 +42,7 @@ npm run release -- beta  # or the next beta
 
 Releasing needs the [GitHub CLI](https://cli.github.com), signed in with `gh auth login`. The script creates the release on GitHub, and CI attaches the installers to it.
 
-Every push and pull request that touches `desktop/` runs `.github/workflows/desktop.yml`:
+Every push to `main` and every pull request runs `.github/workflows/desktop.yml`:
 - type checks, tests and a production build of the UI
 - format, lint and tests of the app core on macOS, Windows and Linux
 - a dependency audit

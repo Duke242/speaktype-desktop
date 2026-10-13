@@ -1,0 +1,152 @@
+name: SpeakType 2
+
+# Checks, tests and builds the app on macOS, Windows and Linux. Pushing a tag
+# like v2.0.0-alpha.5 also publishes a GitHub pre-release with installers for
+# all three.
+
+on:
+  # Feature branches are covered by their pull request, so pushes only run on
+  # main and release tags. That avoids building every commit twice.
+  push:
+    branches: [main]
+    tags: ["v2.*"]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: desktop-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  # Warnings fail CI; they don't fail local builds.
+  RUSTFLAGS: -D warnings
+
+jobs:
+  frontend:
+    name: Frontend (types, tests, build)
+    # A release tag points at a commit these checks already passed on, so tags
+    # skip straight to the installers.
+    if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npx vite build
+
+  rust:
+    name: Rust (${{ matrix.name }})
+    if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macOS
+            os: macos-15
+          - name: Windows
+            os: windows-2025
+          - name: Linux
+            os: ubuntu-24.04
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-desktop-build
+      - name: Format
+        if: runner.os == 'Linux'
+        working-directory: src-tauri
+        run: cargo fmt --check
+      - name: Clippy
+        working-directory: src-tauri
+        run: cargo clippy --locked --all-targets
+      - name: Tests
+        working-directory: src-tauri
+        run: cargo test --locked
+
+  audit:
+    name: Dependency audit
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: npm audit (production dependencies)
+        run: npm audit --omit=dev --audit-level=high
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-audit
+      - name: cargo audit
+        working-directory: src-tauri
+        run: cargo audit
+
+  bundle:
+    name: Installer (${{ matrix.name }})
+    needs: [frontend, rust]
+    # Also runs when the checks were skipped for a tag, but not when they failed.
+    if: ${{ !cancelled() && !failure() }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macOS
+            os: macos-15
+            artifact: speaktype-macos
+            # One app for Apple Silicon and Intel: SpeakType 1 runs on both.
+            args: --target universal-apple-darwin
+          - name: Windows
+            os: windows-2025
+            artifact: speaktype-windows-x64
+          - name: Linux
+            os: ubuntu-24.04
+            artifact: speaktype-linux-x64
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: ./.github/actions/setup-desktop-build
+      - name: Build installers
+        uses: tauri-apps/tauri-action@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Only warnings in our own code should fail the lint job, not the installer build.
+          RUSTFLAGS: ""
+          # Signs and notarizes the macOS app, so it opens without Gatekeeper warnings and
+          # SpeakType 1 accepts it as an update. Ignored on Windows and Linux.
+          APPLE_CERTIFICATE: ${{ secrets.DEVELOPER_ID_APPLICATION_CERT }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.DEVELOPER_ID_APPLICATION_CERT_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.NOTARIZATION_APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.NOTARIZATION_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        with:
+          projectPath: .
+          tauriScript: npx tauri
+          args: ${{ matrix.args }}
+          # The release itself is created by `npm run release`, which decides whether it's a
+          # pre-release; this only attaches the installers to it.
+          tagName: ${{ startsWith(github.ref, 'refs/tags/v2.') && github.ref_name || '' }}
+          releaseName: ${{ startsWith(github.ref, 'refs/tags/v2.') && format('SpeakType {0}', github.ref_name) || '' }}
+          releaseDraft: false
+      - name: Upload installers
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          if-no-files-found: error
+          path: |
+            src-tauri/target/release/bundle/dmg/*.dmg
+            src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
+            src-tauri/target/release/bundle/nsis/*.exe
+            src-tauri/target/release/bundle/deb/*.deb
+            src-tauri/target/release/bundle/rpm/*.rpm
+            src-tauri/target/release/bundle/appimage/*.AppImage
