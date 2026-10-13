@@ -3,6 +3,6 @@
 <plist version="1.0">
 <dict>
   <key>NSMicrophoneUsageDescription</key>
-  <string>SpeakType records your voice while you dictate. Audio never leaves your Mac.</string>
+  <string>Wordfall records your voice while you dictate. Audio never leaves your Mac.</string>
 </dict>
 </plist>

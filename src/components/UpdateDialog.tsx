@@ -14,8 +14,8 @@ export function UpdateDialog({ update, onClose }: { update: UpdateInfo | null; o
       open={Boolean(update)}
       onClose={onClose}
       width={520}
-      title="A new version of SpeakType is available"
-      description={update && `SpeakType ${update.latestVersion} is out. You have ${update.currentVersion}.`}
+      title="A new version of Wordfall is available"
+      description={update && `Wordfall ${update.latestVersion} is out. You have ${update.currentVersion}.`}
       footer={
         <>
           <Button onClick={onClose}>Remind me later</Button>

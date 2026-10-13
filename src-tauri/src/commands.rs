@@ -18,10 +18,12 @@ use crate::{
     device::{self, DeviceInfo, Recommendation},
     dictation::{DictationState, Event},
     history::{HistoryItem, StatsEntry},
+    learn,
     legacy::{self, ImportSummary, V1Data},
     models::{self, ModelStatus},
     platform::{self, Permission, PermissionKind},
     settings::{CleanupBackend, Settings},
+    text::DictionaryEntry,
     tray,
 };
 
@@ -320,6 +322,36 @@ pub async fn delete_history_item(
     Ok(())
 }
 
+/// Saves a corrected transcript and learns the misheard words it fixes.
+/// Returns the words learned, so the UI can offer to undo them.
+#[tauri::command]
+pub async fn edit_history_item(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: String,
+    transcript: String,
+) -> CommandResult<Vec<DictionaryEntry>> {
+    let previous = state.history.lock_unpoisoned().edit(&id, &transcript)?;
+    let _ = app.emit("history-changed", ());
+    Ok(previous
+        .map(|previous| learn::learn(&app, &previous, transcript.trim()))
+        .unwrap_or_default())
+}
+
+/// Removes dictionary entries, to undo words that were learned by mistake.
+#[tauri::command]
+pub async fn forget_words(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    ids: Vec<String>,
+) -> CommandResult<()> {
+    state.update_settings(|settings| {
+        settings.dictionary.retain(|entry| !ids.contains(&entry.id));
+    })?;
+    let _ = app.emit("settings-changed", ());
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn clear_history(app: AppHandle, state: State<'_, AppState>) -> CommandResult<()> {
     state.history.lock_unpoisoned().clear()?;
@@ -487,7 +519,7 @@ pub async fn check_for_update(app: AppHandle) -> CommandResult<UpdateInfo> {
     }
     let release: Release = reqwest::Client::new()
         .get(RELEASES_URL)
-        .header("User-Agent", "SpeakType")
+        .header("User-Agent", "Wordfall")
         .header("Accept", "application/vnd.github+json")
         .timeout(UPDATE_CHECK_TIMEOUT)
         .send()

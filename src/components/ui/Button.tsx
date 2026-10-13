@@ -7,8 +7,8 @@ export type ButtonVariant = "accent" | "primary" | "secondary" | "ghost" | "dang
 export type ButtonSize = "sm" | "md" | "lg";
 
 const variants: Record<ButtonVariant, string> = {
-  // Neon green, for the one main action on a screen.
-  accent: "bg-accent text-on-accent hover:bg-accent-strong",
+  // A soft blue gradient, for the one main action on a screen.
+  accent: "bg-accent-flow text-on-accent shadow-[inset_0_1px_0_rgb(255_255_255/0.16)] hover:brightness-110",
   primary: "bg-primary text-on-primary hover:bg-primary-hover",
   secondary: "border border-line bg-surface text-ink hover:border-line-strong hover:bg-hover",
   ghost: "text-ink-secondary hover:bg-hover hover:text-ink",
@@ -41,7 +41,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
       disabled={disabled || loading}
       className={cn(
         "inline-flex shrink-0 items-center justify-center whitespace-nowrap rounded-control",
-        "transition-[background-color,border-color,color,transform] duration-150 active:scale-[0.98]",
+        "transition-[background-color,border-color,color,filter,transform] duration-150 active:scale-[0.98]",
         "disabled:pointer-events-none disabled:opacity-45",
         variants[variant],
         sizes[size],

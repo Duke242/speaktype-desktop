@@ -1,7 +1,7 @@
 # SpeakType 2: what's left
 
 The engineering checklist for SpeakType 2. For what's coming as a product, and
-why, see the [ROADMAP.md](https://github.com/karansinghgit/speaktype/blob/main/ROADMAP.md) in the SpeakType 1 repository.
+why, see [macos-v1/ROADMAP.md](macos-v1/ROADMAP.md).
 
 ## Parity with SpeakType 1 (macOS)
 

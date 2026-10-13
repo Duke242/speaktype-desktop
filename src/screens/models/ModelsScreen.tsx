@@ -1,6 +1,6 @@
 import { ArrowDown, Check, Laptop, RotateCw, Sparkles, Trash2, TriangleAlert, X, Zap } from "lucide-react";
 import { type ReactNode, useState } from "react";
-import { Badge, Button, Card, ConfirmDialog, IconButton, IconTile, Page, PageHeader, ProgressBar, Spinner } from "@/components/ui";
+import { Badge, Button, ConfirmDialog, GroupHeader, IconButton, Page, PageHeader, ProgressBar, Spinner } from "@/components/ui";
 import { api, type ModelStatus } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import { accuracyTier, formatBytes, formatLanguages, formatModelSize, speedTier } from "@/lib/format";
@@ -21,10 +21,10 @@ export function ModelsScreen() {
     .sort((a, b) => Number(b.id === recommended?.id) - Number(a.id === recommended?.id));
 
   return (
-    <Page>
+    <Page width="wide">
       <PageHeader
         title="AI Models"
-        description="Every model runs on this computer. Pick the one SpeakType uses to transcribe."
+        description="Every model runs on this computer. Pick the one Wordfall uses to transcribe."
         actions={
           report && (
             <span className="flex items-center gap-2 type-small text-ink-muted">
@@ -61,8 +61,8 @@ export function ModelsScreen() {
 /** Shown until the model recommended for this computer is downloaded. */
 function Recommendation({ model, reason, chip }: { model: ModelStatus; reason: string; chip: string }) {
   return (
-    <Card padding="none" className="mb-8 flex items-center gap-4 px-5 py-4">
-      <IconTile icon={Sparkles} tone="brand" />
+    <div className="mb-12 flex items-center gap-4 rounded-panel bg-accent-soft px-5 py-4">
+      <Sparkles size={20} strokeWidth={1.75} className="shrink-0 text-accent-ink" />
       <div className="min-w-0 flex-1">
         <div className="type-label">
           {model.name} is recommended for your {chip}
@@ -72,27 +72,22 @@ function Recommendation({ model, reason, chip }: { model: ModelStatus; reason: s
       <div className="w-[148px] shrink-0">
         <DownloadAction model={model} accent />
       </div>
-    </Card>
+    </div>
   );
 }
 
 function ModelList({ title, description, children }: { title: string; description: string; children: ReactNode }) {
   return (
-    <section className="mb-8">
-      <div className="mb-3 px-1">
-        <h2 className="type-section">{title}</h2>
-        <p className="mt-0.5 type-small text-ink-secondary">{description}</p>
+    <section className="mb-12">
+      <GroupHeader title={title} description={description} />
+      <div className={cn(COLUMNS, "hidden border-b border-line py-2.5 type-caption text-ink-muted @min-[760px]:grid")}>
+        <span>Model</span>
+        <span>Speed</span>
+        <span>Accuracy</span>
+        <span className="text-right">Size</span>
+        <span />
       </div>
-      <Card padding="none">
-        <div className={cn(COLUMNS, "hidden border-b border-line-subtle px-5 py-2.5 type-caption text-ink-muted @min-[760px]:grid")}>
-          <span>Model</span>
-          <span>Speed</span>
-          <span>Accuracy</span>
-          <span className="text-right">Size</span>
-          <span />
-        </div>
-        <div className="divide-y divide-line-subtle">{children}</div>
-      </Card>
+      <div className="divide-y divide-line">{children}</div>
     </section>
   );
 }
@@ -118,11 +113,7 @@ function ModelRow({ model, recommended }: { model: ModelStatus; recommended: boo
           updateSettings({ selectedModel: model.id });
         }
       }}
-      className={cn(
-        "group/row px-5 py-4 transition-colors first:rounded-t-card last:rounded-b-card",
-        selectable && "cursor-pointer hover:bg-hover/50",
-        active && "bg-accent-soft/40",
-      )}
+      className={cn("group/row py-4", selectable && "cursor-pointer")}
     >
       <div className={COLUMNS}>
         <div className="flex min-w-0 items-start gap-3.5">
@@ -196,7 +187,7 @@ function SelectionMark({ active }: { active: boolean }) {
       aria-hidden
       className={cn(
         "mt-0.5 grid size-[18px] shrink-0 place-items-center rounded-full transition-colors",
-        active ? "bg-primary text-accent" : "border-[1.5px] border-line-strong group-hover/row:border-ink-muted",
+        active ? "bg-accent text-on-accent" : "border-[1.5px] border-line-strong group-hover/row:border-ink-muted",
       )}
     >
       {active && <Check size={11} strokeWidth={3} />}
@@ -213,7 +204,7 @@ function Meter({ score, tier, className }: { score: number; tier: string; classN
         {Array.from({ length: 5 }, (_, i) => {
           const fill = Math.min(1, Math.max(0, score / 2 - i));
           return (
-            <span key={i} className="h-1 flex-1 overflow-hidden rounded-full bg-hover">
+            <span key={i} className="h-1 flex-1 overflow-hidden rounded-full bg-line">
               <span className="block h-full rounded-full bg-ink" style={{ width: `${fill * 100}%` }} />
             </span>
           );

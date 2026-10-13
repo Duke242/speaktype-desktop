@@ -26,7 +26,6 @@ export function CleanupSection() {
     >
       <SettingRow
         icon={Brain}
-        tone="neutral"
         label="Clean up with a local AI model"
         description="Fixes misheard words and grammar, keeps only your correction when you change your mind, and turns spoken lists into lists."
       >
@@ -36,11 +35,10 @@ export function CleanupSection() {
         <>
           <SettingRow
             icon={cleanup.backend === "builtin" ? Cpu : Server}
-            tone="neutral"
             label="Model runs in"
             description={
               cleanup.backend === "builtin"
-                ? "SpeakType downloads a small model and runs it itself."
+                ? "Wordfall downloads a small model and runs it itself."
                 : "A model server you already run, such as Ollama or LM Studio."
             }
           >
@@ -48,7 +46,7 @@ export function CleanupSection() {
               value={cleanup.backend}
               onChange={(backend) => save({ backend })}
               options={[
-                { value: "builtin", label: "SpeakType" },
+                { value: "builtin", label: "Wordfall" },
                 { value: "server", label: "Local server" },
               ]}
               className="w-[220px]"
@@ -83,8 +81,8 @@ function BuiltinModels({ cleanup, save }: { cleanup: CleanupSettings; save: Save
   if (!status.builtinAvailable) {
     return (
       <Notice tone="warning">
-        This copy of SpeakType doesn't include its own cleanup engine. Use a local server instead, or if you built
-        SpeakType yourself, build cleanup-worker too.
+        This copy of Wordfall doesn't include its own cleanup engine. Use a local server instead, or if you built
+        Wordfall yourself, build cleanup-worker too.
       </Notice>
     );
   }
@@ -209,7 +207,6 @@ function ServerSettings({ cleanup, save }: { cleanup: CleanupSettings; save: Sav
     <>
       <SettingRow
         icon={PlugZap}
-        tone="neutral"
         label="Server address"
         description="Ollama is at http://localhost:11434, LM Studio at http://localhost:1234."
       >
@@ -230,7 +227,6 @@ function ServerSettings({ cleanup, save }: { cleanup: CleanupSettings; save: Sav
       </SettingRow>
       <SettingRow
         icon={Brain}
-        tone="neutral"
         label="Model"
         description={
           server && models.length === 0

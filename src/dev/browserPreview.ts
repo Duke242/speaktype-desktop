@@ -10,10 +10,12 @@ export function installBrowserPreview() {
   const now = Date.now();
   const day = 86_400_000;
   const params = new URLSearchParams(location.search);
+  // Add ?os=windows or ?os=linux to preview another system.
+  const os = params.get("os") ?? "macos";
 
   let settings = {
     theme: (params.get("theme") ?? "light") as "light",
-    hotkey: "Fn",
+    hotkey: os === "macos" ? "Fn" : "Ctrl+Shift+Space",
     recordingMode: "hold",
     liveTyping: true,
     selectedModel: "small-en",
@@ -31,14 +33,16 @@ export function installBrowserPreview() {
     },
     restoreClipboard: true,
     saveRecordings: true,
+    learnCorrections: true,
     alwaysShowPill: false,
     pillPosition: "bottomCenter",
     showTrayIcon: true,
     autoUpdate: true,
     dictionary: [
       { id: "1", trigger: "my email", replacement: "karan@example.com", isEnabled: true, matchWholeWord: true },
-      { id: "2", trigger: "speak type", replacement: "SpeakType", isEnabled: true, matchWholeWord: true },
+      { id: "2", trigger: "word fall", replacement: "Wordfall", isEnabled: true, matchWholeWord: true },
       { id: "3", trigger: "um", replacement: "", isEnabled: false, matchWholeWord: false },
+      { id: "4", trigger: "cooper netties", replacement: "Kubernetes", isEnabled: true, matchWholeWord: true, learned: true },
     ],
     hasCompletedOnboarding: params.get("onboarding") !== "1",
     hasShownModelPrompt: true,
@@ -91,7 +95,8 @@ export function installBrowserPreview() {
     speed,
     accuracy,
     minRamGb: 4,
-    downloaded,
+    // Add ?nomodel=1 to preview a fresh install with nothing downloaded.
+    downloaded: downloaded && !params.get("nomodel"),
     downloading: false,
   }));
 
@@ -123,11 +128,12 @@ export function installBrowserPreview() {
       switch (cmd) {
         case "get_status":
           return {
-            os: params.get("os") ?? "macos",
+            os,
             version: "2.0.0",
             setupNotes: [],
-            hotkeyError: null,
-            modifierHotkeys: params.get("os") && params.get("os") !== "macos" ? [] : ["Fn", "RightCommand", "LeftCommand", "RightOption", "LeftOption", "RightControl", "LeftControl"],
+            // Add ?hotkeyError=1 to preview a hotkey the system wouldn't register.
+            hotkeyError: params.get("hotkeyError") ? "Ctrl+Shift+Space is already used by another app" : null,
+            modifierHotkeys: os === "macos" ? ["Fn", "RightCommand", "LeftCommand", "RightOption", "LeftOption", "RightControl", "LeftControl"] : [],
           };
         case "get_settings":
           return settings;
@@ -141,7 +147,10 @@ export function installBrowserPreview() {
         case "list_server_models":
           return { models: ["gemma3:4b", "llama3.2", "qwen2.5:1.5b"], isLocal: String(a.url).includes("localhost") };
         case "get_engine_status":
-          return { loaded: "small-en", loading: null };
+          // Add ?warming=1 to preview the model loading.
+          return params.get("warming") ? { loaded: null, loading: "small-en" } : { loaded: "small-en", loading: null };
+        case "read_history_audio":
+          return sampleRecording(history.find((h) => h.id === a.id)?.durationSecs ?? 3);
         case "get_device_info":
           return {
             device: { chip: "Apple M3 Pro", ramGb: 18, cores: 11, gpu: true, summary: "Apple M3 Pro · 18 GB · Metal", performanceTier: 0.95 },
@@ -154,6 +163,28 @@ export function installBrowserPreview() {
           return params.get("empty") ? [] : history;
         case "get_stats":
           return params.get("empty") ? [] : stats;
+        case "edit_history_item": {
+          const item = history.find((h) => h.id === a.id);
+          if (!item) return [];
+          const transcript = String(a.transcript);
+          item.transcript = transcript;
+          item.wordCount = transcript.split(/\s+/).length;
+          // Pretend any new capitalized word was a misheard name.
+          const learned = transcript
+            .split(/\s+/)
+            .map((w) => w.replace(/[^\p{L}\p{N}]/gu, ""))
+            .filter((w) => /^\p{Lu}/u.test(w) && !transcripts.some((t) => t.includes(w)))
+            .slice(0, 1)
+            .map((word) => {
+              const entry = { id: `learned-${word}`, trigger: word.toLowerCase(), replacement: word, isEnabled: true, matchWholeWord: true, learned: true };
+              settings.dictionary.push(entry);
+              return entry;
+            });
+          return learned;
+        }
+        case "forget_words":
+          settings.dictionary = settings.dictionary.filter((e) => !(a.ids as string[]).includes(e.id));
+          return null;
         case "list_input_devices":
           return [
             { id: "coreaudio:1", name: "MacBook Pro Microphone", isDefault: true },
@@ -182,4 +213,32 @@ export function installBrowserPreview() {
     },
     { shouldMockEvents: true },
   );
+}
+
+/** A WAV of a soft tone that swells and pauses like speech, so playback can be previewed. */
+function sampleRecording(seconds: number): ArrayBuffer {
+  const rate = 8000;
+  const samples = Math.round(seconds * rate);
+  const buffer = new ArrayBuffer(44 + samples * 2);
+  const view = new DataView(buffer);
+  const text = (offset: number, value: string) =>
+    [...value].forEach((c, i) => view.setUint8(offset + i, c.charCodeAt(0)));
+  text(0, "RIFF");
+  view.setUint32(4, 36 + samples * 2, true);
+  text(8, "WAVEfmt ");
+  view.setUint32(16, 16, true); // format chunk size
+  view.setUint16(20, 1, true); // PCM
+  view.setUint16(22, 1, true); // mono
+  view.setUint32(24, rate, true);
+  view.setUint32(28, rate * 2, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true);
+  text(36, "data");
+  view.setUint32(40, samples * 2, true);
+  for (let i = 0; i < samples; i++) {
+    const t = i / rate;
+    const envelope = Math.max(0, Math.sin(t * 2.3)) * (0.5 + 0.5 * Math.sin(t * 7.1) ** 2);
+    view.setInt16(44 + i * 2, Math.round(envelope * 0.3 * Math.sin(2 * Math.PI * 220 * t) * 32767), true);
+  }
+  return buffer;
 }

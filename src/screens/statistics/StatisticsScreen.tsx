@@ -1,7 +1,7 @@
-import { CalendarDays, ChartColumn, Clock, FileText, Hash, Star, TrendingUp, type LucideIcon } from "lucide-react";
+import { ChartColumn } from "lucide-react";
 import { useMemo, useState } from "react";
 import { BarChart, type Bar } from "@/components/BarChart";
-import { Card, EmptyState, IconTile, Page, PageHeader, SegmentedControl, type Tone } from "@/components/ui";
+import { EmptyState, GroupHeader, Page, PageHeader, SegmentedControl } from "@/components/ui";
 import type { StatsEntry } from "@/lib/api";
 import { formatDuration, formatNumber, startOfDay } from "@/lib/format";
 import { useDictationState, useHistory, useNow } from "@/lib/hooks";
@@ -81,7 +81,7 @@ export function StatisticsScreen() {
   const noun = { week: "this week", month: "in the last 30 days", year: "in the last 12 months" }[period];
 
   return (
-    <Page>
+    <Page width="wide">
       <PageHeader
         title="Statistics"
         description={`${formatNumber(totalWords)} words ${noun}`}
@@ -99,70 +99,62 @@ export function StatisticsScreen() {
         }
       />
 
-      <div className="grid grid-cols-4 gap-4">
-        <StatCard icon={FileText} tone="brand" label="Total words" value={formatNumber(totalWords)} />
-        <StatCard icon={CalendarDays} tone="neutral" label={`Average per ${periodWord}`} value={formatNumber(perBucket)} />
-        <StatCard icon={TrendingUp} tone="neutral" label={`Best ${periodWord}`} value={formatNumber(best?.value ?? 0)} />
-        <StatCard icon={Hash} tone="neutral" label="Transcriptions" value={formatNumber(count)} />
-      </div>
+      <dl className="grid grid-cols-4 divide-x divide-line">
+        <Figure label="Total words" value={formatNumber(totalWords)} />
+        <Figure label={`Average per ${periodWord}`} value={formatNumber(perBucket)} />
+        <Figure label={`Best ${periodWord}`} value={formatNumber(best?.value ?? 0)} />
+        <Figure label="Transcriptions" value={formatNumber(count)} />
+      </dl>
 
-      <Card padding="lg" className="mt-5">
-        <div className="mb-6 flex items-start">
-          <div className="flex-1">
-            <h2 className="type-section">Words dictated</h2>
-            <p className="mt-0.5 type-small text-ink-secondary">Per {periodWord}, {noun}</p>
-          </div>
-          <div className="text-right">
-            <div className="type-label tabular-nums">
-              {formatNumber(count)} {count === 1 ? "transcription" : "transcriptions"}
-            </div>
-            <div className="type-caption text-ink-muted tabular-nums">{formatDuration(seconds)} recorded</div>
-          </div>
-        </div>
-        {totalWords === 0 ? (
-          <EmptyState
-            icon={ChartColumn}
-            title="No activity yet"
-            description="Your dictation stats will appear here."
-            className="h-[288px] justify-center py-0"
-          />
-        ) : (
-          <BarChart bars={buckets} unit="words" labelEvery={period === "month" ? 7 : 1} />
-        )}
-      </Card>
-
-      <div className="mt-5 grid grid-cols-3 gap-4">
-        <DetailCard icon={Hash} tone="neutral" label="Average words per note" value={formatNumber(count ? Math.round(totalWords / count) : 0)} />
-        <DetailCard
-          icon={Star}
-          tone="neutral"
-          label={`Most active ${periodWord}`}
-          value={best && best.value > 0 ? best.title : "Not yet"}
+      <section className="mt-14">
+        <GroupHeader
+          title="Words dictated"
+          description={`Per ${periodWord}, ${noun}`}
+          action={
+            <span className="type-caption text-ink-muted tabular-nums">
+              {formatNumber(count)} {count === 1 ? "transcription" : "transcriptions"} · {formatDuration(seconds)}{" "}
+              recorded
+            </span>
+          }
         />
-        <DetailCard icon={Clock} tone="neutral" label="Time recorded" value={formatDuration(seconds)} />
-      </div>
+        <div className="pt-8">
+          {totalWords === 0 ? (
+            <EmptyState
+              icon={ChartColumn}
+              title="No activity yet"
+              description="Your dictation stats will appear here."
+              className="h-[288px] justify-center py-0"
+            />
+          ) : (
+            <BarChart bars={buckets} unit="words" labelEvery={period === "month" ? 7 : 1} />
+          )}
+        </div>
+      </section>
+
+      <dl className="mt-14 grid grid-cols-3 divide-x divide-line border-t border-line pt-6">
+        <Detail label="Average words per note" value={formatNumber(count ? Math.round(totalWords / count) : 0)} />
+        <Detail label={`Most active ${periodWord}`} value={best && best.value > 0 ? best.title : "Not yet"} />
+        <Detail label="Time recorded" value={formatDuration(seconds)} />
+      </dl>
     </Page>
   );
 }
 
-function StatCard({ icon, tone, label, value }: { icon: LucideIcon; tone: Tone; label: string; value: string }) {
+/** A headline number over its label, separated from its neighbours by a hairline. */
+function Figure({ label, value }: { label: string; value: string }) {
   return (
-    <Card padding="md">
-      <IconTile icon={icon} tone={tone} />
-      <div className="mt-4 type-metric">{value}</div>
-      <div className="type-small text-ink-secondary">{label}</div>
-    </Card>
+    <div className="flex flex-col-reverse px-6 first:pl-0">
+      <dt className="mt-1 type-small text-ink-secondary">{label}</dt>
+      <dd className="type-metric">{value}</dd>
+    </div>
   );
 }
 
-function DetailCard({ icon, tone, label, value }: { icon: LucideIcon; tone: Tone; label: string; value: string }) {
+function Detail({ label, value }: { label: string; value: string }) {
   return (
-    <Card padding="none" className="flex items-center gap-3 px-4 py-3.5">
-      <IconTile icon={icon} tone={tone} size="md" />
-      <div className="min-w-0">
-        <div className="type-caption text-ink-muted">{label}</div>
-        <div className="truncate type-label tabular-nums">{value}</div>
-      </div>
-    </Card>
+    <div className="min-w-0 px-6 first:pl-0">
+      <dt className="type-caption text-ink-muted">{label}</dt>
+      <dd className="mt-0.5 truncate type-label tabular-nums">{value}</dd>
+    </div>
   );
 }

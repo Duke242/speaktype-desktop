@@ -5,6 +5,7 @@ mod device;
 mod dictation;
 mod engine;
 mod history;
+mod learn;
 mod legacy;
 mod live;
 mod media;
@@ -114,7 +115,7 @@ pub mod devtools {
 
         for run in 1..=runs {
             let started = Instant::now();
-            let text = engine.transcribe(&samples, "auto")?;
+            let text = engine.transcribe(&samples, "auto", "")?;
             let elapsed = started.elapsed();
             println!(
                 "  run {run}: {duration:.1}s of audio in {elapsed:.2?} ({:.0}x real time)",
@@ -180,12 +181,22 @@ impl AppState {
     }
 
     pub fn replace_settings(&self, settings: Settings) -> Result<(), String> {
-        self.settings_store.save(&settings)?;
-        *self
+        self.update_settings(|current| *current = settings)
+    }
+
+    /// Changes settings and saves them as one step, so changes made at the same
+    /// time from different threads can't overwrite each other. Nothing changes
+    /// if saving fails.
+    pub fn update_settings<T>(&self, change: impl FnOnce(&mut Settings) -> T) -> Result<T, String> {
+        let mut settings = self
             .settings
             .write()
-            .unwrap_or_else(PoisonError::into_inner) = settings;
-        Ok(())
+            .unwrap_or_else(PoisonError::into_inner);
+        let mut updated = settings.clone();
+        let result = change(&mut updated);
+        self.settings_store.save(&updated)?;
+        *settings = updated;
+        Ok(result)
     }
 
     /// Detected once; reading the CPU and memory takes a moment.
@@ -274,7 +285,7 @@ fn import_speaktype1(
 
 pub fn run() {
     let app = tauri::Builder::default()
-        // Launching SpeakType again brings the running app forward instead of
+        // Launching Wordfall again brings the running app forward instead of
         // starting a second copy with its own tray icon and hotkey.
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             tray::open_main_window(app, None);
@@ -353,7 +364,7 @@ pub fn run() {
             Ok(())
         })
         .on_window_event(|window, event| match (window.label(), event) {
-            // Closing the main window keeps SpeakType running in the tray.
+            // Closing the main window keeps Wordfall running in the tray.
             ("main", WindowEvent::CloseRequested { api, .. }) => {
                 api.prevent_close();
                 let _ = window.hide();
@@ -380,6 +391,8 @@ pub fn run() {
             commands::get_history,
             commands::get_stats,
             commands::delete_history_item,
+            commands::edit_history_item,
+            commands::forget_words,
             commands::clear_history,
             commands::read_history_audio,
             commands::reveal_history_audio,
@@ -396,7 +409,7 @@ pub fn run() {
             commands::quit_app,
         ])
         .build(tauri::generate_context!())
-        .expect("error while building SpeakType");
+        .expect("error while building Wordfall");
 
     app.run(|app, event| {
         // macOS: clicking the Dock icon brings the hidden window back.
