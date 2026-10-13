@@ -167,10 +167,10 @@ fn tidy(item: &str) -> &str {
     let mut item = item.trim_start_matches(|c: char| c.is_whitespace() || ",:;-".contains(c));
     loop {
         let trimmed = item.trim_end_matches(|c: char| c.is_whitespace() || ",;:".contains(c));
-        let lower = trimmed.to_lowercase();
-        let joiner = [" and then", " and", " then"]
-            .into_iter()
-            .find(|j| lower.ends_with(j));
+        let joiner = [" and then", " and", " then"].into_iter().find(|j| {
+            let at = trimmed.len().saturating_sub(j.len());
+            trimmed.is_char_boundary(at) && trimmed[at..].eq_ignore_ascii_case(j)
+        });
         match joiner {
             Some(j) => item = &trimmed[..trimmed.len() - j.len()],
             None => return trimmed,
