@@ -85,7 +85,7 @@ pub struct Message {
 }
 
 impl Message {
-    fn new(role: &str, content: impl Into<String>) -> Self {
+    pub(crate) fn new(role: &str, content: impl Into<String>) -> Self {
         Self {
             role: role.into(),
             content: content.into(),
@@ -286,12 +286,18 @@ impl Cleaner {
         if text.split_whitespace().count() > MAX_WORDS {
             return false;
         }
-        match settings.backend {
-            CleanupBackend::Builtin => {
-                builtin_model_path(settings, models).is_ok() && worker_path().is_some()
+        Self::is_set_up(settings, models)
+    }
+
+    /// Whether cleanup is on with a model ready to use. Command mode needs this too.
+    pub fn is_set_up(settings: &CleanupSettings, models: &ModelStore) -> bool {
+        settings.enabled
+            && match settings.backend {
+                CleanupBackend::Builtin => {
+                    builtin_model_path(settings, models).is_ok() && worker_path().is_some()
+                }
+                CleanupBackend::Server => !settings.server_model.trim().is_empty(),
             }
-            CleanupBackend::Server => !settings.server_model.trim().is_empty(),
-        }
     }
 
     /// The model's reply for `text`, before any checks.

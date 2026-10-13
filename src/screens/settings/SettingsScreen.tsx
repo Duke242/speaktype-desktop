@@ -21,12 +21,14 @@ import {
 
   Sparkles,
   Sun,
+  TextCursorInput,
   Wand2,
   type LucideIcon,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { AppToneSection } from "@/components/settings/AppToneSection";
 import { CleanupSection } from "@/components/settings/CleanupSection";
+import { CommandHotkeyPicker } from "@/components/settings/CommandHotkeyPicker";
 import { HotkeyPicker } from "@/components/settings/HotkeyPicker";
 import { PillPositionPicker } from "@/components/settings/PillPositionPicker";
 import { PermissionList } from "@/components/PermissionList";
@@ -151,6 +153,17 @@ function GeneralTab() {
             ]}
             className="w-[220px]"
           />
+        </SettingRow>
+        <SettingRow
+          icon={TextCursorInput}
+          label="Edit with your voice"
+          description={
+            settings.cleanup.enabled
+              ? "Select text in any app, hold this shortcut and say what to change, like “make this friendlier”. The result replaces your selection."
+              : "Select text, hold this shortcut and say what to change. Needs AI cleanup, below."
+          }
+        >
+          <CommandHotkeyPicker />
         </SettingRow>
       </Section>
 

@@ -6,6 +6,8 @@
 //!   `modifier_hotkey_blocked`: hotkeys made of one modifier key, where the OS
 //!   allows listening for them.
 //! - `send_paste_shortcut`: presses the paste keys for the focused app.
+//! - `send_copy_shortcut`, `can_copy_selection`: presses the copy keys, for
+//!   command mode, where it's safe to.
 //! - `frontmost_app`: which app has focus, so dictation can match its tone.
 //! - `setup_notes`: OS-specific hints shown in Settings.
 //! - `permissions`, `request_permission`, `permission_settings_url`: the OS
@@ -109,5 +111,5 @@ fn press_combo(enigo: &mut Enigo, modifiers: &[Key], key: Key) -> Result<(), Str
     for modifier in held.iter().rev() {
         let _ = enigo.key(*modifier, Direction::Release);
     }
-    result.map_err(|e| format!("Couldn't simulate paste: {e}"))
+    result.map_err(|e| format!("Couldn't simulate the shortcut: {e}"))
 }

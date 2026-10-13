@@ -1,6 +1,7 @@
 mod audio;
 mod cleanup;
 mod coding;
+mod command;
 mod commands;
 mod device;
 mod dictation;
@@ -396,6 +397,14 @@ pub fn run() {
                     if let Err(e) = result {
                         eprintln!("[hotkey] {e}");
                         *state.hotkey_error.lock_unpoisoned() = Some(e);
+                    }
+                    if let Err(e) = command::register_hotkey(
+                        &handle,
+                        &state.controller,
+                        &settings.command_hotkey,
+                        None,
+                    ) {
+                        eprintln!("[hotkey] command shortcut: {e}");
                     }
                     state.controller.send(Event::RefreshPill);
                     state.warm_up(&handle, &settings.selected_model);

@@ -88,6 +88,8 @@ export interface Settings {
   smartTrailingPunctuation: boolean;
   cleanup: CleanupSettings;
   tone: ToneSettings;
+  /** Shortcut that edits selected text by voice, or "" when off. */
+  commandHotkey: string;
   restoreClipboard: boolean;
   /** Keep each dictation's audio so it can be replayed from History. */
   saveRecordings: boolean;

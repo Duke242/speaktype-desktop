@@ -37,6 +37,20 @@ pub fn send_paste_shortcut(enigo: Option<&mut Enigo>) -> Result<(), String> {
     super::press_combo(enigo, &[Key::Control], Key::V)
 }
 
+/// Terminals are told apart by their executable, and get their own shortcut.
+pub fn can_copy_selection() -> bool {
+    true
+}
+
+/// Ctrl+C copies in regular apps. Terminals get Ctrl+Insert, which copies in
+/// both Windows Terminal and the classic console: there Ctrl+C with nothing
+/// selected would stop the running program.
+pub fn send_copy_shortcut(enigo: Option<&mut Enigo>, terminal: bool) -> Result<(), String> {
+    let enigo = enigo.ok_or("Keyboard simulation is unavailable")?;
+    let key = if terminal { Key::Insert } else { Key::C };
+    super::press_combo(enigo, &[Key::Control], key)
+}
+
 pub fn setup_notes() -> Vec<String> {
     vec![
         "Windows blocks simulated keys from reaching apps that run as administrator. \

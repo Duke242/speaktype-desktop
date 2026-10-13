@@ -41,6 +41,7 @@ export function installBrowserPreview() {
       formatCode: true,
       apps: [{ app: "Obsidian", category: "code" }] as { app: string; category: string }[],
     },
+    commandHotkey: "",
     restoreClipboard: true,
     saveRecordings: true,
     learnCorrections: true,
