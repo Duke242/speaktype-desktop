@@ -173,6 +173,8 @@ export interface CleanupStatus {
   /** Whether this build includes the helper that runs built-in models. */
   builtinAvailable: boolean;
   models: ModelStatus[];
+  /** Whether cleanup is on with a model ready, so dictations are actually tidied. */
+  setUp: boolean;
 }
 
 export interface ServerModels {
