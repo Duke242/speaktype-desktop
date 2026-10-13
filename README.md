@@ -17,6 +17,10 @@ Open http://localhost:1420/pill.html to preview the recorder with a simulated sp
 
 Live typing is enabled in Settings → Behavior. It inserts short phrases during recording, at pauses or roughly every four seconds of continuous speech (plus model processing time). Use Fn in Hold mode on macOS, or Toggle mode with other shortcuts. Native Wayland sessions retain insertion on release. Escape stops further insertion and keeps the transcript in History; text already typed remains. Switching the active app pauses live insertion for that session. Live typing leaves the clipboard untouched.
 
+Settings → Commands and formatting turns on rules for English dictation, all on by default: "scratch that", "new line" and "new paragraph" as commands, keeping only the correction in "meet at 3, actually 4", and writing spoken lists, numbers, dates, times, prices and percentages as you'd type them. They live in `src-tauri/src/spoken/` and leave the text alone when unsure. Snippets ("my calendar link" → the link) are in Dictionary → Snippets.
+
+To share the dictionary and snippets between computers or with a team, pick a folder in Settings → Sharing that Dropbox, iCloud Drive or a shared drive keeps in step. Wordfall keeps `wordfall-shared.json` there and merges it at launch, every minute and after each change, keeping the newest version of each rule or snippet. The same section exports and imports them as a file.
+
 ## Check
 
 ```sh
