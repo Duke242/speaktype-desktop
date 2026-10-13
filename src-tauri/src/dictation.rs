@@ -59,6 +59,11 @@ const LEARNED_MESSAGE: Duration = Duration::from_millis(2500);
 /// soon after a tap locks recording on.
 const DOUBLE_TAP: Duration = Duration::from_millis(350);
 
+/// How long a recording runs before media is paused. A single-modifier hotkey
+/// starts a recording for every shortcut like ⌘C, which is discarded a moment
+/// later; pausing straight away would stutter the music on each one.
+const PAUSE_MEDIA_AFTER: Duration = Duration::from_millis(250);
+
 /// "Learned “Karan”", or "Learned “Karan” and 2 more" for several words.
 fn learned_message(words: &[String]) -> String {
     match words {
@@ -102,6 +107,10 @@ pub enum Event {
     },
     /// The time for a second tap after a quick tap in Hold mode has passed.
     TapExpired {
+        session: u64,
+    },
+    /// A recording has run long enough to be a dictation: pause media.
+    PauseMedia {
         session: u64,
     },
     MessageExpired {
@@ -434,6 +443,11 @@ impl Session {
                     self.input(Input::TapExpired);
                 }
             }
+            Event::PauseMedia { session } => {
+                if matches!(self.phase, Phase::Recording { session: s, .. } if s == session) {
+                    self.playback.pause();
+                }
+            }
             Event::MessageExpired { generation } => {
                 if matches!(self.phase, Phase::Message { generation: g } if g == generation) {
                     self.go_idle();
@@ -556,7 +570,17 @@ impl Session {
                     locked: false,
                 });
                 if settings.pause_media {
-                    self.playback.pause();
+                    let controller = self.controller.clone();
+                    let timer =
+                        thread::Builder::new()
+                            .name("pause-media".into())
+                            .spawn(move || {
+                                thread::sleep(PAUSE_MEDIA_AFTER);
+                                controller.send(Event::PauseMedia { session });
+                            });
+                    if let Err(e) = timer {
+                        eprintln!("[dictation] {e}");
+                    }
                 }
                 self.broadcast(DictationState::Recording { started_at_ms });
                 // Load the models while the user speaks, so they're ready on release.
