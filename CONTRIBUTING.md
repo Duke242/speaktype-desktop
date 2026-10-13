@@ -54,6 +54,7 @@ SpeakType 2 is one app for macOS, Windows and Linux. It has two halves:
 │   │   ├── dictation.rs         Record → transcribe → paste, as a small state machine
 │   │   ├── audio.rs  engine/    Microphone capture and the Whisper and Parakeet engines
 │   │   ├── cleanup.rs           Optional transcript cleanup by a local language model
+│   │   ├── meeting/             Meeting notes: capture, live transcript, storage, summaries
 │   │   ├── models.rs            Model catalogs and downloads
 │   │   ├── history.rs  settings.rs  legacy.rs (import from SpeakType 1)
 │   │   └── platform/            Everything OS-specific
@@ -209,6 +210,8 @@ Open [localhost:1420](http://localhost:1420). The interface runs with sample dat
 | `?onboarding=1` | Onboarding for a new user |
 | `?onboarding=1&imported=1` | Onboarding after upgrading from SpeakType 1 |
 | `?empty=1` | No history or stats yet |
+| `?meeting=recording` | A meeting in progress, with its transcript growing |
+| `?notes=0` | Meetings without a model to write notes |
 
 Anything that needs the real core (recording, downloads, hotkeys) doesn't work in the browser.
 

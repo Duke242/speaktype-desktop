@@ -9,6 +9,7 @@ import { useApplyTheme } from "@/lib/theme";
 import { DashboardScreen } from "@/screens/dashboard/DashboardScreen";
 import { DictionaryScreen } from "@/screens/dictionary/DictionaryScreen";
 import { HistoryScreen } from "@/screens/history/HistoryScreen";
+import { MeetingsScreen } from "@/screens/meetings/MeetingsScreen";
 import { ModelsScreen } from "@/screens/models/ModelsScreen";
 import { OnboardingScreen } from "@/screens/onboarding/OnboardingScreen";
 import { SettingsScreen } from "@/screens/settings/SettingsScreen";
@@ -77,6 +78,7 @@ export function App() {
         <div data-tauri-drag-region className="absolute inset-x-0 top-0 z-10 h-7" />
         {route === "dashboard" && <DashboardScreen onNavigate={setRoute} />}
         {route === "history" && <HistoryScreen />}
+        {route === "meetings" && <MeetingsScreen onNavigate={setRoute} />}
         {route === "dictionary" && <DictionaryScreen />}
         {route === "statistics" && <StatisticsScreen />}
         {route === "models" && <ModelsScreen />}
