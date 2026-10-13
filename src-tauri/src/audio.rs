@@ -356,6 +356,9 @@ fn level_from_amplitudes(rms: f32, peak: f32) -> f32 {
     ((level - LevelMeter::NOISE_GATE) / (1.0 - LevelMeter::NOISE_GATE)).clamp(0.0, 1.0)
 }
 
+/// Largest filter table `resample` builds, in taps (8 MB of f64).
+const MAX_TABLE_TAPS: usize = 1 << 20;
+
 /// Converts mono audio between sample rates using windowed-sinc interpolation.
 /// When downsampling, the filter cutoff drops to the new Nyquist frequency so
 /// high frequencies don't fold back into the speech band.
@@ -373,45 +376,60 @@ pub fn resample(input: &[f32], from: u32, to: u32) -> Vec<f32> {
     let cutoff = ratio.min(1.0) * 0.95;
     let radius = ZERO_CROSSINGS / cutoff;
     let out_len = (input.len() as f64 * ratio).round() as usize;
+    let tap = |x: f64| {
+        let t = std::f64::consts::PI * x * cutoff;
+        let sinc = if t.abs() < 1e-9 { 1.0 } else { t.sin() / t };
+        // Hann window over the filter's width.
+        let window = 0.5 + 0.5 * (std::f64::consts::PI * x / radius).cos();
+        sinc * window
+    };
     // Output sample i sits at i * from / to input samples. Its fractional part
     // repeats every `phases` outputs, so each phase's filter taps are computed
     // once instead of evaluating sin and cos for every tap of every sample.
+    // Imported files can declare any rate, so an unusual one that would need a
+    // huge table computes its taps as it goes instead.
     let divisor = gcd(from, to);
     let (step, phases) = ((from / divisor) as usize, (to / divisor) as usize);
-    let kernels: Vec<(isize, Vec<f64>)> = (0..phases)
-        .map(|phase| {
-            let frac = phase as f64 / phases as f64;
-            let first = (frac - radius).ceil() as isize;
-            let end = (frac + radius).floor() as isize;
-            let taps = (first..=end)
-                .map(|k| {
-                    let x = k as f64 - frac;
-                    let t = std::f64::consts::PI * x * cutoff;
-                    let sinc = if t.abs() < 1e-9 { 1.0 } else { t.sin() / t };
-                    // Hann window over the filter's width.
-                    let window = 0.5 + 0.5 * (std::f64::consts::PI * x / radius).cos();
-                    sinc * window
-                })
-                .collect();
-            (first, taps)
-        })
-        .collect();
+    let width = (2.0 * radius) as usize + 2;
+    let kernels: Vec<(isize, Vec<f64>)> = if phases.saturating_mul(width) <= MAX_TABLE_TAPS {
+        (0..phases)
+            .map(|phase| {
+                let frac = phase as f64 / phases as f64;
+                let first = (frac - radius).ceil() as isize;
+                let end = (frac + radius).floor() as isize;
+                (first, (first..=end).map(|k| tap(k as f64 - frac)).collect())
+            })
+            .collect()
+    } else {
+        Vec::new()
+    };
 
     let mut out = Vec::with_capacity(out_len);
     for i in 0..out_len {
         let position = i * step;
         let (base, phase) = (position / phases, position % phases);
-        let (first, taps) = &kernels[phase];
-        // Taps that fall outside the input are skipped, as near the edges.
-        let start = base as isize + first;
-        let skip = (-start).max(0) as usize;
-        let lo = start.max(0) as usize;
         let mut sum = 0.0;
         let mut weight = 0.0;
-        let samples = input.get(lo..).unwrap_or_default();
-        for (sample, w) in samples.iter().zip(taps.get(skip..).unwrap_or_default()) {
-            sum += f64::from(*sample) * w;
-            weight += w;
+        // Taps that fall outside the input are skipped, as near the edges.
+        if let Some((first, taps)) = kernels.get(phase) {
+            let start = base as isize + first;
+            let skip = (-start).max(0) as usize;
+            let samples = input.get(start.max(0) as usize..).unwrap_or_default();
+            for (sample, w) in samples.iter().zip(taps.get(skip..).unwrap_or_default()) {
+                sum += f64::from(*sample) * w;
+                weight += w;
+            }
+        } else {
+            let frac = phase as f64 / phases as f64;
+            let first = (frac - radius).ceil() as isize;
+            let end = (frac + radius).floor() as isize;
+            let lo = (base as isize + first).max(0);
+            let hi = (base as isize + end).min(input.len() as isize - 1);
+            for j in lo..=hi {
+                let w = tap((j - base as isize) as f64 - frac);
+                sum += f64::from(input[j as usize]) * w;
+                weight += w;
+            }
         }
         out.push(if weight.abs() > 1e-9 {
             (sum / weight) as f32
@@ -540,6 +558,12 @@ mod tests {
         let out = resample(&sine(12_000.0, 48_000, 1.0), 48_000, 16_000);
         assert!(rms(&out) < 0.05, "aliasing left rms {}", rms(&out));
     }
+
+    #[test]
+    fn unusual_rates_dont_build_a_huge_filter_table() {
+        // A file can declare any rate; this one would need a table of ~10^11 taps.
+        let out = resample(&vec![0.5; 4_000_000], 3_999_999_999, 16_000);
+        assert_eq!(out.len(), 16);
+        assert!(out.iter().all(|s| (s - 0.5).abs() < 1e-4));
+    }
 }
-
-
