@@ -17,6 +17,10 @@ Open http://localhost:1420/pill.html to preview the recorder with a simulated sp
 
 Live typing is enabled in Settings → Behavior. It inserts short phrases during recording, at pauses or roughly every four seconds of continuous speech (plus model processing time). Use Fn in Hold mode on macOS, or Toggle mode with other shortcuts. Native Wayland sessions retain insertion on release. Escape stops further insertion and keeps the transcript in History; text already typed remains. Switching the active app pauses live insertion for that session. Live typing leaves the clipboard untouched.
 
+Dictation matches the app it goes into (Settings → Tone that fits the app). The focused app is identified when recording starts, by bundle id on macOS, executable on Windows and window class on X11 (native Wayland apps can't be identified), and sorted into chat, email, terminal, code editor or other, with the user's own list checked before the built-in one in `src-tauri/src/tone.rs`. With AI cleanup on, the category adds a line to the model's instructions; without it, chat drops the final period and terminals lose the capital letter and trailing punctuation. In code editors and terminals, `src-tauri/src/coding.rs` writes spoken code as code: "main dot rs" → `main.rs`, "camel case get user name" → `getUserName`, "dash dash verbose" → `--verbose` (terminals only).
+
+Command mode edits selected text by voice. Set a shortcut in Settings → Shortcuts, select text in any app, hold the shortcut and say what to change ("make this more formal", "translate to German"). Wordfall copies the selection, sends it with the instruction to the AI cleanup model, pastes the result over the selection and puts the clipboard back. It needs AI cleanup set up, and has its own shortcut rather than guessing from what was said, so a dictation that starts with "make" or "fix" never replaces the text around it. Single modifier keys aren't offered for it: the macOS listener for those holds one key, the dictation hotkey.
+
 ## Check
 
 ```sh

@@ -15,7 +15,7 @@ use std::path::Path;
 use enigo::{Enigo, Key};
 use tauri::WebviewWindow;
 
-use super::{HotkeyHandler, Permission, PermissionKind};
+use super::{FrontApp, HotkeyHandler, Permission, PermissionKind};
 
 pub const DEFAULT_HOTKEY: &str = "Ctrl+Shift+Space";
 
@@ -44,6 +44,33 @@ pub fn send_paste_shortcut(enigo: Option<&mut Enigo>) -> Result<(), String> {
         &[Key::Control]
     };
     super::press_combo(enigo, modifiers, Key::Unicode('v'))
+}
+
+/// Copies the selection. `terminal` says the app is known to be a terminal,
+/// which copies with Ctrl+Shift+C; X11 also checks for itself.
+pub fn send_copy_shortcut(enigo: Option<&mut Enigo>, terminal: bool) -> Result<(), String> {
+    if wayland::is_session() {
+        match wayland::send_copy(terminal) {
+            Ok(()) => return Ok(()),
+            Err(e) => eprintln!("[paste] {e}"),
+        }
+    }
+    let enigo = enigo.ok_or("Keyboard simulation is unavailable")?;
+    let modifiers: &[Key] = if terminal || x11::active_window_is_terminal() {
+        &[Key::Control, Key::Shift]
+    } else {
+        &[Key::Control]
+    };
+    super::press_combo(enigo, modifiers, Key::Unicode('c'))
+}
+
+/// The focused app through X11. Native Wayland apps can't be identified, as
+/// Wayland doesn't say which app has focus.
+pub fn frontmost_app() -> Option<FrontApp> {
+    if wayland::is_session() {
+        return None;
+    }
+    x11::active_app()
 }
 
 pub fn setup_notes() -> Vec<String> {

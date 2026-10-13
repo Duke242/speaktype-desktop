@@ -3,7 +3,16 @@ import { Hotkey } from "@/components/ui";
 import { cn } from "@/lib/cn";
 import { acceleratorFrom, heldModifiers } from "@/lib/hotkeys";
 
-export function HotkeyRecorder({ value, onChange }: { value: string; onChange: (hotkey: string) => void }) {
+export function HotkeyRecorder({
+  value,
+  onChange,
+  placeholder,
+}: {
+  value: string;
+  onChange: (hotkey: string) => void;
+  /** Shown while there's no shortcut. */
+  placeholder?: string;
+}) {
   const [recording, setRecording] = useState(false);
   const [preview, setPreview] = useState("");
   const button = useRef<HTMLButtonElement>(null);
@@ -51,8 +60,10 @@ export function HotkeyRecorder({ value, onChange }: { value: string; onChange: (
         ) : (
           <span className="type-small text-accent-ink">Press a shortcut…</span>
         )
-      ) : (
+      ) : value ? (
         <Hotkey value={value} />
+      ) : (
+        <span className="type-small text-ink-muted">{placeholder}</span>
       )}
     </button>
   );

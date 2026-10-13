@@ -42,6 +42,24 @@ export interface CleanupSettings {
   serverKeepAliveMinutes: number;
 }
 
+/** How dictation into an app should read. "other" changes nothing. */
+export type AppCategory = "chat" | "email" | "terminal" | "code" | "other";
+
+/** The user's category for one app, matched by name, bundle id, executable or window class. */
+export interface AppRule {
+  app: string;
+  category: AppCategory;
+}
+
+export interface ToneSettings {
+  /** Match the tone to the app: instructions for AI cleanup, light rules without it. */
+  enabled: boolean;
+  /** Write spoken file names, identifiers and flags as code in editors and terminals. */
+  formatCode: boolean;
+  /** Checked before the built-in list. */
+  apps: AppRule[];
+}
+
 export interface Settings {
   theme: Theme;
   hotkey: string;
@@ -54,6 +72,9 @@ export interface Settings {
   autoEdit: boolean;
   smartTrailingPunctuation: boolean;
   cleanup: CleanupSettings;
+  tone: ToneSettings;
+  /** Shortcut that edits selected text by voice, or "" when off. */
+  commandHotkey: string;
   restoreClipboard: boolean;
   /** Keep each dictation's audio so it can be replayed from History. */
   saveRecordings: boolean;
@@ -122,6 +143,13 @@ export interface ServerModels {
   models: string[];
   /** False when the address isn't this computer, so transcripts would leave it. */
   isLocal: boolean;
+}
+
+export interface AppTone {
+  /** Apps Wordfall already knows. */
+  builtIn: { name: string; category: AppCategory }[];
+  /** The app dictated into last, so users can see what to call it. */
+  lastApp: { id: string; name: string; title: string; category: AppCategory } | null;
 }
 
 export interface DownloadProgress {
@@ -218,6 +246,7 @@ export const api = {
 
   getCleanupStatus: () => invoke<CleanupStatus>("get_cleanup_status"),
   listServerModels: (url: string) => invoke<ServerModels>("list_server_models", { url }),
+  getAppTone: () => invoke<AppTone>("get_app_tone"),
 
   getHistory: () => invoke<HistoryItem[]>("get_history"),
   getStats: () => invoke<StatsEntry[]>("get_stats"),

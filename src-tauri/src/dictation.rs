@@ -28,20 +28,22 @@ use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 use crate::{
     AppState, LockExt,
     audio::{Captured, Recording},
-    cleanup,
+    cleanup, command,
     history::now_ms,
     learn, live,
     paste::Paster,
     pill::{self, PillState},
     pipeline,
-    platform::{self, HotkeyEvent},
+    platform::{self, FrontApp, HotkeyEvent},
     settings::RecordingMode,
+    tone,
 };
 
 const CANCEL_KEY: &str = "Escape";
 
 const TRANSCRIBING: &str = "Transcribing...";
 const CLEANING_UP: &str = "Cleaning up...";
+const EDITING: &str = "Editing...";
 const STOPPING: &str = "Stopping transcription...";
 
 /// How long status messages stay in the pill.
@@ -76,6 +78,9 @@ pub enum Event {
     HotkeyUp,
     /// Another key was pressed while a single-modifier hotkey was held.
     HotkeyInterrupted,
+    /// The command mode shortcut, which records an edit for the selected text.
+    CommandHotkeyDown,
+    CommandHotkeyUp,
     /// Start or stop from the UI or tray, regardless of recording mode.
     Toggle,
     Escape,
@@ -243,6 +248,9 @@ impl Controller {
             owns_cancel_key: false,
             next_id: 0,
             typing_paused: false,
+            command_pressed: false,
+            command_session: None,
+            target: None,
         };
         thread::Builder::new()
             .name("dictation".into())
@@ -316,6 +324,12 @@ struct Session {
     owns_cancel_key: bool,
     next_id: u64,
     typing_paused: bool,
+    /// Set while handling the command shortcut, so a recording it starts is a command.
+    command_pressed: bool,
+    /// The session recording or running a command, if any.
+    command_session: Option<u64>,
+    /// The app being dictated into, found when recording starts.
+    target: Option<FrontApp>,
 }
 
 impl Session {
@@ -328,6 +342,13 @@ impl Session {
             Event::HotkeyDown => self.input(Input::HotkeyDown),
             Event::HotkeyUp => self.input(Input::HotkeyUp),
             Event::HotkeyInterrupted => self.input(Input::HotkeyInterrupted),
+            // The same rules as the dictation hotkey; only what's recorded differs.
+            Event::CommandHotkeyDown => {
+                self.command_pressed = true;
+                self.input(Input::HotkeyDown);
+                self.command_pressed = false;
+            }
+            Event::CommandHotkeyUp => self.input(Input::HotkeyUp),
             Event::Toggle => self.input(Input::Toggle),
             Event::Escape => self.input(Input::Escape),
             Event::Stage { session, stage } => self.stage(session, stage),
@@ -377,6 +398,10 @@ impl Session {
         if !self.state().models.is_downloaded(&settings.selected_model) {
             return self.flash("Model not downloaded", ERROR_MESSAGE);
         }
+        let command = by_hotkey && self.command_pressed;
+        if command && !command::is_ready(&self.app) {
+            return self.flash(command::NOT_SET_UP, ERROR_MESSAGE);
+        }
 
         let app = self.app.clone();
         let recording = Recording::start(&settings.input_device, move |level| {
@@ -392,7 +417,7 @@ impl Session {
                 let compatible = !by_hotkey
                     || settings.recording_mode == RecordingMode::Toggle
                     || settings.hotkey == "Fn";
-                let live = if settings.live_typing && compatible {
+                let live = if settings.live_typing && compatible && !command {
                     platform::typing_target().and_then(|target| {
                         live::Handle::spawn(
                             self.app.clone(),
@@ -408,6 +433,8 @@ impl Session {
                 } else {
                     None
                 };
+                self.command_session = command.then_some(session);
+                self.target = tone::detect();
                 let started_at_ms = now_ms();
                 self.phase = Phase::Recording {
                     recording,
@@ -479,12 +506,25 @@ impl Session {
             captured
         };
 
+        // A cancelled command has nothing to keep: what was said only made sense with the edit.
+        if cancelled && self.command_session == Some(session) {
+            return self.go_idle();
+        }
         let app = self.app.clone();
         let controller = self.controller.clone();
+        let target = self.target.clone();
+        let command = (self.command_session == Some(session)).then(|| self.paster.clone());
         let worker = thread::Builder::new()
             .name("transcription".into())
             .spawn(move || {
-                let outcome = transcribe(&app, &controller, session, &captured);
+                let outcome = transcribe(
+                    &app,
+                    &controller,
+                    session,
+                    &captured,
+                    target.as_ref(),
+                    command.as_ref(),
+                );
                 controller.send(Event::Transcribed { session, outcome });
             });
         if let Err(e) = worker {
@@ -510,6 +550,9 @@ impl Session {
             pipeline::Stage::CleaningUp => PillState::Processing {
                 message: CLEANING_UP.into(),
             },
+            pipeline::Stage::Editing => PillState::Processing {
+                message: EDITING.into(),
+            },
         });
     }
 
@@ -533,7 +576,10 @@ impl Session {
                 self.go_idle();
                 if !cancelled && !streamed {
                     let restore = self.state().settings().restore_clipboard;
-                    learn::watch_for_corrections(&self.app, &text);
+                    // An edit isn't a dictation to learn corrections from.
+                    if self.command_session != Some(session) {
+                        learn::watch_for_corrections(&self.app, &text);
+                    }
                     self.paster.paste(text, restore);
                 }
                 if paused && !cancelled {
@@ -642,20 +688,41 @@ impl Session {
 }
 
 /// Runs on a worker thread. Stage changes go through the controller, which
-/// drops them once the session has moved on.
+/// drops them once the session has moved on. With a `command` paster, what
+/// was said is an edit for the selected text.
 fn transcribe(
     app: &AppHandle,
     controller: &Controller,
     session: u64,
     captured: &Captured,
+    target: Option<&FrontApp>,
+    command: Option<&Paster>,
 ) -> Outcome {
     let on_stage = |stage| controller.send(Event::Stage { session, stage });
     // Without an outcome the session would stay transcribing until Escape.
-    panic::catch_unwind(AssertUnwindSafe(|| {
-        pipeline::run(app, &captured.samples, captured.duration_secs, on_stage)
+    panic::catch_unwind(AssertUnwindSafe(|| match command {
+        Some(paster) => {
+            let rules = app.state::<AppState>().settings().tone.apps;
+            let category = target.map_or(tone::AppCategory::Other, |t| tone::classify(t, &rules));
+            command::run(
+                app,
+                paster,
+                &captured.samples,
+                captured.duration_secs,
+                category,
+                on_stage,
+            )
+        }
+        None => pipeline::run(
+            app,
+            &captured.samples,
+            captured.duration_secs,
+            target,
+            on_stage,
+        )
+        .map(|item| item.transcript),
     }))
     .unwrap_or_else(|_| Err(pipeline::Error::Transcribe("The engine crashed".into())))
-    .map(|item| item.transcript)
 }
 
 #[cfg(test)]
