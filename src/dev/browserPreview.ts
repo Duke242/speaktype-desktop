@@ -220,7 +220,7 @@ export function installBrowserPreview() {
         case "list_models":
           return models;
         case "get_cleanup_status":
-          return { builtinAvailable: true, models: cleanupModels };
+          return { builtinAvailable: true, models: cleanupModels, setUp: settings.cleanup.enabled };
         case "get_app_tone":
           return {
             builtIn: [

@@ -9,6 +9,7 @@ import { formatMinutesSaved, formatNumber, hotkeyParts, plural } from "@/lib/for
 import { useCopy, useEngineStatus, useHistory, useNow } from "@/lib/hooks";
 import { hotkeyBlockedMessage, useWhileHotkeyBlocked } from "@/lib/hotkeyBlocked";
 import { useStore } from "@/lib/store";
+import { useTauriEvent } from "@/lib/useTauriEvent";
 import { feedTime, hotkeyVerb, recentlyLearned, summarize, thisDevice } from "./summary";
 
 /**
@@ -98,7 +99,13 @@ function Hero({
       </p>
 
       {model ? (
-        <StatusLine modelId={model.id} modelName={model.name} stats={stats} now={now} />
+        <StatusLine
+          modelId={model.id}
+          modelName={model.name}
+          stats={stats}
+          now={now}
+          onNavigate={onNavigate}
+        />
       ) : (
         <div className="mt-6 w-full max-w-[560px] text-left">
           <Callout
@@ -143,19 +150,22 @@ function Hero({
   );
 }
 
-/** Ready status and model, then today's count, total words and time saved, in one quiet line. */
+/** Ready status, model and AI cleanup, then today's count, total words and time saved, in one quiet line. */
 function StatusLine({
   modelId,
   modelName,
   stats,
   now,
+  onNavigate,
 }: {
   modelId: string;
   modelName: string;
   stats: StatsEntry[];
   now: number;
+  onNavigate: (route: Route) => void;
 }) {
   const engine = useEngineStatus();
+  const ready = engine.loaded === modelId;
   const summary = summarize(stats, now);
 
   return (
@@ -168,18 +178,25 @@ function StatusLine({
           </>
         ) : (
           <>
-            <span
-              className={cn(
-                "size-2 rounded-full",
-                engine.loaded === modelId
-                  ? "bg-success shadow-[0_0_0_4px_var(--color-success-soft)]"
-                  : "bg-ink-disabled",
+            <span className="relative flex size-2">
+              {/* A slow pulse while the model is loaded and listening for the hotkey. */}
+              {ready && (
+                <span className="absolute inset-0 rounded-full bg-success opacity-60 motion-safe:animate-ping motion-safe:[animation-duration:2s]" />
               )}
-            />
-            {engine.loaded === modelId ? `Ready · ${modelName}` : modelName}
+              <span
+                className={cn(
+                  "relative size-2 rounded-full",
+                  ready
+                    ? "bg-success shadow-[0_0_0_4px_var(--color-success-soft)]"
+                    : "bg-ink-disabled",
+                )}
+              />
+            </span>
+            {ready ? `Ready · ${modelName}` : modelName}
           </>
         )}
       </span>
+      <CleanupStatus onNavigate={onNavigate} />
       {stats.length > 0 && (
         <>
           <span>
@@ -195,6 +212,45 @@ function StatusLine({
         </>
       )}
     </div>
+  );
+}
+
+/** Whether dictations are tidied by a model or pasted as heard, so turning cleanup off is never a surprise. */
+function CleanupStatus({ onNavigate }: { onNavigate: (route: Route) => void }) {
+  const { settings } = useStore();
+  const [setUp, setSetUp] = useState<boolean>();
+  const refresh = useCallback(() => {
+    api
+      .getCleanupStatus()
+      .then((status) => setSetUp(status.setUp))
+      .catch(() => {});
+  }, []);
+  useEffect(refresh, [refresh]);
+  // Choosing or downloading a model changes whether cleanup can run.
+  useTauriEvent("settings-changed", refresh);
+  useTauriEvent("models-changed", refresh);
+
+  // Switched on but with no model ready, transcripts are pasted as heard, the same as off.
+  const state = !settings.cleanup.enabled ? "off" : setUp === false ? "unset" : "on";
+  const { label, hint } = {
+    on: { label: "AI cleanup on", hint: "Transcripts are tidied by your AI cleanup model." },
+    off: { label: "AI cleanup off", hint: "Transcripts are pasted as heard. Turn on AI cleanup in Settings." },
+    unset: { label: "AI cleanup not set up", hint: "Transcripts are pasted as heard until you choose a model in Settings." },
+  }[state];
+
+  return (
+    <button
+      type="button"
+      onClick={() => onNavigate("settings")}
+      title={hint}
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-full hover:text-ink-secondary hover:underline",
+        state === "on" && "text-accent-ink",
+      )}
+    >
+      {state === "unset" ? <TriangleAlert size={12} strokeWidth={2.25} /> : <Sparkles size={12} strokeWidth={2.25} />}
+      {label}
+    </button>
   );
 }
 
