@@ -837,6 +837,153 @@ pub async fn server_models(url: &str) -> Result<Vec<String>, String> {
     Ok(ids)
 }
 
+// ---- Other requests (meeting notes) ----
+
+/// Whether a cleanup model is set up to ask, whether or not cleanup of
+/// dictations is turned on.
+pub fn is_set_up(settings: &CleanupSettings, models: &ModelStore) -> bool {
+    match settings.backend {
+        CleanupBackend::Builtin => {
+            builtin_model_path(settings, models).is_ok() && worker_path().is_some()
+        }
+        CleanupBackend::Server => !settings.server_model.trim().is_empty(),
+    }
+}
+
+impl Cleaner {
+    /// Sends `messages` to the cleanup model and returns its reply unchecked,
+    /// for longer jobs than cleanup, like meeting notes. A dictation's cleanup
+    /// waits while the built-in helper answers this.
+    pub fn complete(
+        &self,
+        settings: &CleanupSettings,
+        models: &ModelStore,
+        messages: Vec<Message>,
+        max_tokens: u32,
+        timeout: Duration,
+    ) -> Result<String, String> {
+        if settings.backend == CleanupBackend::Server {
+            return server_complete(settings, messages, max_tokens, timeout);
+        }
+        let path = builtin_model_path(settings, models)?;
+        let mut worker = self.worker.lock_unpoisoned();
+        self.load(&mut worker, &path)?;
+        let request = Request {
+            model: &path,
+            messages,
+            max_tokens,
+        };
+        let running = worker.as_mut().ok_or("The cleanup helper isn't running")?;
+        let result = running.call(&request, timeout);
+        if running.broken {
+            *worker = None;
+        }
+        result
+    }
+}
+
+/// `Cleaner::complete` through a server: Ollama's own API, or an
+/// OpenAI-compatible one.
+fn server_complete(
+    settings: &CleanupSettings,
+    messages: Vec<Message>,
+    max_tokens: u32,
+    timeout: Duration,
+) -> Result<String, String> {
+    #[derive(Serialize)]
+    struct OllamaRequest<'a> {
+        model: &'a str,
+        messages: &'a [Message],
+        stream: bool,
+        think: bool,
+        keep_alive: i64,
+        options: OllamaOptions,
+    }
+    #[derive(Serialize)]
+    struct OpenAiRequest<'a> {
+        model: &'a str,
+        messages: &'a [Message],
+        temperature: f32,
+        max_tokens: u32,
+        stream: bool,
+        reasoning_effort: &'static str,
+    }
+    #[derive(Deserialize)]
+    struct OllamaResponse {
+        message: Content,
+    }
+    #[derive(Deserialize)]
+    struct OpenAiResponse {
+        choices: Vec<OpenAiChoice>,
+    }
+    #[derive(Deserialize)]
+    struct OpenAiChoice {
+        message: Content,
+    }
+    #[derive(Deserialize)]
+    struct Content {
+        content: Option<String>,
+    }
+
+    let model = settings.server_model.trim();
+    if model.is_empty() {
+        return Err("No server model chosen".into());
+    }
+    let failed = |e: reqwest::Error| format!("Cleanup server: {e}");
+    let unreadable = |e: reqwest::Error| format!("Cleanup server sent an unreadable reply: {e}");
+    let response = SERVER_CLIENT
+        .post(format!("{}/api/chat", ollama_root(&settings.server_url)?))
+        .timeout(timeout)
+        .json(&OllamaRequest {
+            model,
+            messages: &messages,
+            stream: false,
+            think: false,
+            keep_alive: keep_alive_seconds(settings.server_keep_alive_minutes),
+            // The same context as cleanup, so Ollama doesn't reload the model.
+            options: OllamaOptions {
+                num_ctx: OLLAMA_CONTEXT,
+                temperature: Some(0.2),
+                num_predict: Some(max_tokens),
+            },
+        })
+        .send()
+        .map_err(failed)?;
+    let content = if response.status() == reqwest::StatusCode::NOT_FOUND {
+        // Not Ollama.
+        let base = api_base(&settings.server_url)?;
+        let response: OpenAiResponse = SERVER_CLIENT
+            .post(format!("{base}/chat/completions"))
+            .timeout(timeout)
+            .json(&OpenAiRequest {
+                model,
+                messages: &messages,
+                temperature: 0.2,
+                max_tokens,
+                stream: false,
+                reasoning_effort: "none",
+            })
+            .send()
+            .and_then(|r| r.error_for_status())
+            .map_err(failed)?
+            .json()
+            .map_err(unreadable)?;
+        response
+            .choices
+            .into_iter()
+            .next()
+            .and_then(|c| c.message.content)
+    } else {
+        let response: OllamaResponse = response
+            .error_for_status()
+            .map_err(failed)?
+            .json()
+            .map_err(unreadable)?;
+        response.message.content
+    };
+    content.ok_or_else(|| "Cleanup server sent an empty reply".into())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1013,6 +1160,29 @@ mod tests {
         assert!(!is_local("http://localhost:1@example.com/v1"));
         assert!(is_local("http://127.0.0.2:8080"));
         assert!(is_local("http://LOCALHOST:11434"));
+    }
+
+    #[test]
+    fn set_up_ignores_whether_dictation_cleanup_is_on() {
+        let models = ModelStore::new(PathBuf::from("/nonexistent/models"));
+        let mut settings = CleanupSettings {
+            backend: CleanupBackend::Server,
+            ..CleanupSettings::default()
+        };
+        assert!(!is_set_up(&settings, &models));
+        settings.server_model = "llama3.2".into();
+        assert!(is_set_up(&settings, &models));
+        settings.backend = CleanupBackend::Builtin;
+        assert!(!is_set_up(&settings, &models), "no model downloaded");
+        assert!(
+            server_complete(
+                &CleanupSettings::default(),
+                Vec::new(),
+                10,
+                Duration::from_secs(1)
+            )
+            .is_err()
+        );
     }
 
     #[test]

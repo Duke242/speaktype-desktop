@@ -5,6 +5,7 @@ mod focus;
 mod hotkey;
 mod media;
 mod permissions;
+mod system_audio;
 mod typing;
 
 use std::{path::Path, process::Command};
@@ -16,6 +17,7 @@ pub use focus::FocusedField;
 pub use hotkey::MODIFIER_HOTKEYS;
 pub use media::{PausedMedia, pause_media, resume_media};
 pub use permissions::{permission_settings_url, permissions, request_permission};
+pub use system_audio::{SYSTEM_AUDIO_NOTE, open_system_audio, system_audio_sources};
 pub use typing::{send_live_text, typing_target};
 
 use super::HotkeyHandler;

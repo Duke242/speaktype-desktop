@@ -10,6 +10,7 @@ mod learn;
 mod legacy;
 mod live;
 mod media;
+mod meeting;
 mod models;
 mod paste;
 mod pill;
@@ -368,6 +369,7 @@ pub fn run() {
                 hotkey_error: Mutex::new(None),
                 device: OnceLock::new(),
             });
+            app.manage(meeting::Meetings::new(data_dir.join("meetings")));
 
             if let Some(main) = app.get_webview_window("main") {
                 platform::style_main_window(&main);
@@ -451,6 +453,17 @@ pub fn run() {
             commands::open_main_window,
             commands::hide_tray_panel,
             commands::quit_app,
+            meeting::commands::get_meeting_setup,
+            meeting::commands::get_meeting_state,
+            meeting::commands::start_meeting,
+            meeting::commands::stop_meeting,
+            meeting::commands::list_meetings,
+            meeting::commands::get_meeting,
+            meeting::commands::rename_meeting,
+            meeting::commands::delete_meeting,
+            meeting::commands::summarize_meeting,
+            meeting::commands::reveal_meeting_audio,
+            meeting::commands::export_meeting_markdown,
         ])
         .build(tauri::generate_context!())
         .expect("error while building Wordfall");

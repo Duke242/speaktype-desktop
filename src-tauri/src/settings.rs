@@ -83,6 +83,29 @@ impl Default for CleanupSettings {
     }
 }
 
+/// Meeting notes (see `meeting`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct MeetingSettings {
+    /// Record what the computer plays along with the microphone.
+    pub capture_system_audio: bool,
+    /// Where system audio comes from, as listed by `platform::system_audio_sources`,
+    /// or empty for the default output.
+    pub system_audio_source: String,
+    /// Write notes with the cleanup model when a meeting ends.
+    pub summarize_automatically: bool,
+}
+
+impl Default for MeetingSettings {
+    fn default() -> Self {
+        Self {
+            capture_system_audio: true,
+            system_audio_source: String::new(),
+            summarize_automatically: true,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct Settings {
@@ -123,6 +146,7 @@ pub struct Settings {
     pub has_imported_v1: bool,
     /// Set once the app has sent a new user to AI Models, so it only happens once.
     pub has_shown_model_prompt: bool,
+    pub meetings: MeetingSettings,
 }
 
 impl Default for Settings {
@@ -153,6 +177,7 @@ impl Default for Settings {
             has_completed_onboarding: false,
             has_imported_v1: false,
             has_shown_model_prompt: false,
+            meetings: MeetingSettings::default(),
         }
     }
 }
@@ -324,6 +349,7 @@ mod tests {
             "dictionary",
             "hasCompletedOnboarding",
             "hasShownModelPrompt",
+            "meetings",
         ] {
             assert!(value.get(key).is_some(), "missing {key}");
         }

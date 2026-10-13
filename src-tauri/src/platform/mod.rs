@@ -15,6 +15,8 @@
 //!   correction made after dictating can be learned. Never available on Linux.
 //! - `pause_media`, `resume_media`, `PausedMedia`: pause what's playing while
 //!   the user dictates, and resume only that afterwards.
+//! - `SYSTEM_AUDIO_NOTE`, `system_audio_sources`, `open_system_audio`: recording
+//!   what the computer plays, for meeting notes.
 
 use enigo::{Direction, Enigo, Key, Keyboard};
 use serde::{Deserialize, Serialize};
