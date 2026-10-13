@@ -98,7 +98,14 @@ function Hero({
       </p>
 
       {model ? (
-        <StatusLine modelId={model.id} modelName={model.name} stats={stats} now={now} />
+        <StatusLine
+          modelId={model.id}
+          modelName={model.name}
+          cleanup={settings.cleanup.enabled}
+          stats={stats}
+          now={now}
+          onNavigate={onNavigate}
+        />
       ) : (
         <div className="mt-6 w-full max-w-[560px] text-left">
           <Callout
@@ -143,17 +150,21 @@ function Hero({
   );
 }
 
-/** Ready status and model, then today's count, total words and time saved, in one quiet line. */
+/** Ready status, model and AI cleanup, then today's count, total words and time saved, in one quiet line. */
 function StatusLine({
   modelId,
   modelName,
+  cleanup,
   stats,
   now,
+  onNavigate,
 }: {
   modelId: string;
   modelName: string;
+  cleanup: boolean;
   stats: StatsEntry[];
   now: number;
+  onNavigate: (route: Route) => void;
 }) {
   const engine = useEngineStatus();
   const summary = summarize(stats, now);
@@ -168,18 +179,37 @@ function StatusLine({
           </>
         ) : (
           <>
-            <span
-              className={cn(
-                "size-2 rounded-full",
-                engine.loaded === modelId
-                  ? "bg-success shadow-[0_0_0_4px_var(--color-success-soft)]"
-                  : "bg-ink-disabled",
+            <span className="relative flex size-2">
+              {/* A slow pulse while the model is loaded and listening for the hotkey. */}
+              {engine.loaded === modelId && (
+                <span className="absolute inset-0 rounded-full bg-success opacity-60 motion-safe:animate-ping motion-safe:[animation-duration:2s]" />
               )}
-            />
+              <span
+                className={cn(
+                  "relative size-2 rounded-full",
+                  engine.loaded === modelId
+                    ? "bg-success shadow-[0_0_0_4px_var(--color-success-soft)]"
+                    : "bg-ink-disabled",
+                )}
+              />
+            </span>
             {engine.loaded === modelId ? `Ready · ${modelName}` : modelName}
           </>
         )}
       </span>
+      {/* Whether transcripts are tidied by a model or pasted as heard, so turning cleanup off is never a surprise. */}
+      <button
+        type="button"
+        onClick={() => onNavigate("settings")}
+        title={cleanup ? "Transcripts are tidied by your AI cleanup model." : "Transcripts are pasted as heard. Turn on AI cleanup in Settings."}
+        className={cn(
+          "inline-flex items-center gap-1.5 rounded-full hover:text-ink-secondary hover:underline",
+          cleanup && "text-accent-ink",
+        )}
+      >
+        <Sparkles size={12} strokeWidth={2.25} />
+        AI cleanup {cleanup ? "on" : "off"}
+      </button>
       {stats.length > 0 && (
         <>
           <span>
