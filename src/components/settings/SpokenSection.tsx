@@ -1,4 +1,4 @@
-import { Pilcrow } from "lucide-react";
+import { Pilcrow, Undo2 } from "lucide-react";
 import { Section, SettingRow, Switch, useToast } from "@/components/ui";
 import { errorMessage, type Settings } from "@/lib/api";
 import { useStore } from "@/lib/store";
@@ -25,6 +25,13 @@ export function SpokenSection() {
         description="Say “scratch that” to take back the last sentence, or “new line” and “new paragraph” to start one. Off while typing live."
       >
         <Switch checked={settings.voiceCommands} onChange={(voiceCommands) => save({ voiceCommands })} />
+      </SettingRow>
+      <SettingRow
+        icon={Undo2}
+        label="Keep only my correction"
+        description="When you correct yourself mid-sentence, the correction replaces what it fixes: “meet at 3, actually 4” becomes “meet at 4”."
+      >
+        <Switch checked={settings.selfCorrections} onChange={(selfCorrections) => save({ selfCorrections })} />
       </SettingRow>
     </Section>
   );

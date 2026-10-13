@@ -36,7 +36,9 @@ pub struct Options<'a> {
     pub dictionary: &'a [DictionaryEntry],
     /// "Scratch that", "new line" and "new paragraph".
     pub voice_commands: bool,
-    /// Voice commands only understand English.
+    /// "Meet at 3, actually 4" becomes "meet at 4".
+    pub self_corrections: bool,
+    /// The two rules above only understand English.
     pub english: bool,
 }
 
@@ -53,12 +55,16 @@ pub fn process(raw: &str, options: &Options) -> String {
     finish(&normalize_transcription(raw, options.auto_edit), options)
 }
 
-/// Voice commands, then dictionary rules and trailing punctuation.
+/// Voice commands and corrections, then dictionary rules and trailing
+/// punctuation.
 pub fn finish(text: &str, options: &Options) -> String {
     let english = |on: bool| on && options.english;
     let mut text = text.to_string();
     if english(options.voice_commands) {
         text = spoken::apply_commands(&text);
+    }
+    if english(options.self_corrections) {
+        text = spoken::apply_corrections(&text);
     }
     let text = apply_dictionary(&text, options.dictionary);
     if options.smart_trailing_punctuation {
@@ -558,14 +564,19 @@ mod tests {
             smart_trailing_punctuation: true,
             dictionary,
             voice_commands: true,
+            self_corrections: true,
             english: true,
         }
     }
 
     #[test]
-    fn voice_commands_run_before_the_dictionary() {
+    fn spoken_rules_run_in_order_before_the_dictionary() {
         let dictionary = [entry("word fall", "Wordfall", true)];
         let options = options(&dictionary);
+        assert_eq!(
+            process("um, meet at 3 pm, actually 4 pm in word fall.", &options),
+            "meet at 4 pm in Wordfall."
+        );
         assert_eq!(
             process(
                 "Try word fall. Scratch that. Use word fall new line thanks",
@@ -594,21 +605,31 @@ mod tests {
             "I actually think the second one is fine.",
             // Found in review: each of these was rewritten.
             "It's a brand new line.",
+            "I'm free on Monday, actually Tuesday too.",
+            "I'm busy today, actually tomorrow too.",
+            "I was wrong, actually I was right.",
+            "It's fine, actually it's great.",
+            "This is good, I mean this is great.",
+            "We're close, actually we're done.",
+            "We need 5, actually 2 more.",
+            "We sold 10, actually 5 more than last year.",
         ] {
             assert_eq!(process(said, &options), said);
         }
     }
 
     #[test]
-    fn voice_commands_are_off_for_other_languages_and_when_switched_off() {
+    fn spoken_rules_are_off_for_other_languages_and_when_switched_off() {
         let mut options = options(&[]);
-        let said = "one new line two";
+        let said = "meet at 3 pm, actually 4 pm";
         options.english = false;
         assert_eq!(process(said, &options), said);
         options.english = true;
-        assert_eq!(process(said, &options), "one\nTwo");
-        options.voice_commands = false;
+        assert_eq!(process(said, &options), "meet at 4 pm");
+        options.self_corrections = false;
         assert_eq!(process(said, &options), said);
+        options.voice_commands = false;
+        assert_eq!(process("one new line two", &options), "one new line two");
         assert!(is_english("auto") && is_english("en") && !is_english("de"));
     }
 

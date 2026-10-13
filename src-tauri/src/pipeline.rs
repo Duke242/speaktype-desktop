@@ -123,6 +123,7 @@ pub fn run(
         smart_trailing_punctuation: settings.smart_trailing_punctuation,
         dictionary: &settings.dictionary,
         voice_commands: settings.voice_commands,
+        self_corrections: settings.self_corrections,
         english: text::is_english(&settings.language),
     };
     let style = tone::Style::new(&settings.tone, target);

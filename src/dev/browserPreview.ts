@@ -56,6 +56,7 @@ export function installBrowserPreview() {
       { id: "4", trigger: "cooper netties", replacement: "Kubernetes", isEnabled: true, matchWholeWord: true, learned: true },
     ],
     voiceCommands: true,
+    selfCorrections: true,
     hasCompletedOnboarding: params.get("onboarding") !== "1",
     hasShownModelPrompt: true,
     hasImportedV1: false,
