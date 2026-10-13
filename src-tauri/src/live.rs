@@ -338,6 +338,7 @@ fn phrase_options(settings: &Settings, final_phrase: bool) -> text::Options<'_> 
         // "scratch that" could only take back the phrase it's in.
         voice_commands: false,
         self_corrections: settings.self_corrections,
+        smart_formatting: settings.smart_formatting,
         english: text::is_english(&settings.language),
     }
 }

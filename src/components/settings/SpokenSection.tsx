@@ -1,4 +1,4 @@
-import { Pilcrow, Undo2 } from "lucide-react";
+import { ListOrdered, Pilcrow, Undo2 } from "lucide-react";
 import { Section, SettingRow, Switch, useToast } from "@/components/ui";
 import { errorMessage, type Settings } from "@/lib/api";
 import { useStore } from "@/lib/store";
@@ -32,6 +32,13 @@ export function SpokenSection() {
         description="When you correct yourself mid-sentence, the correction replaces what it fixes: “meet at 3, actually 4” becomes “meet at 4”."
       >
         <Switch checked={settings.selfCorrections} onChange={(selfCorrections) => save({ selfCorrections })} />
+      </SettingRow>
+      <SettingRow
+        icon={ListOrdered}
+        label="Format lists, numbers and dates"
+        description="Spoken lists become lists, and numbers, dates, times, prices and percentages are written as you'd type them: “March third” becomes March 3. Small numbers in sentences stay words."
+      >
+        <Switch checked={settings.smartFormatting} onChange={(smartFormatting) => save({ smartFormatting })} />
       </SettingRow>
     </Section>
   );

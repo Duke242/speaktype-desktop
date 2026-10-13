@@ -57,6 +57,7 @@ export function installBrowserPreview() {
     ],
     voiceCommands: true,
     selfCorrections: true,
+    smartFormatting: true,
     hasCompletedOnboarding: params.get("onboarding") !== "1",
     hasShownModelPrompt: true,
     hasImportedV1: false,

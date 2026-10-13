@@ -124,6 +124,7 @@ pub fn run(
         dictionary: &settings.dictionary,
         voice_commands: settings.voice_commands,
         self_corrections: settings.self_corrections,
+        smart_formatting: settings.smart_formatting,
         english: text::is_english(&settings.language),
     };
     let style = tone::Style::new(&settings.tone, target);
