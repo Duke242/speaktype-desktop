@@ -51,6 +51,11 @@ export interface Settings {
   language: string;
   recentLanguages: string[];
   inputDevice: string;
+  /** Whisper mode: raise quiet speech to a normal level before transcribing. */
+  boostQuietSpeech: boolean;
+  /** Pause music and videos while recording, and resume them afterwards. */
+  pauseMedia: boolean;
+  launchAtLogin: boolean;
   autoEdit: boolean;
   smartTrailingPunctuation: boolean;
   cleanup: CleanupSettings;

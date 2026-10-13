@@ -22,6 +22,9 @@ export function installBrowserPreview() {
     language: "auto",
     recentLanguages: ["en", "hi"],
     inputDevice: "",
+    boostQuietSpeech: true,
+    pauseMedia: false,
+    launchAtLogin: false,
     autoEdit: false,
     smartTrailingPunctuation: true,
     cleanup: {

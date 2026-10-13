@@ -3,6 +3,7 @@ import {
   BookA,
   ClipboardCheck,
   Command,
+  Ear,
   Globe,
   Hand,
   Import,
@@ -68,7 +69,12 @@ export function SettingsScreen() {
         actions={<SegmentedControl value={tab} options={tabs} onChange={setTab} className={tabs.length > 2 ? "w-[340px]" : "w-[230px]"} />}
       />
       {tab === "general" && <GeneralTab />}
-      {tab === "audio" && <AudioTab />}
+      {tab === "audio" && (
+        <>
+          <AudioTab />
+          <RecordingSection />
+        </>
+      )}
       {tab === "permissions" && <PermissionsTab />}
     </Page>
   );
@@ -455,6 +461,26 @@ function AudioTab() {
           );
         })
       )}
+    </Section>
+  );
+}
+
+function RecordingSection() {
+  const { settings } = useStore();
+  const save = useSave();
+  return (
+    <Section title="While you dictate">
+      <SettingRow
+        icon={Ear}
+        label="Whisper mode"
+        description={
+          settings.boostQuietSpeech
+            ? "Speaking softly? Quiet speech is turned up before it's transcribed. Silence and background noise are left alone."
+            : "Audio is transcribed at the level it was recorded."
+        }
+      >
+        <Switch label="Whisper mode" checked={settings.boostQuietSpeech} onChange={(boostQuietSpeech) => save({ boostQuietSpeech })} />
+      </SettingRow>
     </Section>
   );
 }
