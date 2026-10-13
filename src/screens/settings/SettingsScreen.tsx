@@ -269,7 +269,7 @@ function GeneralTab() {
           label="Learn from my corrections"
           description={
             settings.learnCorrections
-              ? "When you fix a misheard name or term, Wordfall adds it to Dictionary and listens for it next time. Learned words can be removed there."
+              ? "When you fix a misheard name or term, or its capitals (github → GitHub), Wordfall adds it to Dictionary and gets it right next time. Learned words can be removed there."
               : "Corrections are saved but nothing is learned from them."
           }
         >

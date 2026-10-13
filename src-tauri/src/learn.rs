@@ -9,6 +9,11 @@
 //! three words replaced by something that sounds similar and isn't everyday
 //! vocabulary. Rewording a sentence, or fixing "their" to "there", teaches nothing.
 //!
+//! Capitals are learned too: "github" fixed to "GitHub", or "new york" to
+//! "New York", becomes an entry that writes it that way from then on. Only
+//! capitals added mid-sentence count; one added to the first word of a
+//! sentence is grammar, and so is changing the case of everyday words.
+//!
 //! On macOS and Windows, the field a dictation was typed into is watched for a
 //! short while afterwards (`watch_for_corrections`), so fixing a word right
 //! where it was typed teaches it too. Only that field is read, never a password
@@ -50,17 +55,22 @@ pub fn corrections(typed: &str, edited: &str) -> Vec<Correction> {
     {
         return Vec::new();
     }
-    let changes = changed_runs(&before, &after);
-    let changed_words: usize = changes.iter().map(|(heard, _)| heard.len()).sum();
+    let (changes, recased) = changed_runs(&before, &after);
+    let changed_words: usize = changes
+        .iter()
+        .map(|(heard, _)| heard.len())
+        .chain(recased.iter().map(|run| run.heard.len()))
+        .sum();
     // Changing more than half the words is rewriting, not correcting. A dictation
     // of a few words, like a name on its own, can be corrected entirely.
     let rewritten = before.len() > MAX_WORDS && changed_words * 2 > before.len();
-    if changes.len() > MAX_CORRECTIONS * 2 || rewritten {
+    if changes.len() + recased.len() > MAX_CORRECTIONS * 2 || rewritten {
         return Vec::new();
     }
     let found: Vec<Correction> = changes
         .into_iter()
         .filter_map(|(heard, meant)| correction(&heard, &meant))
+        .chain(recased.iter().filter_map(|run| recasing(&before, run)))
         .collect();
     if found.len() > MAX_CORRECTIONS {
         return Vec::new();
@@ -68,9 +78,21 @@ pub fn corrections(typed: &str, edited: &str) -> Vec<Correction> {
     found
 }
 
+/// Neighbouring words kept but written with different capitals.
+#[derive(Debug)]
+struct Recased<'a> {
+    /// Where the run starts in the typed words.
+    start: usize,
+    heard: Vec<&'a str>,
+    meant: Vec<&'a str>,
+}
+
+type Runs<'a> = (Vec<(Vec<&'a str>, Vec<&'a str>)>, Vec<Recased<'a>>);
+
 /// Runs of words replaced by other words, found by aligning the two texts on
-/// the words they share. Words only added or only removed aren't included.
-fn changed_runs<'a>(before: &[&'a str], after: &[&'a str]) -> Vec<(Vec<&'a str>, Vec<&'a str>)> {
+/// the words they share, and runs of shared words whose capitals changed.
+/// Words only added or only removed aren't included.
+fn changed_runs<'a>(before: &[&'a str], after: &[&'a str]) -> Runs<'a> {
     let a: Vec<String> = before.iter().map(|w| key(w)).collect();
     let b: Vec<String> = after.iter().map(|w| key(w)).collect();
     // Longest common subsequence table, filled from the end.
@@ -85,6 +107,7 @@ fn changed_runs<'a>(before: &[&'a str], after: &[&'a str]) -> Vec<(Vec<&'a str>,
         }
     }
     let mut runs = Vec::new();
+    let mut recased: Vec<Recased<'a>> = Vec::new();
     let (mut removed, mut added) = (Vec::new(), Vec::new());
     let (mut i, mut j) = (0, 0);
     let mut flush = |removed: &mut Vec<&'a str>, added: &mut Vec<&'a str>| {
@@ -97,6 +120,19 @@ fn changed_runs<'a>(before: &[&'a str], after: &[&'a str]) -> Vec<(Vec<&'a str>,
     while i < a.len() || j < b.len() {
         if i < a.len() && j < b.len() && a[i] == b[j] {
             flush(&mut removed, &mut added);
+            if phrase(&[before[i]]) != phrase(&[after[j]]) {
+                match recased.last_mut() {
+                    Some(run) if run.start + run.heard.len() == i => {
+                        run.heard.push(before[i]);
+                        run.meant.push(after[j]);
+                    }
+                    _ => recased.push(Recased {
+                        start: i,
+                        heard: vec![before[i]],
+                        meant: vec![after[j]],
+                    }),
+                }
+            }
             i += 1;
             j += 1;
         } else if j < b.len() && (i == a.len() || lcs[i][j + 1] >= lcs[i + 1][j]) {
@@ -108,7 +144,24 @@ fn changed_runs<'a>(before: &[&'a str], after: &[&'a str]) -> Vec<(Vec<&'a str>,
         }
     }
     flush(&mut removed, &mut added);
-    runs
+    // A run of recased words ends where a word kept its case or was changed.
+    let mut joined: Vec<Recased<'a>> = Vec::new();
+    for run in recased {
+        match joined.last_mut() {
+            Some(last)
+                if last.start + last.heard.len() == run.start
+                    && last.heard.len() + run.heard.len() <= MAX_WORDS => {}
+            _ => {
+                joined.push(run);
+                continue;
+            }
+        }
+        if let Some(last) = joined.last_mut() {
+            last.heard.extend(run.heard);
+            last.meant.extend(run.meant);
+        }
+    }
+    (runs, joined)
 }
 
 fn correction(heard: &[&str], meant: &[&str]) -> Option<Correction> {
@@ -133,6 +186,39 @@ fn correction(heard: &[&str], meant: &[&str]) -> Option<Correction> {
     }
     (similarity(&sound(&heard), &sound(&meant)) >= MIN_SIMILARITY)
         .then_some(Correction { heard, meant })
+}
+
+/// A run of words written with new capitals, if it's worth learning: capitals
+/// added to a name or term mid-sentence, not to the first word of a sentence,
+/// and not to everyday words.
+fn recasing(typed: &[&str], run: &Recased) -> Option<Correction> {
+    if run.heard.len() > MAX_WORDS {
+        return None;
+    }
+    let heard = phrase(&run.heard);
+    let meant = phrase(&run.meant);
+    if heard.is_empty() || heard == meant || !meant.chars().any(char::is_uppercase) {
+        return None;
+    }
+    if meant.split_whitespace().all(is_common) {
+        return None;
+    }
+    let sentence_start = run.start == 0
+        || typed[run.start - 1]
+            .trim_end_matches(['"', '\'', ')', '”', '’'])
+            .ends_with(['.', '!', '?', ':']);
+    if sentence_start && meant == capitalize(&heard) {
+        return None;
+    }
+    Some(Correction { heard, meant })
+}
+
+/// `text` with its first letter in capitals.
+fn capitalize(text: &str) -> String {
+    let mut chars = text.chars();
+    chars.next().map_or_else(String::new, |first| {
+        first.to_uppercase().chain(chars).collect()
+    })
 }
 
 /// Whether one word is the other with an ending added, like "meeting" and
@@ -222,6 +308,17 @@ pub fn add_to_dictionary(
         let reverses = |entry: &DictionaryEntry| {
             same(&entry.trigger, &correction.meant) && same(&entry.replacement, &correction.heard)
         };
+        // New capitals for a word already learned: the latest wins.
+        if let Some(entry) = dictionary.iter_mut().find(|entry| {
+            entry.learned
+                && same(&entry.trigger, &correction.heard)
+                && same(&entry.replacement, &correction.meant)
+                && entry.replacement.trim() != correction.meant
+        }) {
+            entry.replacement = correction.meant.clone();
+            added.push(entry.clone());
+            continue;
+        }
         let known = dictionary.iter().any(|entry| {
             same(&entry.trigger, &correction.heard) || (!entry.learned && reverses(entry))
         });
@@ -447,11 +544,6 @@ mod tests {
                 ("Cooper netties".into(), "Kubernetes".into())
             ]
         );
-        assert_eq!(
-            found("ping jon on slack", "ping Jon on Slack"),
-            Vec::<(String, String)>::new(),
-            "capitalization alone isn't a mishearing"
-        );
         // A name dictated on its own is the commonest thing to correct.
         assert_eq!(
             found("Karen.", "Karan."),
@@ -461,6 +553,84 @@ mod tests {
             found("Cooper netties", "Kubernetes"),
             [("Cooper netties".into(), "Kubernetes".into())]
         );
+    }
+
+    #[test]
+    fn learns_names_and_terms_given_capitals() {
+        let none = Vec::<(String, String)>::new();
+        assert_eq!(
+            found("ping jon on slack", "ping Jon on Slack"),
+            [
+                ("jon".into(), "Jon".into()),
+                ("slack".into(), "Slack".into())
+            ]
+        );
+        assert_eq!(
+            found(
+                "I pushed it to github, then the iphone build.",
+                "I pushed it to GitHub, then the iPhone build."
+            ),
+            [
+                ("github".into(), "GitHub".into()),
+                ("iphone".into(), "iPhone".into())
+            ]
+        );
+        assert_eq!(
+            found("call the api", "call the API"),
+            [("api".into(), "API".into())]
+        );
+        // Neighbouring words make one entry.
+        assert_eq!(
+            found(
+                "we flew to new york on monday",
+                "we flew to New York on Monday"
+            ),
+            [
+                ("new york".into(), "New York".into()),
+                ("monday".into(), "Monday".into())
+            ]
+        );
+        // A name on its own, or at the start, with more than the first letter changed.
+        assert_eq!(
+            found("github", "GitHub"),
+            [("github".into(), "GitHub".into())]
+        );
+        assert_eq!(
+            found("Github is down", "GitHub is down"),
+            [("Github".into(), "GitHub".into())]
+        );
+        // The first word of a sentence is grammar.
+        assert_eq!(
+            found("thanks. karan will call", "thanks. Karan will call"),
+            none
+        );
+        assert_eq!(found("karan will call", "Karan will call"), none);
+        // Everyday words, and capitals taken away, teach nothing.
+        assert_eq!(found("go to the house", "go to The House"), none);
+        assert_eq!(found("I use Bash daily", "I use bash daily"), none);
+        // Title-casing a whole sentence is rewriting.
+        assert_eq!(
+            found(
+                "quarterly roadmap review notes",
+                "Quarterly Roadmap Review Notes"
+            ),
+            none
+        );
+    }
+
+    #[test]
+    fn new_capitals_replace_learned_ones() {
+        let fix = |heard: &str, meant: &str| Correction {
+            heard: heard.into(),
+            meant: meant.into(),
+        };
+        let mut dictionary = Vec::new();
+        add_to_dictionary(&mut dictionary, &[fix("github", "Github")]);
+        let added = add_to_dictionary(&mut dictionary, &[fix("github", "GitHub")]);
+        assert_eq!(added.len(), 1);
+        assert_eq!(dictionary.len(), 1);
+        assert_eq!(dictionary[0].replacement, "GitHub");
+        assert!(add_to_dictionary(&mut dictionary, &[fix("github", "GitHub")]).is_empty());
     }
 
     #[test]
