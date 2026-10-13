@@ -47,7 +47,7 @@ pub enum Theme {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum CleanupBackend {
-    /// A model SpeakType downloads and runs itself.
+    /// A model Wordfall downloads and runs itself.
     Builtin,
     /// A local server with an OpenAI-compatible API, such as Ollama or LM Studio.
     Server,

@@ -29,7 +29,7 @@ pub fn preferences_path(home: &Path) -> Option<PathBuf> {
     cfg!(target_os = "macos").then(|| home.join("Library/Preferences/com.2048labs.speaktype.plist"))
 }
 
-/// Early SpeakType 2 builds used the app ID `com.2048labs.speaktype.desktop`,
+/// Early Wordfall builds used the app ID `com.2048labs.speaktype.desktop`,
 /// before taking over SpeakType 1's `com.2048labs.speaktype` so the old app can
 /// update in place. Moves an early build's folder (`dir` plus `.desktop`) to
 /// `dir`, unless `dir` already has something in it. Returns whether it moved.
