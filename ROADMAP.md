@@ -57,3 +57,13 @@ why, see [macos-v1/ROADMAP.md](macos-v1/ROADMAP.md).
 - [ ] Windows build, tested
 - [ ] Linux build, tested (X11 and Wayland)
 - [ ] Single-modifier hotkeys on Windows and Linux
+
+### Meeting notes
+- [x] Record the microphone and system audio as separate tracks, labelled "You" and "Others" (#170)
+- [x] Live transcript in 15–30 s windows cut at pauses, streamed to disk for hour-long meetings (#171)
+- [x] Summary, action items and open questions by the cleanup model, map-reduce for long meetings; copy or save as Markdown (#172)
+- [x] Meetings list with search, detail page, rename, delete
+- [ ] System audio tested on real machines: WASAPI loopback (Windows), process taps (macOS 14.2+), PulseAudio/PipeWire monitors (Linux)
+- [ ] Play a meeting's recording from its page (playback currently loads whole files, too large for long meetings)
+- [ ] Speaker diarization within each track, beyond "You" and "Others"
+- [ ] Echo cancellation instead of dropping microphone audio while the speakers are louder
