@@ -13,6 +13,8 @@
 //! - `NEURAL_ENGINE`, `extract_zip`, `ORT_ACCELERATOR`: speech model acceleration.
 //! - `FocusedField`: reads the focused text field in another app, so a
 //!   correction made after dictating can be learned. Never available on Linux.
+//! - `SYSTEM_AUDIO_NOTE`, `system_audio_sources`, `open_system_audio`: recording
+//!   what the computer plays, for meeting notes.
 
 use enigo::{Direction, Enigo, Key, Keyboard};
 use serde::{Deserialize, Serialize};

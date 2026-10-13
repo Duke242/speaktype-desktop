@@ -2,6 +2,7 @@
 //! build time.
 
 mod focus;
+mod system_audio;
 
 use std::path::Path;
 
@@ -9,6 +10,7 @@ use enigo::{Enigo, Key};
 use tauri::WebviewWindow;
 
 pub use focus::FocusedField;
+pub use system_audio::{SYSTEM_AUDIO_NOTE, open_system_audio, system_audio_sources};
 
 use super::{HotkeyHandler, Permission, PermissionKind};
 
