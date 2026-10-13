@@ -37,6 +37,11 @@ pub fn send_paste_shortcut(enigo: Option<&mut Enigo>) -> Result<(), String> {
     super::press_combo(enigo, &[Key::Control], Key::V)
 }
 
+pub fn send_return_key(enigo: Option<&mut Enigo>) -> Result<(), String> {
+    let enigo = enigo.ok_or("Keyboard simulation is unavailable")?;
+    super::press_combo(enigo, &[], Key::Return)
+}
+
 /// Terminals are told apart by their executable, and get their own shortcut.
 pub fn can_copy_selection() -> bool {
     true

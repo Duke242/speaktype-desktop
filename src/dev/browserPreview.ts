@@ -19,6 +19,7 @@ export function installBrowserPreview() {
     hotkey: os === "macos" ? "Fn" : "Ctrl+Shift+Space",
     recordingMode: "hold",
     liveTyping: false,
+    finishAndSend: false,
     selectedModel: "small-en",
     language: "auto",
     recentLanguages: ["en", "hi"],

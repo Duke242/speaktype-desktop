@@ -83,6 +83,7 @@ export interface Settings {
   hotkey: string;
   recordingMode: RecordingMode;
   liveTyping: boolean;
+  finishAndSend: boolean;
   selectedModel: string;
   language: string;
   recentLanguages: string[];
