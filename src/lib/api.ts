@@ -60,6 +60,16 @@ export interface ToneSettings {
   apps: AppRule[];
 }
 
+/** Meeting notes: what to record, and whether to write notes afterwards. */
+export interface MeetingSettings {
+  /** Record what the computer plays along with the microphone. */
+  captureSystemAudio: boolean;
+  /** Id from `getMeetingSetup().systemAudioSources`; "" for the default output. */
+  systemAudioSource: string;
+  /** Write notes with the cleanup model when a meeting ends. */
+  summarizeAutomatically: boolean;
+}
+
 export interface Settings {
   theme: Theme;
   hotkey: string;
@@ -89,6 +99,7 @@ export interface Settings {
   hasShownModelPrompt: boolean;
   /** Set once SpeakType 1's data has been brought over. */
   hasImportedV1: boolean;
+  meetings: MeetingSettings;
 }
 
 export type OS = "macos" | "windows" | "linux";
@@ -231,6 +242,94 @@ export interface UpdateInfo {
   url: string;
 }
 
+/** The microphone is "You", what the computer played is "Others". */
+export type MeetingSource = "microphone" | "system";
+
+export interface MeetingSegment {
+  /** Seconds from the start of the meeting. */
+  startSecs: number;
+  endSecs: number;
+  source: MeetingSource;
+  text: string;
+}
+
+export interface MeetingNotes {
+  summary: string;
+  actionItems: string[];
+  openQuestions: string[];
+}
+
+export type MeetingStatus = "recording" | "processing" | "done";
+
+export interface Meeting {
+  id: string;
+  title: string;
+  createdAt: number;
+  durationSecs: number;
+  status: MeetingStatus;
+  /** The tracks recorded. With both, segments are labelled "You" and "Others". */
+  sources: MeetingSource[];
+  /** In time order. */
+  segments: MeetingSegment[];
+  audioPath: string | null;
+  model: string;
+  notes: MeetingNotes | null;
+  /** Why the last attempt at notes failed. */
+  notesError: string | null;
+  /** Notes are being written right now. */
+  summarizing: boolean;
+}
+
+export interface MeetingListItem {
+  id: string;
+  title: string;
+  createdAt: number;
+  durationSecs: number;
+  status: MeetingStatus;
+  wordCount: number;
+  /** The start of the transcript. */
+  preview: string;
+  hasNotes: boolean;
+}
+
+export type MeetingState =
+  | { phase: "idle" }
+  | {
+      phase: "recording";
+      id: string;
+      title: string;
+      startedAtMs: number;
+      /** Whether what the computer plays is recorded too. */
+      systemAudio: boolean;
+      /** Why system audio couldn't be recorded, when it was asked for. */
+      systemError: string | null;
+    }
+  /** Transcribing the last of the audio and saving the recording. */
+  | { phase: "finishing"; id: string };
+
+/** A place system audio can come from. */
+export interface AudioSource {
+  /** "" for the default output. */
+  id: string;
+  name: string;
+  /** An output's sound, or an input device such as BlackHole. */
+  kind: "output" | "input";
+}
+
+export interface MeetingSetup {
+  /** What to know about recording system audio on this OS. */
+  systemAudioNote: string | null;
+  systemAudioSources: AudioSource[];
+  /** Whether a cleanup model is set up to write notes. */
+  notesAvailable: boolean;
+}
+
+/** Sent as `meeting-segment` while a meeting is transcribed. */
+export interface MeetingSegmentEvent {
+  meetingId: string;
+  segment: MeetingSegment;
+}
+
 export const api = {
   getStatus: () => invoke<Status>("get_status"),
   getSettings: () => invoke<Settings>("get_settings"),
@@ -269,6 +368,22 @@ export const api = {
   checkForUpdate: () => invoke<UpdateInfo>("check_for_update"),
   getLegacyStatus: () => invoke<LegacyStatus>("get_legacy_status"),
   importLegacy: () => invoke<ImportSummary>("import_legacy"),
+
+  getMeetingSetup: () => invoke<MeetingSetup>("get_meeting_setup"),
+  getMeetingState: () => invoke<MeetingState>("get_meeting_state"),
+  startMeeting: (title: string) => invoke<MeetingState>("start_meeting", { title }),
+  stopMeeting: () => invoke<void>("stop_meeting"),
+  /** Meetings whose title, transcript or notes contain `query`, newest first. */
+  listMeetings: (query = "") => invoke<MeetingListItem[]>("list_meetings", { query }),
+  getMeeting: (id: string) => invoke<Meeting>("get_meeting", { id }),
+  renameMeeting: (id: string, title: string) => invoke<void>("rename_meeting", { id, title }),
+  deleteMeeting: (id: string) => invoke<void>("delete_meeting", { id }),
+  /** Writes notes with the cleanup model. Resolves once they're saved, which can take a few minutes. */
+  summarizeMeeting: (id: string) => invoke<Meeting>("summarize_meeting", { id }),
+  revealMeetingAudio: (id: string) => invoke<void>("reveal_meeting_audio", { id }),
+  /** Saves Markdown to the Downloads folder and shows it. Returns the file's path. */
+  exportMeetingMarkdown: (id: string, markdown: string) =>
+    invoke<string>("export_meeting_markdown", { id, markdown }),
 
   openMainWindow: (route?: string) => invoke<void>("open_main_window", { route }),
   hideTrayPanel: () => invoke<void>("hide_tray_panel"),

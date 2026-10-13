@@ -291,13 +291,7 @@ impl Cleaner {
 
     /// Whether cleanup is on with a model ready to use. Command mode needs this too.
     pub fn is_set_up(settings: &CleanupSettings, models: &ModelStore) -> bool {
-        settings.enabled
-            && match settings.backend {
-                CleanupBackend::Builtin => {
-                    builtin_model_path(settings, models).is_ok() && worker_path().is_some()
-                }
-                CleanupBackend::Server => !settings.server_model.trim().is_empty(),
-            }
+        settings.enabled && is_set_up(settings, models)
     }
 
     /// The model's reply for `text`, before any checks.
@@ -905,6 +899,19 @@ pub async fn server_models(url: &str) -> Result<Vec<String>, String> {
     Ok(ids)
 }
 
+// ---- Other requests (meeting notes) ----
+
+/// Whether a cleanup model is set up to ask, whether or not cleanup of
+/// dictations is turned on.
+pub fn is_set_up(settings: &CleanupSettings, models: &ModelStore) -> bool {
+    match settings.backend {
+        CleanupBackend::Builtin => {
+            builtin_model_path(settings, models).is_ok() && worker_path().is_some()
+        }
+        CleanupBackend::Server => !settings.server_model.trim().is_empty(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1095,6 +1102,26 @@ mod tests {
         assert!(!is_local("http://localhost:1@example.com/v1"));
         assert!(is_local("http://127.0.0.2:8080"));
         assert!(is_local("http://LOCALHOST:11434"));
+    }
+
+    #[test]
+    fn set_up_ignores_whether_dictation_cleanup_is_on() {
+        let models = ModelStore::new(PathBuf::from("/nonexistent/models"));
+        let mut settings = CleanupSettings {
+            backend: CleanupBackend::Server,
+            ..CleanupSettings::default()
+        };
+        assert!(!is_set_up(&settings, &models));
+        settings.server_model = "llama3.2".into();
+        assert!(is_set_up(&settings, &models));
+        settings.backend = CleanupBackend::Builtin;
+        assert!(!is_set_up(&settings, &models), "no model downloaded");
+        let prompt = Prompt {
+            messages: Vec::new(),
+            max_tokens: 10,
+            timeout: Duration::from_secs(1),
+        };
+        assert!(server_chat(&CleanupSettings::default(), &prompt).is_err());
     }
 
     #[test]

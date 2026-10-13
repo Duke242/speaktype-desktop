@@ -21,6 +21,20 @@ Dictation matches the app it goes into (Settings → Tone that fits the app). Th
 
 Command mode edits selected text by voice. Set a shortcut in Settings → Shortcuts, select text in any app, hold the shortcut and say what to change ("make this more formal", "translate to German"). Wordfall copies the selection, sends it with the instruction to the AI cleanup model, pastes the result over the selection and puts the clipboard back. It needs AI cleanup set up, and has its own shortcut rather than guessing from what was said, so a dictation that starts with "make" or "fix" never replaces the text around it. Single modifier keys aren't offered for it: the macOS listener for those holds one key, the dictation hotkey.
 
+## Meetings
+
+The Meetings screen records a call and shows its transcript as people talk. It records the microphone and, where the system allows, what the computer plays, as two tracks: the transcript labels them "You" and "Others" (a cheap speaker split, not voice recognition). Each track is written to a WAV file as it's recorded and transcribed in 15–30 second windows cut at pauses, so memory stays flat in long meetings. When a meeting ends, the tracks are mixed into one recording beside the transcript, in `meetings/<id>/` next to History. If AI cleanup is set up (built-in model or local server), it writes a summary, action items and open questions, in parts for long meetings. Notes and transcript copy or save as Markdown.
+
+Recording what the computer plays depends on the system:
+
+- **Windows:** WASAPI loopback of any output, through cpal. Nothing extra to install.
+- **macOS 14.2 or later:** a Core Audio process tap on an output, through cpal. macOS asks for permission to record system audio the first time. An output that's also a microphone (AirPods, most headsets) can't be tapped this way; choose the Mac's speakers or a virtual device. On macOS 13, route the call through a virtual device such as [BlackHole](https://github.com/ExistentialAudio/BlackHole) and choose it as the source.
+- **Linux:** the output's PulseAudio or PipeWire monitor, recorded with `parec` (in `pulseaudio-utils`; PipeWire serves it through `pipewire-pulse`). Any monitor listed by `pactl` can be chosen. Without `parec`, choose an input device that carries the output, or record the microphone only.
+
+Without system audio, the meeting is recorded from the microphone alone and the transcript isn't split by speaker. Through speakers rather than headphones, the microphone also hears the other side; microphone audio quieter than the system audio at the same moment is dropped so it isn't transcribed twice, which can also drop your words when you talk over someone.
+
+To preview the screens in the browser, open http://localhost:1420/?meeting=recording for a meeting in progress, or add `?notes=0` to see Meetings without a cleanup model.
+
 ## Check
 
 ```sh
