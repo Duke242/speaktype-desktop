@@ -89,7 +89,7 @@ execFileSync(
   { stdio: "inherit" },
 );
 console.log(`Pushed ${tag}. CI is building the installers:`);
-console.log(`https://github.com/karansinghgit/speaktype/actions/workflows/desktop.yml`);
+console.log(`https://github.com/Duke242/speaktype-desktop/actions/workflows/desktop.yml`);
 if (stable) {
   console.log(`\nOnce the installers are attached, make it the Latest release:`);
   console.log(`  gh release edit ${tag} --prerelease=false --latest`);

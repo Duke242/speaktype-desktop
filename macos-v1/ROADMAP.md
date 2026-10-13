@@ -2,7 +2,7 @@
 
 What SpeakType is working on, and what it isn't. Dates are deliberately absent: this is a small project, and the order matters more than the calendar.
 
-Anything here can move if enough people ask. The best way to push something up is to comment on its issue, or [open one](https://github.com/karansinghgit/speaktype/issues/new/choose).
+Anything here can move if enough people ask. The best way to push something up is to comment on its issue, or [open one](https://github.com/Duke242/speaktype-desktop/issues/new/choose).
 
 ## Just shipped: SpeakType 2.0
 
@@ -70,6 +70,6 @@ Two things that some people want and others never will. Both are a choice you ma
 
 ## Helping
 
-Everything above is up for grabs, and most of it doesn't need Rust. The **[contributing guide](CONTRIBUTING.md)** covers setting up on macOS, Windows or Linux, and issues tagged [good first issue](https://github.com/karansinghgit/speaktype/labels/good%20first%20issue) are the gentlest way in.
+Everything above is up for grabs, and most of it doesn't need Rust. The **[contributing guide](../CONTRIBUTING.md)** covers setting up on macOS, Windows or Linux, and issues tagged [good first issue](https://github.com/Duke242/speaktype-desktop/labels/good%20first%20issue) are the gentlest way in.
 
 The single most useful thing right now: run SpeakType on Windows or Linux and say what broke.
