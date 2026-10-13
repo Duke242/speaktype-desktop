@@ -10,7 +10,7 @@ use tauri::{AppHandle, Emitter, Manager};
 
 use crate::{
     AppState, LockExt,
-    cleanup::Cleaner,
+    cleanup::{self, Cleaner},
     engine::Engine,
     gain,
     history::{self, HistoryItem},
@@ -125,6 +125,7 @@ pub fn run(
     let options = text::Options {
         auto_edit: settings.auto_edit,
         smart_trailing_punctuation: settings.smart_trailing_punctuation,
+        plain_punctuation: settings.plain_punctuation,
         dictionary: &settings.dictionary,
         voice_commands: settings.voice_commands,
         self_corrections: settings.self_corrections,
@@ -133,10 +134,17 @@ pub fn run(
         english: text::is_english(&settings.language),
     };
     let style = tone::Style::new(&settings.tone, target);
-    let mut text = style.format(&text::normalize_transcription(&raw, options.auto_edit));
+    let mut text = style.format(&text::normalize_transcription(
+        &raw,
+        options.auto_edit,
+        options.plain_punctuation,
+    ));
     if Cleaner::will_run(&settings.cleanup, &state.models, &text) {
         on_stage(Stage::CleaningUp);
-        let hint = style.hint();
+        let mut hint = style.hint();
+        if options.plain_punctuation {
+            hint = Some(cleanup::plain_punctuation(hint));
+        }
         text = state
             .cleaner
             .clean_for(&settings.cleanup, &state.models, &text, hint.as_ref());
@@ -194,7 +202,8 @@ pub fn transcribe_only(
         .transcribe(samples, &settings.language, "")
         .map_err(Error::Transcribe)?;
     drop(engine);
-    let text = text::normalize_transcription(&raw, true);
+    // An instruction for the model, not text to paste, so its punctuation stays.
+    let text = text::normalize_transcription(&raw, true, false);
     if text.trim().is_empty() {
         return Err(Error::NoSpeech);
     }

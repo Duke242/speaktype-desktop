@@ -102,6 +102,23 @@ pub struct Hint {
     pub example: Option<(&'static str, &'static str)>,
 }
 
+/// Asks for commas rather than semicolons and colons: the "plain punctuation" setting.
+const PLAIN_PUNCTUATION: &str =
+    "Use periods and commas, not semicolons, and use a colon only to introduce a list.";
+
+/// `hint` with the plain punctuation rule added, or a hint of just that rule.
+pub fn plain_punctuation(hint: Option<Hint>) -> Hint {
+    let mut hint = hint.unwrap_or(Hint {
+        instruction: String::new(),
+        example: None,
+    });
+    if !hint.instruction.is_empty() {
+        hint.instruction.push(' ');
+    }
+    hint.instruction.push_str(PLAIN_PUNCTUATION);
+    hint
+}
+
 /// The conversation that asks for `text` to be cleaned up.
 #[cfg_attr(not(test), allow(dead_code))]
 pub fn messages(text: &str) -> Vec<Message> {
@@ -944,6 +961,20 @@ mod tests {
         assert_eq!(messages.len(), 2 + (EXAMPLES.len() + 1) * 2);
         assert_eq!(messages[messages.len() - 2].content, "sounds good");
         assert_eq!(messages_for("ok", None), super::messages("ok"));
+    }
+
+    #[test]
+    fn plain_punctuation_adds_its_rule_to_any_hint() {
+        assert_eq!(plain_punctuation(None).instruction, PLAIN_PUNCTUATION);
+        let hint = plain_punctuation(Some(Hint {
+            instruction: "It's a chat message.".into(),
+            example: Some(("sounds good", "sounds good")),
+        }));
+        assert_eq!(
+            hint.instruction,
+            format!("It's a chat message. {PLAIN_PUNCTUATION}")
+        );
+        assert!(hint.example.is_some());
     }
 
     #[test]

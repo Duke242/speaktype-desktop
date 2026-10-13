@@ -480,6 +480,7 @@ fn recognize(
         auto_edit: settings.auto_edit,
         // A window ending is not the end of a sentence to tidy.
         smart_trailing_punctuation: false,
+        plain_punctuation: settings.plain_punctuation,
         dictionary: &settings.dictionary,
         // Commands and other spoken rules are for dictating; a meeting
         // transcript keeps what people said.
@@ -490,7 +491,7 @@ fn recognize(
         english: text::is_english(&settings.language),
     };
     Ok(text::finish(
-        &text::normalize_transcription(&raw, options.auto_edit),
+        &text::normalize_transcription(&raw, options.auto_edit, options.plain_punctuation),
         &options,
     )
     .trim()

@@ -313,7 +313,7 @@ fn recognize(
     // No language-model cleanup here: it needs whole sentences, and would hold
     // up every phrase. Typing live trades it for words appearing as you speak.
     let processed = text::finish(
-        &text::normalize_transcription(&raw, options.auto_edit),
+        &text::normalize_transcription(&raw, options.auto_edit, options.plain_punctuation),
         &options,
     );
     // Offline engines often add a period because the audio buffer ended. A
@@ -331,6 +331,7 @@ fn phrase_options(settings: &Settings, final_phrase: bool) -> text::Options<'_> 
         auto_edit: settings.auto_edit,
         // Preserve sentence punctuation within the stream.
         smart_trailing_punctuation: final_phrase && settings.smart_trailing_punctuation,
+        plain_punctuation: settings.plain_punctuation,
         dictionary: &settings.dictionary,
         // Voice commands only apply to dictation pasted at the end. Typed live,
         // "new line" would press Return on Windows (sending a chat message or

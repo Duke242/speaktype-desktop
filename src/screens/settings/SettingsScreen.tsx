@@ -275,12 +275,23 @@ function GeneralTab() {
           />
         </SettingRow>
         <SettingRow
+          icon={Sparkles}
+          label="Commas instead of colons and semicolons"
+          description={
+            settings.plainPunctuation
+              ? "Colons and semicolons the speech model adds become commas, the way people usually type. Times like 3:30, links and the colon before a list stay."
+              : "Punctuation stays as the speech model wrote it, colons and semicolons included."
+          }
+        >
+          <Switch checked={settings.plainPunctuation} onChange={(plainPunctuation) => save({ plainPunctuation })} />
+        </SettingRow>
+        <SettingRow
           icon={Lightbulb}
          
           label="Learn from my corrections"
           description={
             settings.learnCorrections
-              ? "When you fix a misheard name or term, Wordfall adds it to Dictionary and listens for it next time. Learned words can be removed there."
+              ? "When you fix a misheard name or term, or its capitals (github → GitHub), Wordfall adds it to Dictionary and gets it right next time. Learned words can be removed there."
               : "Corrections are saved but nothing is learned from them."
           }
         >
