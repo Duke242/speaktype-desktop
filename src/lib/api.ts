@@ -115,6 +115,8 @@ export interface Settings {
   /** Spoken lists, numbers, dates and times are written out. */
   smartFormatting: boolean;
   snippets: Snippet[];
+  /** Folder the dictionary and snippets are shared through, or "" when off. */
+  syncFolder: string;
   hasCompletedOnboarding: boolean;
   hasShownModelPrompt: boolean;
   /** Set once SpeakType 1's data has been brought over. */
@@ -255,6 +257,18 @@ export interface LegacyStatus {
   imported: ImportSummary | null;
 }
 
+/** How sharing through a folder went. */
+export interface SyncStatus {
+  lastSyncedAt: number | null;
+  error: string | null;
+}
+
+/** How many rules and snippets an import added or changed. */
+export interface LibraryImport {
+  rules: number;
+  snippets: number;
+}
+
 export interface UpdateInfo {
   available: boolean;
   currentVersion: string;
@@ -354,8 +368,18 @@ export interface MeetingSegmentEvent {
 export const api = {
   getStatus: () => invoke<Status>("get_status"),
   getSettings: () => invoke<Settings>("get_settings"),
-  saveSettings: (settings: Settings) => invoke<Settings>("save_settings", { settings }),
+  /** `changed` names the fields being saved; the dictionary and snippets are kept as they are unless named. */
+  saveSettings: (settings: Settings, changed?: (keyof Settings)[]) =>
+    invoke<Settings>("save_settings", { settings, changed }),
   listInputDevices: () => invoke<InputDevice[]>("list_input_devices"),
+
+  getSyncStatus: () => invoke<SyncStatus>("get_sync_status"),
+  /** Asks for a folder to share through. Null if cancelled. */
+  pickSyncFolder: () => invoke<string | null>("pick_sync_folder"),
+  syncNow: () => invoke<SyncStatus>("sync_now"),
+  /** Saves the dictionary and snippets to a file. Returns its path, or null if cancelled. */
+  exportLibrary: () => invoke<string | null>("export_library"),
+  importLibrary: () => invoke<LibraryImport | null>("import_library"),
 
   listModels: () => invoke<ModelStatus[]>("list_models"),
   getEngineStatus: () => invoke<EngineStatus>("get_engine_status"),

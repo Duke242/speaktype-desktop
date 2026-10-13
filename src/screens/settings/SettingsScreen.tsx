@@ -31,6 +31,7 @@ import { CleanupSection } from "@/components/settings/CleanupSection";
 import { CommandHotkeyPicker } from "@/components/settings/CommandHotkeyPicker";
 import { HotkeyPicker } from "@/components/settings/HotkeyPicker";
 import { PillPositionPicker } from "@/components/settings/PillPositionPicker";
+import { SharingSection } from "@/components/settings/SharingSection";
 import { SpokenSection } from "@/components/settings/SpokenSection";
 import { PermissionList } from "@/components/PermissionList";
 import { UpdateDialog } from "@/components/UpdateDialog";
@@ -289,6 +290,7 @@ function GeneralTab() {
       <CleanupSection />
       <AppToneSection />
       <LanguageSection />
+      <SharingSection />
       <UpdatesSection />
       <ImportSection />
     </>

@@ -63,6 +63,8 @@ export function installBrowserPreview() {
       { id: "s2", trigger: "my address", expansion: "1 Market Street\nSan Francisco, CA 94105", isEnabled: true },
       { id: "s3", trigger: "sign off", expansion: "Thanks,\nKaran", isEnabled: false },
     ],
+    // Add ?sync=1 to preview sharing through a folder.
+    syncFolder: params.get("sync") ? "/Users/karan/Dropbox/Wordfall" : "",
     hasCompletedOnboarding: params.get("onboarding") !== "1",
     hasShownModelPrompt: true,
     hasImportedV1: false,
@@ -274,6 +276,15 @@ export function installBrowserPreview() {
         case "forget_words":
           settings.dictionary = settings.dictionary.filter((e) => !(a.ids as string[]).includes(e.id));
           return null;
+        case "get_sync_status":
+        case "sync_now":
+          return { lastSyncedAt: now - 120_000, error: null };
+        case "pick_sync_folder":
+          return "/Users/karan/Dropbox/Wordfall";
+        case "export_library":
+          return "/Users/karan/Downloads/wordfall-library.json";
+        case "import_library":
+          return { rules: 2, snippets: 1 };
         case "list_input_devices":
           return [
             { id: "coreaudio:1", name: "MacBook Pro Microphone", isDefault: true },

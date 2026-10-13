@@ -88,7 +88,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const optimistic = { ...settings, ...patch };
       setSettings(optimistic);
       try {
-        setSettings(await api.saveSettings(optimistic));
+        setSettings(await api.saveSettings(optimistic, Object.keys(patch) as (keyof Settings)[]));
         if ("hotkey" in patch) refreshStatus();
       } catch (error) {
         setSettings(settings);
