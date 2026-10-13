@@ -84,7 +84,7 @@ function BuiltinModels({ cleanup, save }: { cleanup: CleanupSettings; save: Save
     return (
       <Notice tone="warning">
         This copy of SpeakType doesn't include its own cleanup engine. Use a local server instead, or if you built
-        SpeakType yourself, build desktop/cleanup-worker too.
+        SpeakType yourself, build cleanup-worker too.
       </Notice>
     );
   }

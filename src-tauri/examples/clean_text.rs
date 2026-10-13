@@ -4,7 +4,7 @@
 //!     cargo run --release --example clean_text -- <cleanup-model-id> <models-dir> "<text>" [runs]
 //!     cargo run --release --example clean_text -- server <url> <model> "<text>" [runs]
 //!
-//! Built-in models need the helper: build desktop/cleanup-worker first.
+//! Built-in models need the helper: build cleanup-worker/ first.
 
 use speaktype_lib::devtools::{self, CleanupBackend, CleanupSettings};
 

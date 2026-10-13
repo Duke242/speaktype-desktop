@@ -71,6 +71,14 @@ jobs:
       - name: Tests
         working-directory: src-tauri
         run: cargo test --locked
+      # The cleanup helper is plain llama.cpp bindings, the same on every system,
+      # so one check is enough; the installer builds compile it everywhere.
+      - name: Cleanup helper (format, clippy)
+        if: runner.os == 'Linux'
+        working-directory: cleanup-worker
+        run: |
+          cargo fmt --check
+          cargo clippy --locked --all-targets
 
   audit:
     name: Dependency audit
@@ -87,6 +95,9 @@ jobs:
           tool: cargo-audit
       - name: cargo audit
         working-directory: src-tauri
+        run: cargo audit
+      - name: cargo audit (cleanup helper)
+        working-directory: cleanup-worker
         run: cargo audit
 
   bundle:
@@ -115,6 +126,11 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-desktop-build
+      # Runs built-in cleanup models. Bundled next to the app by tauri.cleanup.conf.json.
+      - name: Build the cleanup helper
+        env:
+          RUSTFLAGS: ""
+        run: node scripts/build-cleanup-worker.mjs ${{ matrix.args }}
       - name: Build installers
         uses: tauri-apps/tauri-action@v1
         env:
@@ -132,7 +148,7 @@ jobs:
         with:
           projectPath: .
           tauriScript: npx tauri
-          args: ${{ matrix.args }}
+          args: ${{ matrix.args }} --config src-tauri/tauri.cleanup.conf.json
           # The release itself is created by `npm run release`, which decides whether it's a
           # pre-release; this only attaches the installers to it.
           tagName: ${{ startsWith(github.ref, 'refs/tags/v2.') && github.ref_name || '' }}

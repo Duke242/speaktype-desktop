@@ -4,7 +4,7 @@
 //! and formats spoken lists. It runs on this computer, in one of two ways:
 //!
 //! - Built in: a GGUF model from `models::CLEANUP_CATALOG`, run by the
-//!   `speaktype-cleanup` helper (desktop/cleanup-worker). It's a separate
+//!   `speaktype-cleanup` helper (cleanup-worker/). It's a separate
 //!   program because whisper.cpp and llama.cpp each bundle a different version
 //!   of ggml, and only one copy survives linking into one binary. It also keeps
 //!   a crash or hang in the model away from dictation.
