@@ -29,6 +29,7 @@ export function installBrowserPreview() {
     launchAtLogin: false,
     autoEdit: false,
     smartTrailingPunctuation: true,
+    plainPunctuation: true,
     cleanup: {
       enabled: params.get("cleanup") !== null,
       backend: (params.get("cleanup") === "server" ? "server" : "builtin") as "builtin" | "server",

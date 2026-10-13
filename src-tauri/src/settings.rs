@@ -142,6 +142,8 @@ pub struct Settings {
     pub launch_at_login: bool,
     pub auto_edit: bool,
     pub smart_trailing_punctuation: bool,
+    /// Commas instead of the semicolons and colons the engine adds.
+    pub plain_punctuation: bool,
     pub cleanup: CleanupSettings,
     /// Match the tone to the app being dictated into, and write code as code.
     pub tone: ToneSettings,
@@ -193,6 +195,7 @@ impl Default for Settings {
             launch_at_login: false,
             auto_edit: false,
             smart_trailing_punctuation: true,
+            plain_punctuation: true,
             cleanup: CleanupSettings::default(),
             tone: ToneSettings::default(),
             command_hotkey: String::new(),
@@ -378,6 +381,7 @@ mod tests {
             "launchAtLogin",
             "autoEdit",
             "smartTrailingPunctuation",
+            "plainPunctuation",
             "cleanup",
             "tone",
             "commandHotkey",

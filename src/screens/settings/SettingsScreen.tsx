@@ -275,6 +275,17 @@ function GeneralTab() {
           />
         </SettingRow>
         <SettingRow
+          icon={Sparkles}
+          label="Commas instead of colons and semicolons"
+          description={
+            settings.plainPunctuation
+              ? "Colons and semicolons the speech model adds become commas, the way people usually type. Times like 3:30, links and the colon before a list stay."
+              : "Punctuation stays as the speech model wrote it, colons and semicolons included."
+          }
+        >
+          <Switch checked={settings.plainPunctuation} onChange={(plainPunctuation) => save({ plainPunctuation })} />
+        </SettingRow>
+        <SettingRow
           icon={Lightbulb}
          
           label="Learn from my corrections"
