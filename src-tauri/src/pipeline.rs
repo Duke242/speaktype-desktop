@@ -117,7 +117,7 @@ pub fn run(
         dictionary: &settings.dictionary,
     };
     let style = tone::Style::new(&settings.tone, target);
-    let mut text = text::normalize_transcription(&raw, options.auto_edit);
+    let mut text = style.format(&text::normalize_transcription(&raw, options.auto_edit));
     if Cleaner::will_run(&settings.cleanup, &state.models, &text) {
         on_stage(Stage::CleaningUp);
         let hint = style.hint();

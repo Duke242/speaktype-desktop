@@ -131,7 +131,7 @@ pub struct Settings {
     pub auto_edit: bool,
     pub smart_trailing_punctuation: bool,
     pub cleanup: CleanupSettings,
-    /// Match the tone to the app being dictated into.
+    /// Match the tone to the app being dictated into, and write code as code.
     pub tone: ToneSettings,
     pub restore_clipboard: bool,
     /// Keep each dictation's audio next to its transcript, so it can be replayed.
@@ -314,7 +314,7 @@ mod tests {
         assert!(entry.is_enabled && entry.match_whole_word);
         assert_eq!(settings.cleanup, CleanupSettings::default());
         assert_eq!(settings.tone, ToneSettings::default());
-        assert!(settings.tone.enabled);
+        assert!(settings.tone.enabled && settings.tone.format_code);
     }
 
     #[test]
@@ -364,7 +364,7 @@ mod tests {
         assert_eq!(value["cleanup"]["backend"], "builtin");
         assert_eq!(value["cleanup"]["enabled"], false);
         assert!(value["cleanup"].get("serverUrl").is_some());
-        assert_eq!(value["tone"]["enabled"], true);
+        assert_eq!(value["tone"]["formatCode"], true);
         assert!(value["tone"]["apps"].is_array());
     }
 
