@@ -40,20 +40,6 @@ export interface CleanupSettings {
   serverModel: string;
 }
 
-export type CleanupBackend = "builtin" | "server";
-
-/** Optional tidying of each transcript by a local language model. */
-export interface CleanupSettings {
-  enabled: boolean;
-  backend: CleanupBackend;
-  /** Id of a downloaded cleanup model, or "" when none is chosen. */
-  builtinModel: string;
-  /** Base URL of an OpenAI-compatible API, e.g. "http://localhost:11434/v1". */
-  serverUrl: string;
-  /** Model name as the server knows it. */
-  serverModel: string;
-}
-
 export interface Settings {
   theme: Theme;
   hotkey: string;

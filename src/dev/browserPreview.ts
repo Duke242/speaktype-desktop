@@ -121,27 +121,6 @@ export function installBrowserPreview() {
     downloading: false,
   }));
 
-  const cleanupModels = [
-    ["qwen2.5-1.5b", "Qwen 2.5 1.5B", 1117, "Quick on any computer, and writes 29 languages. The one to start with.", true],
-    ["llama3.2-3b", "Llama 3.2 3B", 2020, "More careful edits, about twice as slow. Best with a GPU or Apple Silicon.", false],
-  ].map(([id, name, sizeMb, description, downloaded]) => ({
-    id,
-    name,
-    engine: "llama",
-    sizeMb,
-    acceleratorMb: 0,
-    downloadMb: sizeMb,
-    accelerator: "none",
-    englishOnly: false,
-    languages: null,
-    description,
-    speed: 9,
-    accuracy: 7.5,
-    minRamGb: 4,
-    downloaded,
-    downloading: false,
-  }));
-
   mockWindows("main");
   mockIPC(
     (cmd, args) => {
