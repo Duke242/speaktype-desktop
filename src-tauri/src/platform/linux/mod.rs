@@ -5,10 +5,12 @@
 //!   global shortcuts only fire while an X11 (XWayland) app has focus.
 
 mod focus;
+mod media;
 mod wayland;
 mod x11;
 
 pub use focus::FocusedField;
+pub use media::{PausedMedia, pause_media, resume_media};
 
 use std::path::Path;
 

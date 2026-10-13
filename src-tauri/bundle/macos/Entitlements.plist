@@ -5,5 +5,8 @@
   <!-- Required by the hardened runtime to use the microphone. -->
   <key>com.apple.security.device.audio-input</key>
   <true/>
+  <!-- Required by the hardened runtime to pause Music and Spotify while dictating. -->
+  <key>com.apple.security.automation.apple-events</key>
+  <true/>
 </dict>
 </plist>

@@ -15,6 +15,7 @@ mod paste;
 mod pill;
 mod pipeline;
 mod platform;
+mod playback;
 mod settings;
 mod text;
 mod tray;

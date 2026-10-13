@@ -13,6 +13,8 @@
 //! - `NEURAL_ENGINE`, `extract_zip`, `ORT_ACCELERATOR`: speech model acceleration.
 //! - `FocusedField`: reads the focused text field in another app, so a
 //!   correction made after dictating can be learned. Never available on Linux.
+//! - `pause_media`, `resume_media`, `PausedMedia`: pause what's playing while
+//!   the user dictates, and resume only that afterwards.
 
 use enigo::{Direction, Enigo, Key, Keyboard};
 use serde::{Deserialize, Serialize};
