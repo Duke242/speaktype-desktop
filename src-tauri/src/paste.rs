@@ -22,12 +22,16 @@ use crate::platform;
 const BEFORE_PASTE: Duration = Duration::from_millis(250);
 /// How long the target app gets to read the clipboard before it is restored.
 const BEFORE_RESTORE: Duration = Duration::from_millis(350);
+/// How long the focused app gets to take in pasted text before Return sends it.
+const BEFORE_SEND: Duration = Duration::from_millis(150);
 /// How long the focused app gets to put its selection on the clipboard.
 const COPY_WAIT: Duration = Duration::from_millis(600);
 const COPY_POLL: Duration = Duration::from_millis(30);
 
 enum Job {
     Paste(PasteJob),
+    /// Presses Return, after text typed some other way, as by live typing.
+    Send,
     /// Copies the selection, sending it back, then restores the clipboard.
     Copy {
         terminal: bool,
@@ -38,6 +42,8 @@ enum Job {
 struct PasteJob {
     text: String,
     restore_clipboard: bool,
+    /// Press Return after pasting, to send a message.
+    send: bool,
 }
 
 /// Handle to the paste thread. Cloning it is cheap; the thread exits once every
@@ -82,6 +88,12 @@ impl Paster {
                             eprintln!("[paste] {e}");
                         }
                     }
+                    Job::Send => {
+                        thread::sleep(BEFORE_SEND);
+                        if let Err(e) = platform::send_return_key(enigo.as_mut()) {
+                            eprintln!("[paste] {e}");
+                        }
+                    }
                     Job::Copy { terminal, reply } => {
                         let _ = reply.send(copy(clipboard, enigo.as_mut(), terminal));
                     }
@@ -96,12 +108,19 @@ impl Paster {
         Self { tx }
     }
 
-    /// Queues `text` to be pasted into the focused app. Returns immediately.
-    pub fn paste(&self, text: String, restore_clipboard: bool) {
+    /// Queues `text` to be pasted into the focused app, then Return pressed
+    /// if `send`. Returns immediately.
+    pub fn paste(&self, text: String, restore_clipboard: bool, send: bool) {
         let _ = self.tx.send(Job::Paste(PasteJob {
             text,
             restore_clipboard,
+            send,
         }));
+    }
+
+    /// Queues a press of Return. Returns immediately.
+    pub fn send(&self) {
+        let _ = self.tx.send(Job::Send);
     }
 
     /// The text selected in the focused app, or `None` when nothing is.
@@ -165,7 +184,7 @@ fn copy(
 
 fn paste(
     clipboard: &mut Clipboard,
-    enigo: Option<&mut Enigo>,
+    mut enigo: Option<&mut Enigo>,
     job: &PasteJob,
 ) -> Result<(), String> {
     let saved = job.restore_clipboard.then(|| save(clipboard));
@@ -175,7 +194,14 @@ fn paste(
 
     thread::sleep(BEFORE_PASTE);
     // If this fails the text stays on the clipboard for the user to paste by hand.
-    platform::send_paste_shortcut(enigo)?;
+    platform::send_paste_shortcut(enigo.as_deref_mut())?;
+    if job.send {
+        thread::sleep(BEFORE_SEND);
+        // The text is in, so the clipboard is still put back if this fails.
+        if let Err(e) = platform::send_return_key(enigo) {
+            eprintln!("[paste] {e}");
+        }
+    }
 
     let Some(saved) = saved else {
         return Ok(());

@@ -3,6 +3,7 @@ import {
   BookA,
   ClipboardCheck,
   Command,
+  CornerDownLeft,
   Ear,
   Globe,
   Hand,
@@ -186,6 +187,13 @@ function GeneralTab() {
             For live typing with this shortcut, choose Toggle mode. Other modes insert the transcript when you stop.
           </p>
         )}
+        <SettingRow
+          icon={CornerDownLeft}
+          label="Finish and send"
+          description={`Press ${isMac ? "Return" : "Enter"} while recording to stop, insert the text and send it, as in a chat or an AI prompt. Works when recording hands-free, not while you hold the hotkey.`}
+        >
+          <Switch label="Finish and send" checked={settings.finishAndSend} onChange={(finishAndSend) => save({ finishAndSend })} />
+        </SettingRow>
         <SettingRow
           icon={Power}
           label="Launch at login"

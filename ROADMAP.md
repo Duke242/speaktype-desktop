@@ -66,6 +66,7 @@ why, see [macos-v1/ROADMAP.md](macos-v1/ROADMAP.md).
 - [x] Voice commands ("scratch that", "new line", "new paragraph"), mid-sentence corrections ("at 3, actually 4"), and spoken lists, numbers, dates, times, money and percentages, for English
 - [ ] The same rules for other languages
 - [x] Snippets: a spoken phrase that expands into saved text (#167)
+- [x] Finish and send: Return while recording inserts the transcript and presses Return
 - [x] Share the dictionary and snippets between computers or with a team, through a synced folder; export and import them as a file
 - [ ] Sharing through a Wordfall account, without a synced folder
 

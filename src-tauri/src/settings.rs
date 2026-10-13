@@ -123,6 +123,9 @@ pub struct Settings {
     pub hotkey: String,
     pub recording_mode: RecordingMode,
     pub live_typing: bool,
+    /// Return while recording stops, inserts the transcript and presses Return,
+    /// to send a message in one go.
+    pub finish_and_send: bool,
     /// Id from `models::CATALOG`, or empty when nothing is selected yet.
     pub selected_model: String,
     /// Whisper language code, or "auto" to detect.
@@ -180,6 +183,7 @@ impl Default for Settings {
             hotkey: crate::platform::DEFAULT_HOTKEY.to_string(),
             recording_mode: RecordingMode::Hold,
             live_typing: false,
+            finish_and_send: false,
             selected_model: String::new(),
             language: "auto".to_string(),
             recent_languages: Vec::new(),
