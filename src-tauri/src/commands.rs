@@ -70,9 +70,17 @@ pub async fn save_settings(
     let previous = state.settings();
     let hotkey_changed = settings.hotkey != previous.hotkey;
 
-    if settings.launch_at_login != previous.launch_at_login {
+    // Changed first, so a failure shows before anything is saved, and put
+    // back if saving fails later on.
+    let login_changed = settings.launch_at_login != previous.launch_at_login;
+    if login_changed {
         crate::set_launch_at_login(&app, settings.launch_at_login)?;
     }
+    let undo_login = || {
+        if login_changed {
+            let _ = crate::set_launch_at_login(&app, previous.launch_at_login);
+        }
+    };
 
     if hotkey_changed {
         let registered =
@@ -84,6 +92,7 @@ pub async fn save_settings(
             let _ = state
                 .controller
                 .register_hotkey(&app, &previous.hotkey, None);
+            undo_login();
             return Err(e);
         }
     }
@@ -95,6 +104,7 @@ pub async fn save_settings(
                     .controller
                     .register_hotkey(&app, &previous.hotkey, Some(&settings.hotkey));
         }
+        undo_login();
         return Err(e);
     }
     if hotkey_changed {
