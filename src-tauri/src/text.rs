@@ -33,8 +33,8 @@ pub struct Options<'a> {
 
 /// Full pipeline: engine cleanup, then dictionary, then trailing punctuation.
 /// Dictation runs the two halves separately, with optional language-model
-/// cleanup in between.
-#[cfg(test)]
+/// cleanup in between. Live typing uses this directly: its phrases are too
+/// short and too frequent for a language model.
 pub fn process(raw: &str, options: &Options) -> String {
     finish(&normalize_transcription(raw, options.auto_edit), options)
 }
