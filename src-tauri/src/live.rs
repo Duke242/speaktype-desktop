@@ -309,12 +309,7 @@ fn recognize(
     let raw = engine
         .transcribe(samples, &settings.language, &prompt)
         .map_err(pipeline::Error::Transcribe)?;
-    let options = text::Options {
-        auto_edit: settings.auto_edit,
-        // Preserve sentence punctuation within the stream.
-        smart_trailing_punctuation: final_phrase && settings.smart_trailing_punctuation,
-        dictionary: &settings.dictionary,
-    };
+    let options = phrase_options(settings, final_phrase);
     // No language-model cleanup here: it needs whole sentences, and would hold
     // up every phrase. Typing live trades it for words appearing as you speak.
     let processed = text::finish(
@@ -328,6 +323,22 @@ fn recognize(
     } else {
         processed
     })
+}
+
+/// How one phrase typed live is tidied.
+fn phrase_options(settings: &Settings, final_phrase: bool) -> text::Options<'_> {
+    text::Options {
+        auto_edit: settings.auto_edit,
+        // Preserve sentence punctuation within the stream.
+        smart_trailing_punctuation: final_phrase && settings.smart_trailing_punctuation,
+        dictionary: &settings.dictionary,
+        // Voice commands only apply to dictation pasted at the end. Typed live,
+        // "new line" would press Return on Windows (sending a chat message or
+        // running a terminal command) and type a stray character on macOS, and
+        // "scratch that" could only take back the phrase it's in.
+        voice_commands: false,
+        english: text::is_english(&settings.language),
+    }
 }
 
 fn append(
@@ -444,6 +455,21 @@ fn phrase_end(samples: &[f32], finished: bool) -> Option<usize> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn voice_commands_are_never_typed_live() {
+        let settings = Settings {
+            language: "en".into(),
+            ..Settings::default()
+        };
+        assert!(settings.voice_commands);
+        let options = phrase_options(&settings, true);
+        assert!(!options.voice_commands);
+        assert_eq!(
+            text::finish("Hello new line there", &options),
+            "Hello new line there"
+        );
+    }
 
     #[test]
     fn pauses_finalize_phrases_without_waiting_for_release() {

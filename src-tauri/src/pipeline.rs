@@ -122,6 +122,8 @@ pub fn run(
         auto_edit: settings.auto_edit,
         smart_trailing_punctuation: settings.smart_trailing_punctuation,
         dictionary: &settings.dictionary,
+        voice_commands: settings.voice_commands,
+        english: text::is_english(&settings.language),
     };
     let style = tone::Style::new(&settings.tone, target);
     let mut text = style.format(&text::normalize_transcription(&raw, options.auto_edit));

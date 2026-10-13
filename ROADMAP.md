@@ -63,6 +63,8 @@ why, see [macos-v1/ROADMAP.md](macos-v1/ROADMAP.md).
 - [ ] Windows build, tested
 - [ ] Linux build, tested (X11 and Wayland)
 - [ ] Single-modifier hotkeys on Windows and Linux
+- [x] Voice commands ("scratch that", "new line", "new paragraph"), for English
+- [ ] The same rules for other languages
 
 ### Meeting notes
 - [x] Record the microphone and system audio as separate tracks, labelled "You" and "Others" (#170)

@@ -20,6 +20,7 @@ mod pipeline;
 mod platform;
 mod playback;
 mod settings;
+mod spoken;
 mod text;
 mod tone;
 mod tray;

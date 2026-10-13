@@ -27,6 +27,8 @@ Copying the selection takes care with the app it goes to (`src-tauri/src/command
 - With nothing selected, VS Code and JetBrains IDEs copy the whole current line. In code editors, a copy ending in a line break is taken as no selection ("Select some text first"), which also turns away selections of whole lines down to the next one; select up to the end of the last line instead.
 - Text and images on the clipboard are put back afterwards. Anything else, like copied files, can't be, so it isn't cleared before copying: copying with nothing selected leaves it in place, while copying a selection replaces it, as Ctrl+C would.
 
+Settings → Commands and formatting turns on rules for English dictation, on by default: "scratch that", "new line" and "new paragraph" as commands. They live in `src-tauri/src/spoken/` and leave the text alone when unsure. Voice commands apply to dictation pasted when you finish, not to live typing, where "new line" would press Return.
+
 ## Meetings
 
 The Meetings screen records a call and shows its transcript as people talk. It records the microphone and, where the system allows, what the computer plays, as two tracks: the transcript labels them "You" and "Others" (a cheap speaker split, not voice recognition). Each track is written to a WAV file as it's recorded and transcribed in 15–30 second windows cut at pauses, so memory stays flat in long meetings. When a meeting ends, the tracks are mixed into one recording beside the transcript, in `meetings/<id>/` next to History. If AI cleanup is set up (built-in model or local server), it writes a summary, action items and open questions, in parts for long meetings. Notes and transcript copy or save as Markdown.
