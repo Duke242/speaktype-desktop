@@ -2,6 +2,7 @@
  * Lets the UI run in a plain browser (`npm run dev`, then open localhost:1420)
  * with sample data, for design work without the native app. Never used inside Tauri.
  */
+import { emit } from "@tauri-apps/api/event";
 import { mockIPC, mockWindows } from "@tauri-apps/api/mocks";
 
 export function installBrowserPreview() {
@@ -51,6 +52,58 @@ export function installBrowserPreview() {
     hasCompletedOnboarding: params.get("onboarding") !== "1",
     hasShownModelPrompt: true,
     hasImportedV1: false,
+    meetings: { captureSystemAudio: true, systemAudioSource: "", summarizeAutomatically: true },
+  };
+  const meetings = sampleMeetings(now, day);
+  // Add ?meeting=recording to preview a meeting in progress.
+  let meetingState: Record<string, unknown> = { phase: "idle" };
+  let meetingTimer: ReturnType<typeof setInterval> | undefined;
+  const startMeeting = (title: string) => {
+    const id = `live-${Date.now()}`;
+    const startedAtMs = Date.now() - (params.get("meeting") === "recording" && !meetingTimer ? 95_000 : 0);
+    meetings.unshift({
+      id,
+      title,
+      createdAt: startedAtMs,
+      durationSecs: 0,
+      status: "recording",
+      sources: ["microphone", "system"],
+      segments: [],
+      audioPath: null,
+      model: "Whisper Small (English)",
+      notes: null,
+      notesError: null,
+      summarizing: false,
+    });
+    meetingState = { phase: "recording", id, title, startedAtMs, systemAudio: true, systemError: null };
+    let next = 0;
+    meetingTimer = setInterval(() => {
+      const [source, text] = LIVE_SCRIPT[next % LIVE_SCRIPT.length];
+      const segment = { startSecs: next * 6 + 2, endSecs: next * 6 + 7, source, text };
+      meetings.find((m) => m.id === id)?.segments.push(segment);
+      emit("meeting-segment", { meetingId: id, segment });
+      next++;
+    }, 2500);
+    emit("meeting-state", meetingState);
+    emit("meetings-changed");
+    return meetingState;
+  };
+  const stopMeeting = () => {
+    if (meetingState.phase !== "recording") return;
+    clearInterval(meetingTimer);
+    const meeting = meetings.find((m) => m.id === meetingState.id)!;
+    meetingState = { phase: "finishing", id: meeting.id };
+    emit("meeting-state", meetingState);
+    setTimeout(() => {
+      Object.assign(meeting, {
+        status: "done",
+        durationSecs: (Date.now() - meeting.createdAt) / 1000,
+        audioPath: "/tmp/audio.wav",
+      });
+      meetingState = { phase: "idle" };
+      emit("meeting-state", meetingState);
+      emit("meetings-changed");
+    }, 1500);
   };
 
   const transcripts = [
@@ -127,7 +180,7 @@ export function installBrowserPreview() {
 
   mockWindows("main");
   mockIPC(
-    (cmd, args) => {
+    async (cmd, args) => {
       const a = args as Record<string, unknown>;
       switch (cmd) {
         case "get_status":
@@ -211,6 +264,67 @@ export function installBrowserPreview() {
           };
         case "import_legacy":
           return { transcripts: 21, dictionary: 3, settings: false };
+        case "get_meeting_setup":
+          return {
+            systemAudioNote:
+              os === "macos"
+                ? "Recording system audio needs macOS 14.2 or later, and asks for permission the first time."
+                : null,
+            systemAudioSources: [
+              { id: "", name: "Default output", kind: "output" },
+              { id: "output:coreaudio:3", name: "MacBook Pro Speakers", kind: "output" },
+              { id: "input:coreaudio:4", name: "BlackHole 2ch", kind: "input" },
+            ],
+            notesAvailable: settings.cleanup.enabled || params.get("notes") !== "0",
+          };
+        case "get_meeting_state":
+          return meetingState;
+        case "start_meeting":
+          return startMeeting(String(a.title));
+        case "stop_meeting":
+          return stopMeeting();
+        case "list_meetings": {
+          const query = String(a.query ?? "").toLowerCase();
+          if (params.get("empty")) return [];
+          return meetings
+            .filter((m) => !query || m.title.toLowerCase().includes(query) || m.segments.some((s) => s.text.toLowerCase().includes(query)))
+            .map((m) => {
+              const transcript = m.segments.map((s) => s.text).join(" ");
+              return {
+                id: m.id,
+                title: m.title,
+                createdAt: m.createdAt,
+                durationSecs: m.durationSecs,
+                status: m.status,
+                wordCount: transcript.split(/\s+/).filter(Boolean).length,
+                preview: transcript.slice(0, 220),
+                hasNotes: m.notes !== null,
+              };
+            });
+        }
+        case "get_meeting": {
+          const meeting = meetings.find((m) => m.id === a.id);
+          if (!meeting) throw "This meeting was deleted";
+          return structuredClone(meeting);
+        }
+        case "rename_meeting": {
+          const meeting = meetings.find((m) => m.id === a.id);
+          if (meeting) meeting.title = String(a.title);
+          emit("meetings-changed");
+          return null;
+        }
+        case "delete_meeting":
+          meetings.splice(meetings.findIndex((m) => m.id === a.id), 1);
+          emit("meetings-changed");
+          return null;
+        case "summarize_meeting": {
+          const meeting = meetings.find((m) => m.id === a.id)!;
+          await new Promise((resolve) => setTimeout(resolve, 2500));
+          meeting.notes = SAMPLE_NOTES;
+          return structuredClone(meeting);
+        }
+        case "export_meeting_markdown":
+          return "/Users/karan/Downloads/meeting.md";
         case "check_for_update":
           return { available: false, currentVersion: "2.0.0", latestVersion: "2.0.0", notes: "", url: "" };
         default:
@@ -219,6 +333,66 @@ export function installBrowserPreview() {
     },
     { shouldMockEvents: true },
   );
+  // Only once mockIPC is installed: starting a meeting emits events.
+  if (params.get("meeting") === "recording") startMeeting("Design review");
+}
+
+type Source = "microphone" | "system";
+
+const LIVE_SCRIPT: [Source, string][] = [
+  ["microphone", "Okay, I think everyone's here. Let's look at the new onboarding screens."],
+  ["system", "Sure. I shared the link in the chat a minute ago."],
+  ["system", "The main change is that the model download starts on the second screen now."],
+  ["microphone", "Nice. Does it still work if someone skips the permissions step?"],
+  ["system", "It does, we ask again the first time they dictate."],
+  ["microphone", "Great. Let's get it in front of a few people this week."],
+];
+
+const SAMPLE_NOTES = {
+  summary:
+    "The team reviewed the pricing page and agreed to launch the annual plan next Tuesday. The comparison table needs a simpler layout before then.",
+  actionItems: [
+    "Maya: simplify the comparison table by Friday",
+    "Karan: draft the launch email",
+    "Leo: check the annual discount with finance",
+  ],
+  openQuestions: ["Do existing customers get the annual price automatically?"],
+};
+
+/** Saved meetings for the preview: one with notes, one without, both with a transcript. */
+function sampleMeetings(now: number, day: number) {
+  const pricing: [Source, string][] = [
+    ["microphone", "Thanks for joining. Today is just the pricing page and the annual plan."],
+    ["system", "I've got the latest mockups up. The comparison table is still pretty dense."],
+    ["system", "I'd like to cut it down to the five features people actually ask about."],
+    ["microphone", "Agreed. Can you have a simpler version by Friday?"],
+    ["system", "Yes, Friday works."],
+    ["microphone", "Then let's plan to launch the annual plan next Tuesday. Karan, can you draft the email?"],
+    ["system", "Will do. One question, do existing customers get the annual price automatically?"],
+    ["microphone", "Good question. Let's check with finance. Leo, can you ask about the discount too?"],
+  ];
+  const standup: [Source, string][] = [
+    ["microphone", "Quick one today. I'm finishing the meeting notes feature and should have a build tomorrow."],
+    ["microphone", "Blocked on nothing right now. Let's skip the demo and do it on Thursday instead."],
+  ];
+  const meeting = (id: string, title: string, createdAt: number, script: [Source, string][], notes: typeof SAMPLE_NOTES | null, both = true) => ({
+    id,
+    title,
+    createdAt,
+    durationSecs: script.length * 37,
+    status: "done",
+    sources: (both ? ["microphone", "system"] : ["microphone"]) as Source[],
+    segments: script.map(([source, text], i) => ({ startSecs: i * 37 + 3, endSecs: i * 37 + 30, source, text })),
+    audioPath: "/tmp/audio.wav" as string | null,
+    model: "Whisper Small (English)",
+    notes: notes as typeof SAMPLE_NOTES | null,
+    notesError: null as string | null,
+    summarizing: false,
+  });
+  return [
+    meeting("m1", "Pricing review", now - 2 * 3_600_000, pricing, SAMPLE_NOTES),
+    meeting("m2", "Standup", now - day - 5 * 3_600_000, standup, null, false),
+  ];
 }
 
 /** A WAV of a soft tone that swells and pauses like speech, so playback can be previewed. */

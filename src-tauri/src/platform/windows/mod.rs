@@ -3,6 +3,7 @@
 
 mod focus;
 mod media;
+mod system_audio;
 
 use std::path::Path;
 
@@ -11,6 +12,7 @@ use tauri::WebviewWindow;
 
 pub use focus::FocusedField;
 pub use media::{PausedMedia, pause_media, resume_media};
+pub use system_audio::{SYSTEM_AUDIO_NOTE, open_system_audio, system_audio_sources};
 
 use super::{HotkeyHandler, Permission, PermissionKind};
 
