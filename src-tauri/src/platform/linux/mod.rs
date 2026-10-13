@@ -19,7 +19,7 @@ use std::path::Path;
 use enigo::{Enigo, Key};
 use tauri::WebviewWindow;
 
-use super::{HotkeyHandler, Permission, PermissionKind};
+use super::{FrontApp, HotkeyHandler, Permission, PermissionKind};
 
 pub const DEFAULT_HOTKEY: &str = "Ctrl+Shift+Space";
 
@@ -48,6 +48,15 @@ pub fn send_paste_shortcut(enigo: Option<&mut Enigo>) -> Result<(), String> {
         &[Key::Control]
     };
     super::press_combo(enigo, modifiers, Key::Unicode('v'))
+}
+
+/// The focused app through X11. Native Wayland apps can't be identified, as
+/// Wayland doesn't say which app has focus.
+pub fn frontmost_app() -> Option<FrontApp> {
+    if wayland::is_session() {
+        return None;
+    }
+    x11::active_app()
 }
 
 pub fn setup_notes() -> Vec<String> {

@@ -54,6 +54,9 @@ why, see [macos-v1/ROADMAP.md](macos-v1/ROADMAP.md).
 ## New in SpeakType 2
 - [x] AI cleanup with a local language model: built in (llama.cpp, in its own helper process) or through a local server (Ollama, LM Studio)
 - [ ] AI cleanup tested with real models on macOS, Windows and Linux, and the prompt tuned from what people dictate
+- [x] Tone that fits the app: chat, email, terminal and code editor styles, with a per-app override list
+- [ ] Tone tested on macOS and Windows (app detection)
+- [ ] Identify the focused app in native Wayland sessions
 - [ ] Windows build, tested
 - [ ] Linux build, tested (X11 and Wayland)
 - [ ] Single-modifier hotkeys on Windows and Linux

@@ -1,6 +1,7 @@
 //! macOS: Fn and other single-modifier hotkeys through an event tap, TCC
 //! permission prompts, and the Neural Engine for Whisper.
 
+mod app;
 mod focus;
 mod hotkey;
 mod media;
@@ -13,6 +14,7 @@ use std::{path::Path, process::Command};
 use enigo::{Enigo, Key};
 use tauri::{TitleBarStyle, WebviewWindow};
 
+pub use app::frontmost_app;
 pub use focus::FocusedField;
 pub use hotkey::MODIFIER_HOTKEYS;
 pub use media::{PausedMedia, pause_media, resume_media};

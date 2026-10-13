@@ -6,6 +6,7 @@
 //!   `modifier_hotkey_blocked`: hotkeys made of one modifier key, where the OS
 //!   allows listening for them.
 //! - `send_paste_shortcut`: presses the paste keys for the focused app.
+//! - `frontmost_app`: which app has focus, so dictation can match its tone.
 //! - `setup_notes`: OS-specific hints shown in Settings.
 //! - `permissions`, `request_permission`, `permission_settings_url`: the OS
 //!   permissions dictation needs, for onboarding and Settings.
@@ -48,6 +49,18 @@ pub enum PermissionKind {
 pub struct Permission {
     pub kind: PermissionKind,
     pub granted: bool,
+}
+
+/// The app with keyboard focus. Each field is empty when the OS doesn't say.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FrontApp {
+    /// Bundle id on macOS, executable name on Windows, window class on Linux.
+    pub id: String,
+    /// The name people know it by, e.g. "Slack".
+    pub name: String,
+    /// The focused window's title, which tells web apps in a browser apart.
+    pub title: String,
 }
 
 /// A change in a single-modifier hotkey.

@@ -25,6 +25,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
+import { AppToneSection } from "@/components/settings/AppToneSection";
 import { CleanupSection } from "@/components/settings/CleanupSection";
 import { HotkeyPicker } from "@/components/settings/HotkeyPicker";
 import { PillPositionPicker } from "@/components/settings/PillPositionPicker";
@@ -271,6 +272,7 @@ function GeneralTab() {
       </Section>
 
       <CleanupSection />
+      <AppToneSection />
       <LanguageSection />
       <UpdatesSection />
       <ImportSection />

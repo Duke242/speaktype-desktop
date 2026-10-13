@@ -19,6 +19,7 @@ mod platform;
 mod playback;
 mod settings;
 mod text;
+mod tone;
 mod tray;
 
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock, PoisonError, RwLock, TryLockError};
@@ -434,6 +435,7 @@ pub fn run() {
             commands::delete_model,
             commands::get_cleanup_status,
             commands::list_server_models,
+            commands::get_app_tone,
             commands::get_history,
             commands::get_stats,
             commands::delete_history_item,
