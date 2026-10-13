@@ -47,6 +47,20 @@ pub fn send_paste_shortcut(enigo: Option<&mut Enigo>) -> Result<(), String> {
     super::press_combo(enigo, &[Key::Meta], Key::Other(KEYCODE_V))
 }
 
+/// macOS virtual keycode for C (kVK_ANSI_C).
+const KEYCODE_C: u32 = 0x08;
+
+/// ⌘C is safe in every app, terminals included.
+pub fn can_copy_selection() -> bool {
+    true
+}
+
+/// ⌘C copies in every app, terminals included.
+pub fn send_copy_shortcut(enigo: Option<&mut Enigo>, _terminal: bool) -> Result<(), String> {
+    let enigo = enigo.ok_or("Keyboard simulation is unavailable")?;
+    super::press_combo(enigo, &[Key::Meta], Key::Other(KEYCODE_C))
+}
+
 /// Whisper models get a CoreML encoder so they run on the Neural Engine.
 pub const NEURAL_ENGINE: bool = true;
 

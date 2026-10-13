@@ -14,7 +14,7 @@ use tauri_plugin_opener::OpenerExt;
 use crate::{
     AppState, LockExt,
     audio::{self, InputDevice},
-    cleanup,
+    cleanup, command,
     device::{self, DeviceInfo, Recommendation},
     dictation::{DictationState, Event},
     history::{HistoryItem, StatsEntry},
@@ -70,6 +70,10 @@ pub async fn save_settings(
 ) -> CommandResult<Settings> {
     let previous = state.settings();
     let hotkey_changed = settings.hotkey != previous.hotkey;
+    let command_changed = settings.command_hotkey != previous.command_hotkey;
+    if !settings.command_hotkey.is_empty() && settings.command_hotkey == settings.hotkey {
+        return Err("The command shortcut can't be the dictation hotkey".into());
+    }
 
     // Changed first, so a failure shows before anything is saved, and put
     // back if saving fails later on.
@@ -97,8 +101,13 @@ pub async fn save_settings(
             return Err(e);
         }
     }
-    if let Err(e) = state.replace_settings(settings.clone()) {
-        // Keep the registered hotkey in step with the saved settings.
+    let register_command = |hotkey: &str, previous: &str| {
+        command::register_hotkey(&app, &state.controller, hotkey, Some(previous))
+    };
+    if command_changed
+        && let Err(e) = register_command(&settings.command_hotkey, &previous.command_hotkey)
+    {
+        let _ = register_command(&previous.command_hotkey, &settings.command_hotkey);
         if hotkey_changed {
             let _ =
                 state
@@ -106,6 +115,19 @@ pub async fn save_settings(
                     .register_hotkey(&app, &previous.hotkey, Some(&settings.hotkey));
         }
         undo_login();
+        return Err(e);
+    }
+    if let Err(e) = state.replace_settings(settings.clone()) {
+        // Keep the registered hotkeys in step with the saved settings.
+        if hotkey_changed {
+            let _ =
+                state
+                    .controller
+                    .register_hotkey(&app, &previous.hotkey, Some(&settings.hotkey));
+        }
+        if command_changed {
+            let _ = register_command(&previous.command_hotkey, &settings.command_hotkey);
+        }
         return Err(e);
     }
     if hotkey_changed {

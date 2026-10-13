@@ -56,8 +56,10 @@ why, see [macos-v1/ROADMAP.md](macos-v1/ROADMAP.md).
 - [ ] AI cleanup tested with real models on macOS, Windows and Linux, and the prompt tuned from what people dictate
 - [x] Tone that fits the app: chat, email, terminal and code editor styles, with a per-app override list
 - [x] Spoken file names, identifiers and flags written as code in editors and terminals
-- [ ] Tone tested on macOS and Windows (app detection)
-- [ ] Identify the focused app in native Wayland sessions
+- [x] Command mode: select text, hold a shortcut and say how to change it
+- [ ] Tone and command mode tested on macOS and Windows (app detection, copying the selection)
+- [ ] Identify the focused app in native Wayland sessions, which command mode needs to copy safely
+- [ ] Single-modifier keys (Right ⌥…) for the command shortcut
 - [ ] Windows build, tested
 - [ ] Linux build, tested (X11 and Wayland)
 - [ ] Single-modifier hotkeys on Windows and Linux

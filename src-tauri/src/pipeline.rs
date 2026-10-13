@@ -25,6 +25,9 @@ pub enum Error {
     ModelLoad(String),
     Transcribe(String),
     NoSpeech,
+    /// Command mode couldn't edit the selection: a message for the pill, and
+    /// what went wrong, for the log.
+    Command(&'static str, Option<String>),
 }
 
 impl Error {
@@ -35,6 +38,7 @@ impl Error {
             Error::ModelLoad(_) => "Model load failed",
             Error::Transcribe(_) => "Transcription failed",
             Error::NoSpeech => "No speech detected",
+            Error::Command(message, _) => message,
         }
     }
 
@@ -42,6 +46,7 @@ impl Error {
     pub fn detail(&self) -> Option<&str> {
         match self {
             Error::ModelLoad(e) | Error::Transcribe(e) => Some(e),
+            Error::Command(_, detail) => detail.as_deref(),
             Error::NoModel | Error::NoSpeech => None,
         }
     }
@@ -66,6 +71,8 @@ pub enum Stage {
     Transcribing,
     /// A local language model is tidying the transcript.
     CleaningUp,
+    /// A local language model is editing the selection, in command mode.
+    Editing,
 }
 
 /// Transcribes 16 kHz mono audio with the selected model, saves the recording
@@ -134,6 +141,47 @@ pub fn run(
     }
 
     Ok(save(app, samples, duration_secs, &text, model.name))
+}
+
+/// Transcribes audio as `run` does, without cleanup or saving it: for
+/// command mode, where what was said is an instruction. Returns the text and
+/// the name of the model that heard it.
+pub fn transcribe_only(
+    app: &AppHandle,
+    samples: &[f32],
+    on_stage: impl Fn(Stage),
+) -> Result<(String, &'static str), Error> {
+    let state = app.state::<AppState>();
+    let settings = state.settings();
+    // Whisper mode, as for dictation.
+    let samples = &*if settings.boost_quiet_speech {
+        gain::boost(samples)
+    } else {
+        samples.into()
+    };
+    // Whisper may hear words in silence, which mustn't become an edit.
+    if !live::has_speech(samples) {
+        return Err(Error::NoSpeech);
+    }
+    let model = models::find(&settings.selected_model)
+        .filter(|m| state.models.is_downloaded(m.id))
+        .ok_or(Error::NoModel)?;
+    let mut engine = lock_engine(&state, &on_stage);
+    if engine.loaded_model() != Some(model.id) {
+        on_stage(Stage::Loading);
+        let loaded = state.load_model(app, &mut engine, model);
+        on_stage(Stage::Transcribing);
+        loaded.map_err(Error::ModelLoad)?;
+    }
+    let raw = engine
+        .transcribe(samples, &settings.language, "")
+        .map_err(Error::Transcribe)?;
+    drop(engine);
+    let text = text::normalize_transcription(&raw, true);
+    if text.trim().is_empty() {
+        return Err(Error::NoSpeech);
+    }
+    Ok((text.trim().to_string(), model.name))
 }
 
 /// Save one history entry for the entire live session, rather than one per phrase.
