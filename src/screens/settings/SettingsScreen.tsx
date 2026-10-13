@@ -11,6 +11,7 @@ import {
   Lightbulb,
   Mic,
   Monitor,
+  Music,
   Moon,
   PanelBottom,
   RefreshCw,
@@ -481,6 +482,17 @@ function RecordingSection() {
         }
       >
         <Switch label="Whisper mode" checked={settings.boostQuietSpeech} onChange={(boostQuietSpeech) => save({ boostQuietSpeech })} />
+      </SettingRow>
+      <SettingRow
+        icon={Music}
+        label="Pause media while dictating"
+        description={
+          settings.pauseMedia
+            ? "Music and videos pause when you start recording, and carry on when you stop."
+            : "Music and videos keep playing while you dictate."
+        }
+      >
+        <Switch label="Pause media while dictating" checked={settings.pauseMedia} onChange={(pauseMedia) => save({ pauseMedia })} />
       </SettingRow>
     </Section>
   );

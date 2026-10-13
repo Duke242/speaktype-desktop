@@ -2,6 +2,7 @@
 //! build time.
 
 mod focus;
+mod media;
 
 use std::path::Path;
 
@@ -9,6 +10,7 @@ use enigo::{Enigo, Key};
 use tauri::WebviewWindow;
 
 pub use focus::FocusedField;
+pub use media::{PausedMedia, pause_media, resume_media};
 
 use super::{HotkeyHandler, Permission, PermissionKind};
 

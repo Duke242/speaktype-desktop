@@ -3,6 +3,7 @@
 
 mod focus;
 mod hotkey;
+mod media;
 mod permissions;
 mod typing;
 
@@ -13,6 +14,7 @@ use tauri::{TitleBarStyle, WebviewWindow};
 
 pub use focus::FocusedField;
 pub use hotkey::MODIFIER_HOTKEYS;
+pub use media::{PausedMedia, pause_media, resume_media};
 pub use permissions::{permission_settings_url, permissions, request_permission};
 pub use typing::{send_live_text, typing_target};
 

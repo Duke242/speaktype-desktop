@@ -39,6 +39,7 @@ use crate::{
     pill::{self, PillState},
     pipeline,
     platform::{self, HotkeyEvent},
+    playback::Playback,
     settings::RecordingMode,
 };
 
@@ -326,6 +327,7 @@ impl Controller {
             app,
             controller: controller.clone(),
             paster: Paster::spawn(),
+            playback: Playback::spawn(),
             phase: Phase::Idle,
             hotkey: Hotkey::default(),
             owns_cancel_key: false,
@@ -398,6 +400,7 @@ struct Session {
     app: AppHandle,
     controller: Controller,
     paster: Paster,
+    playback: Playback,
     phase: Phase,
     hotkey: Hotkey,
     /// Whether this session registered Escape, as opposed to the user's hotkey being Escape.
@@ -552,6 +555,9 @@ impl Session {
                     started_at_ms,
                     locked: false,
                 });
+                if settings.pause_media {
+                    self.playback.pause();
+                }
                 self.broadcast(DictationState::Recording { started_at_ms });
                 // Load the models while the user speaks, so they're ready on release.
                 self.state().warm_up(&self.app, &settings.selected_model);
@@ -585,7 +591,10 @@ impl Session {
             message: message.into(),
         });
         self.broadcast(DictationState::Transcribing);
-        let captured = match recording.finish() {
+        let finished = recording.finish();
+        // Once the microphone is closed, so it doesn't hear the music start.
+        self.playback.resume();
+        let captured = match finished {
             Ok(captured) => captured,
             Err(e) => {
                 eprintln!("[dictation] {e}");
@@ -715,6 +724,8 @@ impl Session {
     /// Returns to idle. Dropping a recording stops the microphone and discards its audio.
     fn go_idle(&mut self) {
         self.cancel_live_typing();
+        // After a discarded recording; does nothing otherwise.
+        self.playback.resume();
         self.phase = Phase::Idle;
         self.set_cancel_key(false);
         self.show(PillState::Idle);

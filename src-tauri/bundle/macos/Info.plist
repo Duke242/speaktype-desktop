@@ -4,5 +4,7 @@
 <dict>
   <key>NSMicrophoneUsageDescription</key>
   <string>Wordfall records your voice while you dictate. Audio never leaves your Mac.</string>
+  <key>NSAppleEventsUsageDescription</key>
+  <string>Wordfall pauses Music and Spotify while you dictate, and resumes them afterwards.</string>
 </dict>
 </plist>
