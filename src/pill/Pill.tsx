@@ -6,7 +6,7 @@ import { formatClock } from "@/lib/format";
 import { useNow } from "@/lib/hooks";
 import { useApplyTheme } from "@/lib/theme";
 import { useTauriEvent } from "@/lib/useTauriEvent";
-import { showLanguageMenu, showMicrophoneMenu, showModeMenu } from "@/lib/menus";
+import { showLanguageMenu, showMicrophoneMenu, showModeMenu, showModelMenu } from "@/lib/menus";
 import { Waveform } from "./Waveform";
 
 // Pill sizes per phase, from the macOS recorder.
@@ -76,6 +76,11 @@ export function Pill({ preview = false }: { preview?: boolean }) {
       <div
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
+        onContextMenu={(event) => {
+          // Right-click to switch model.
+          event.preventDefault();
+          if (settings) showModelMenu(settings);
+        }}
         style={{ width: size.width, height: size.height, borderRadius: size.height / 2 }}
         className={cn(
           "relative flex items-center overflow-hidden text-white",
