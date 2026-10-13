@@ -9,8 +9,9 @@
 //! written as code (see `coding`).
 
 use std::{
-    sync::Mutex,
-    thread::{self, JoinHandle},
+    sync::{Mutex, mpsc},
+    thread,
+    time::Duration,
 };
 
 use serde::{Deserialize, Serialize};
@@ -261,25 +262,41 @@ fn detect() -> Option<FrontApp> {
     Some(app)
 }
 
+/// How long a finished recording waits for the app with focus before going
+/// on without it, in the default style.
+const DETECTION_WAIT: Duration = Duration::from_secs(1);
+
 /// Finding the app with focus, on a thread of its own: it can take a moment
 /// (on macOS the window title comes from Accessibility, which may wait for an
 /// app that's slow to answer), and the hotkey mustn't wait for it.
-pub struct Detection(Option<JoinHandle<Option<FrontApp>>>);
+pub struct Detection(Option<mpsc::Receiver<Option<FrontApp>>>);
 
 impl Detection {
     /// Starts looking for the app with focus now.
     pub fn start() -> Self {
-        let handle = thread::Builder::new()
-            .name("app-detection".into())
-            .spawn(detect)
-            .map_err(|e| eprintln!("[tone] couldn't start app detection: {e}"))
-            .ok();
-        Self(handle)
+        Self::spawn(detect)
     }
 
-    /// The app that had focus, once the detection has finished.
+    fn spawn(find: impl FnOnce() -> Option<FrontApp> + Send + 'static) -> Self {
+        let (tx, rx) = mpsc::channel();
+        let started = thread::Builder::new()
+            .name("app-detection".into())
+            .spawn(move || {
+                let _ = tx.send(find());
+            })
+            .map_err(|e| eprintln!("[tone] couldn't start app detection: {e}"))
+            .is_ok();
+        Self(started.then_some(rx))
+    }
+
+    /// The app that had focus. An app that never answers mustn't hold up the
+    /// transcription, so this gives up after `DETECTION_WAIT`.
     pub fn app(self) -> Option<FrontApp> {
-        self.0.and_then(|handle| handle.join().ok().flatten())
+        let app = self.0?.recv_timeout(DETECTION_WAIT);
+        if app.is_err() {
+            eprintln!("[tone] the app with focus didn't answer in time");
+        }
+        app.ok().flatten()
     }
 }
 
@@ -411,6 +428,20 @@ fn as_command(text: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn an_app_that_never_answers_doesnt_hold_up_the_dictation() {
+        let started = std::time::Instant::now();
+        let slow = Detection::spawn(|| {
+            thread::sleep(DETECTION_WAIT * 5);
+            None
+        });
+        assert_eq!(slow.app(), None);
+        assert!(started.elapsed() < DETECTION_WAIT * 3);
+
+        let quick = Detection::spawn(|| Some(app("com.tinyspeck.slackmacgap", "Slack", "")));
+        assert_eq!(quick.app().map(|a| a.name), Some("Slack".into()));
+    }
 
     fn app(id: &str, name: &str, title: &str) -> FrontApp {
         FrontApp {

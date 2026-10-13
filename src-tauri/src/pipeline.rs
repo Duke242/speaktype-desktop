@@ -25,6 +25,9 @@ pub enum Error {
     ModelLoad(String),
     Transcribe(String),
     NoSpeech,
+    /// Words were heard, but voice commands like "scratch that" left nothing
+    /// to type. What was heard is kept in History.
+    NothingLeft,
     /// Command mode couldn't edit the selection: a message for the pill, and
     /// what went wrong, for the log.
     Command(&'static str, Option<String>),
@@ -38,6 +41,7 @@ impl Error {
             Error::ModelLoad(_) => "Model load failed",
             Error::Transcribe(_) => "Transcription failed",
             Error::NoSpeech => "No speech detected",
+            Error::NothingLeft => "Nothing left to type. Saved in History.",
             Error::Command(message, _) => message,
         }
     }
@@ -47,7 +51,7 @@ impl Error {
         match self {
             Error::ModelLoad(e) | Error::Transcribe(e) => Some(e),
             Error::Command(_, detail) => detail.as_deref(),
-            Error::NoModel | Error::NoSpeech => None,
+            Error::NoModel | Error::NoSpeech | Error::NothingLeft => None,
         }
     }
 }
@@ -142,7 +146,15 @@ pub fn run(
     // After cleanup, so dictionary rules and snippets always have the last word.
     let text = text::finish(&text, &options);
     if text.is_empty() {
-        return Err(Error::NoSpeech);
+        // Usually "scratch that". In case it wasn't meant, what was heard
+        // stays in History rather than being lost with the recording.
+        let heard = text::normalize_transcription(&raw, options.auto_edit);
+        let heard = heard.trim();
+        if heard.is_empty() {
+            return Err(Error::NoSpeech);
+        }
+        save(app, samples, duration_secs, heard, model.name);
+        return Err(Error::NothingLeft);
     }
 
     Ok(save(app, samples, duration_secs, &text, model.name))
@@ -282,5 +294,9 @@ mod tests {
         assert_eq!(error.message(), "Transcription failed");
         assert_eq!(error.detail(), Some("out of memory"));
         assert_eq!(Error::NoSpeech.detail(), None);
+        assert_eq!(
+            Error::NothingLeft.to_string(),
+            "Nothing left to type. Saved in History."
+        );
     }
 }
