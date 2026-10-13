@@ -143,7 +143,7 @@ Everyone is welcome, and you don't have to write code. Bug reports, ideas and de
 
 The project is new and the code is small and easy to find your way around, so it's a friendly place to learn. People who use Windows or Linux every day are especially welcome.
 
-Start with the **[contributing guide](CONTRIBUTING.md)**. It explains how to set up your computer, run and test Wordfall, and send your first change.
+Start with the **[contributing guide](../CONTRIBUTING.md)**. It explains how to set up your computer, run and test Wordfall, and send your first change.
 
 ---
 

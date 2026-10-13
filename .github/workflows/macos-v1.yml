@@ -1,14 +1,26 @@
-name: CI
+name: SpeakType 1
+
+# Builds, tests and lints the Swift macOS app in macos-v1/.
 
 on:
   pull_request:
     branches: [main]
+    paths:
+      - "macos-v1/**"
+      - ".github/workflows/macos-v1.yml"
   push:
     branches: [main]
+    paths:
+      - "macos-v1/**"
+      - ".github/workflows/macos-v1.yml"
 
 concurrency:
-  group: ci-${{ github.ref }}
+  group: macos-v1-${{ github.ref }}
   cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: macos-v1
 
 jobs:
   build-and-test:
@@ -30,8 +42,8 @@ jobs:
       - name: Cache SwiftPM
         uses: actions/cache@v6
         with:
-          path: SourcePackages
-          key: ${{ runner.os }}-spm-${{ hashFiles('speaktype.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
+          path: macos-v1/SourcePackages
+          key: ${{ runner.os }}-spm-${{ hashFiles('macos-v1/speaktype.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
           restore-keys: |
             ${{ runner.os }}-spm-
 
