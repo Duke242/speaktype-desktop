@@ -302,7 +302,8 @@ function LanguageSection() {
         />
       </SettingRow>
       <div className="py-3.5 pl-8 type-small text-ink-muted">
-        For languages other than English, use a multilingual model. English-only models can only write English.
+        For languages other than English, use a multilingual model. English-only models can only write English. With
+        detection on, you can switch languages between sentences: Whisper listens again after each pause.
       </div>
     </Section>
   );
