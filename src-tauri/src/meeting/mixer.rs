@@ -29,18 +29,15 @@ impl Aligner {
     }
 
     /// Equal lengths of microphone and system audio, as far as both have
-    /// arrived. A source more than `MAX_LAG` behind is filled with silence up
-    /// to that lag, and `finished` fills it all the way.
+    /// arrived. A source more than `MAX_LAG` behind is taken to have gone
+    /// quiet and is filled with silence all the way, as is any source once
+    /// `finished`. Filling it only up to the lag would leave whatever it sends
+    /// next that far early for the rest of the meeting.
     pub fn take(&mut self, finished: bool) -> (Vec<f32>, Vec<f32>) {
-        let allowed = if finished { 0 } else { MAX_LAG };
-        let target = self
-            .mic
-            .len()
-            .max(self.system.len())
-            .saturating_sub(allowed);
+        let longest = self.mic.len().max(self.system.len());
         for track in [&mut self.mic, &mut self.system] {
-            if track.len() < target {
-                track.resize(target, 0.0);
+            if finished || longest - track.len() > MAX_LAG {
+                track.resize(longest, 0.0);
             }
         }
         let n = self.mic.len().min(self.system.len());
@@ -190,11 +187,12 @@ mod tests {
         assert_eq!(aligner.take(false).0.len(), 0);
         aligner.push(&vec![0.1; MAX_LAG], &[]);
         let (mic, system) = aligner.take(false);
-        assert_eq!(mic.len(), MAX_LAG / 2);
+        assert_eq!(mic.len(), MAX_LAG * 3 / 2, "filled all the way");
         assert!(system.iter().all(|s| *s == 0.0));
-        // Late system audio continues after the silence that was filled in.
-        aligner.push(&[], &[0.3; 10]);
-        let (_, system) = aligner.take(false);
+        // Playback resumes in step with the microphone, not a second early.
+        aligner.push(&[0.1; 10], &[0.3; 10]);
+        let (mic, system) = aligner.take(false);
+        assert_eq!(mic, vec![0.1; 10]);
         assert_eq!(system, vec![0.3; 10]);
     }
 
