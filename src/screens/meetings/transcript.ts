@@ -26,6 +26,12 @@ export function insertSegment(segments: readonly MeetingSegment[], segment: Meet
   return [...segments.slice(0, at), segment, ...segments.slice(at)];
 }
 
+/** A fetched meeting with segments that arrived while it was being fetched, some of which it may already have. */
+export function withSegments(meeting: Meeting, segments: readonly MeetingSegment[]): Meeting {
+  if (segments.length === 0) return meeting;
+  return { ...meeting, segments: segments.reduce(insertSegment, meeting.segments) };
+}
+
 export interface TranscriptBlock {
   startSecs: number;
   /** "You" or "Others", or null when speakers aren't told apart. */
