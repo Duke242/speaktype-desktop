@@ -22,6 +22,7 @@ mod playback;
 mod settings;
 mod snippets;
 mod spoken;
+mod sync;
 mod text;
 mod tone;
 mod tray;
@@ -330,6 +331,7 @@ pub fn run() {
                 .build(),
         )
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             engine::silence_logs();
             for dir in [app.path().app_config_dir()?, app.path().app_data_dir()?] {
@@ -416,6 +418,7 @@ pub fn run() {
                     if let Err(e) = at_login {
                         eprintln!("[startup] {e}");
                     }
+                    sync::start(&handle);
                     state.device();
                 })?;
 
@@ -439,6 +442,11 @@ pub fn run() {
             commands::get_settings,
             commands::save_settings,
             commands::list_input_devices,
+            commands::get_sync_status,
+            commands::pick_sync_folder,
+            commands::sync_now,
+            commands::export_library,
+            commands::import_library,
             commands::list_models,
             commands::get_engine_status,
             commands::get_device_info,

@@ -23,6 +23,7 @@ use crate::{
     models::{self, ModelStatus},
     platform::{self, Permission, PermissionKind},
     settings::{CleanupBackend, Settings},
+    sync,
     text::DictionaryEntry,
     tone::{self, AppCategory},
     tray,
@@ -66,9 +67,22 @@ pub async fn get_settings(state: State<'_, AppState>) -> CommandResult<Settings>
 pub async fn save_settings(
     app: AppHandle,
     state: State<'_, AppState>,
-    settings: Settings,
+    mut settings: Settings,
+    changed: Option<Vec<String>>,
 ) -> CommandResult<Settings> {
     let previous = state.settings();
+    // Sharing, import and learning change these in the background. A save that
+    // didn't touch them keeps the current ones, rather than undoing those
+    // changes from an older copy (and sharing the loss as deletions).
+    if let Some(changed) = &changed {
+        let touched = |key: &str| changed.iter().any(|c| c == key);
+        if !touched("dictionary") {
+            settings.dictionary = previous.dictionary.clone();
+        }
+        if !touched("snippets") {
+            settings.snippets = previous.snippets.clone();
+        }
+    }
     let hotkey_changed = settings.hotkey != previous.hotkey;
     let command_changed = settings.command_hotkey != previous.command_hotkey;
     if !settings.command_hotkey.is_empty() && settings.command_hotkey == settings.hotkey {
@@ -158,12 +172,56 @@ pub async fn save_settings(
     }
     state.controller.send(Event::RefreshPill);
     let _ = app.emit("settings-changed", ());
+    // Shares any dictionary or snippet change; does nothing when sharing is off.
+    sync::nudge();
     Ok(settings)
 }
 
 #[tauri::command]
 pub async fn list_input_devices() -> CommandResult<Vec<InputDevice>> {
     Ok(audio::list_input_devices())
+}
+
+// ---- Sharing ----
+
+#[tauri::command]
+pub async fn get_sync_status() -> CommandResult<sync::Status> {
+    Ok(sync::status())
+}
+
+/// Asks for a folder to share the dictionary and snippets through. Saving it
+/// in settings starts sharing. `None` if the user cancelled.
+#[tauri::command]
+pub async fn pick_sync_folder(app: AppHandle) -> CommandResult<Option<String>> {
+    tauri::async_runtime::spawn_blocking(move || {
+        sync::pick_folder(&app).map(|folder| folder.to_string_lossy().into_owned())
+    })
+    .await
+    .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn sync_now(app: AppHandle) -> CommandResult<sync::Status> {
+    tauri::async_runtime::spawn_blocking(move || sync::sync_now(&app))
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Saves the dictionary and snippets to a file. Returns its path, or `None`
+/// if the user cancelled.
+#[tauri::command]
+pub async fn export_library(app: AppHandle) -> CommandResult<Option<String>> {
+    tauri::async_runtime::spawn_blocking(move || sync::export(&app))
+        .await
+        .map_err(|e| e.to_string())?
+        .map(|path| path.map(|p| p.to_string_lossy().into_owned()))
+}
+
+#[tauri::command]
+pub async fn import_library(app: AppHandle) -> CommandResult<Option<sync::ImportSummary>> {
+    tauri::async_runtime::spawn_blocking(move || sync::import(&app))
+        .await
+        .map_err(|e| e.to_string())?
 }
 
 // ---- Models ----

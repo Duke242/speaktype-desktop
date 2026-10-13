@@ -6,7 +6,7 @@ const QUICK_LANGUAGES = ["en", "es", "fr", "de", "hi", "pt", "ja", "zh"];
 
 async function save(patch: Partial<Settings>) {
   const settings = await api.getSettings();
-  await api.saveSettings({ ...settings, ...patch });
+  await api.saveSettings({ ...settings, ...patch }, Object.keys(patch) as (keyof Settings)[]);
 }
 
 /** Native menus open outside small windows like the pill and menu bar panel, so they never get clipped. */

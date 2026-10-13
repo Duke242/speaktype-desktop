@@ -29,6 +29,8 @@ Copying the selection takes care with the app it goes to (`src-tauri/src/command
 
 Settings → Commands and formatting turns on rules for English dictation, all on by default: "scratch that", "new line" and "new paragraph" as commands, keeping only the correction in "meet at 3, actually 4", and writing spoken lists, numbers, dates, times, prices and percentages as you'd type them. They live in `src-tauri/src/spoken/` and leave the text alone when unsure. Voice commands apply to dictation pasted when you finish, not to live typing, where "new line" would press Return. Snippets ("my calendar link" → the link) are in Dictionary → Snippets.
 
+To share the dictionary and snippets between computers or with a team, pick a folder in Settings → Sharing that Dropbox, iCloud Drive or a shared drive keeps in step. Wordfall keeps `wordfall-shared.json` there and merges it at launch, every minute and after each change, keeping the newest version of each rule or snippet. The same section exports and imports them as a file.
+
 ## Meetings
 
 The Meetings screen records a call and shows its transcript as people talk. It records the microphone and, where the system allows, what the computer plays, as two tracks: the transcript labels them "You" and "Others" (a cheap speaker split, not voice recognition). Each track is written to a WAV file as it's recorded and transcribed in 15–30 second windows cut at pauses, so memory stays flat in long meetings. When a meeting ends, the tracks are mixed into one recording beside the transcript, in `meetings/<id>/` next to History. If AI cleanup is set up (built-in model or local server), it writes a summary, action items and open questions, in parts for long meetings. Notes and transcript copy or save as Markdown.

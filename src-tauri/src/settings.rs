@@ -153,6 +153,9 @@ pub struct Settings {
     pub smart_formatting: bool,
     /// Spoken phrases that expand into saved text.
     pub snippets: Vec<Snippet>,
+    /// Folder holding the dictionary and snippets shared between computers,
+    /// or empty when sharing is off.
+    pub sync_folder: String,
     pub has_completed_onboarding: bool,
     /// Set once SpeakType 1's data has been brought over, so it only happens once.
     pub has_imported_v1: bool,
@@ -192,6 +195,7 @@ impl Default for Settings {
             self_corrections: true,
             smart_formatting: true,
             snippets: Vec::new(),
+            sync_folder: String::new(),
             has_completed_onboarding: false,
             has_imported_v1: false,
             has_shown_model_prompt: false,
@@ -326,7 +330,7 @@ mod tests {
         assert!(settings.boost_quiet_speech);
         assert!(!settings.pause_media && !settings.launch_at_login);
         assert!(settings.voice_commands && settings.self_corrections && settings.smart_formatting);
-        assert!(settings.snippets.is_empty());
+        assert!(settings.snippets.is_empty() && settings.sync_folder.is_empty());
         let entry = &settings.dictionary[0];
         assert!(entry.is_enabled && entry.match_whole_word);
         assert_eq!(settings.cleanup, CleanupSettings::default());
@@ -376,6 +380,7 @@ mod tests {
             "selfCorrections",
             "smartFormatting",
             "snippets",
+            "syncFolder",
             "hasCompletedOnboarding",
             "hasShownModelPrompt",
             "meetings",
