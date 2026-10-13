@@ -444,6 +444,12 @@ impl Session {
         if cancelled && let Some(handle) = &live {
             handle.cancelled.store(true, Ordering::SeqCst);
         }
+        // Show the release right away; closing the microphone takes a moment.
+        let message = if cancelled { STOPPING } else { TRANSCRIBING };
+        self.show(PillState::Processing {
+            message: message.into(),
+        });
+        self.broadcast(DictationState::Transcribing);
         let captured = match recording.finish() {
             Ok(captured) => captured,
             Err(e) => {
@@ -458,11 +464,6 @@ impl Session {
             cancelled,
             live: token,
         };
-        let message = if cancelled { STOPPING } else { TRANSCRIBING };
-        self.show(PillState::Processing {
-            message: message.into(),
-        });
-        self.broadcast(DictationState::Transcribing);
 
         let captured = if let Some(handle) = live {
             match handle.finish(captured, cancelled) {

@@ -373,23 +373,43 @@ pub fn resample(input: &[f32], from: u32, to: u32) -> Vec<f32> {
     let cutoff = ratio.min(1.0) * 0.95;
     let radius = ZERO_CROSSINGS / cutoff;
     let out_len = (input.len() as f64 * ratio).round() as usize;
-    let last = input.len() - 1;
+    // Output sample i sits at i * from / to input samples. Its fractional part
+    // repeats every `phases` outputs, so each phase's filter taps are computed
+    // once instead of evaluating sin and cos for every tap of every sample.
+    let divisor = gcd(from, to);
+    let (step, phases) = ((from / divisor) as usize, (to / divisor) as usize);
+    let kernels: Vec<(isize, Vec<f64>)> = (0..phases)
+        .map(|phase| {
+            let frac = phase as f64 / phases as f64;
+            let first = (frac - radius).ceil() as isize;
+            let end = (frac + radius).floor() as isize;
+            let taps = (first..=end)
+                .map(|k| {
+                    let x = k as f64 - frac;
+                    let t = std::f64::consts::PI * x * cutoff;
+                    let sinc = if t.abs() < 1e-9 { 1.0 } else { t.sin() / t };
+                    // Hann window over the filter's width.
+                    let window = 0.5 + 0.5 * (std::f64::consts::PI * x / radius).cos();
+                    sinc * window
+                })
+                .collect();
+            (first, taps)
+        })
+        .collect();
 
     let mut out = Vec::with_capacity(out_len);
     for i in 0..out_len {
-        let center = i as f64 / ratio;
-        // Float-to-int casts saturate, so a negative start clamps to 0.
-        let lo = (center - radius).ceil().max(0.0) as usize;
-        let hi = ((center + radius).floor() as usize).min(last);
+        let position = i * step;
+        let (base, phase) = (position / phases, position % phases);
+        let (first, taps) = &kernels[phase];
+        // Taps that fall outside the input are skipped, as near the edges.
+        let start = base as isize + first;
+        let skip = (-start).max(0) as usize;
+        let lo = start.max(0) as usize;
         let mut sum = 0.0;
         let mut weight = 0.0;
-        for (j, sample) in input.iter().enumerate().take(hi + 1).skip(lo) {
-            let x = j as f64 - center;
-            let t = std::f64::consts::PI * x * cutoff;
-            let sinc = if t.abs() < 1e-9 { 1.0 } else { t.sin() / t };
-            // Hann window over the filter's width.
-            let window = 0.5 + 0.5 * (std::f64::consts::PI * x / radius).cos();
-            let w = sinc * window;
+        let samples = input.get(lo..).unwrap_or_default();
+        for (sample, w) in samples.iter().zip(taps.get(skip..).unwrap_or_default()) {
             sum += f64::from(*sample) * w;
             weight += w;
         }
@@ -400,6 +420,13 @@ pub fn resample(input: &[f32], from: u32, to: u32) -> Vec<f32> {
         });
     }
     out
+}
+
+fn gcd(mut a: u32, mut b: u32) -> u32 {
+    while b != 0 {
+        (a, b) = (b, a % b);
+    }
+    a
 }
 
 #[cfg(test)]
@@ -514,3 +541,5 @@ mod tests {
         assert!(rms(&out) < 0.05, "aliasing left rms {}", rms(&out));
     }
 }
+
+
