@@ -587,26 +587,52 @@ fn ollama_root(url: &str) -> Result<String, String> {
     Ok(base.strip_suffix("/v1").unwrap_or(&base).to_string())
 }
 
+/// Context Ollama sets aside for cleanup. The prompt, the longest transcript
+/// (`MAX_WORDS`) and its reply fit in it. Ollama's own default can be 256k
+/// tokens, which holds gigabytes of memory for nothing.
+const OLLAMA_CONTEXT: u32 = 4096;
+
+#[derive(Serialize)]
+struct OllamaOptions {
+    /// Every request must ask for the same context, or Ollama reloads the model.
+    num_ctx: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    temperature: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    num_predict: Option<u32>,
+}
+
+/// Ollama's keep_alive: seconds, or negative for until Ollama quits.
+fn keep_alive_seconds(minutes: i32) -> i64 {
+    if minutes < 0 {
+        -1
+    } else {
+        i64::from(minutes) * 60
+    }
+}
+
 /// Asks Ollama to load `model` now and keep it for `keep_alive_minutes`
-/// (negative: until Ollama quits, zero: unload it now). The OpenAI-compatible
-/// API can't set this, but its requests keep what this sets. Other servers
-/// don't have this endpoint, which is fine: they load the model on first use.
+/// (negative: until Ollama quits, zero: unload it now). Other servers don't
+/// have this endpoint, which is fine: they load the model on first use.
 fn ollama_load(url: &str, model: &str, keep_alive_minutes: i32) -> Result<(), String> {
     #[derive(Serialize)]
     struct LoadRequest<'a> {
         model: &'a str,
-        /// Seconds, or negative for no limit.
         keep_alive: i64,
+        options: OllamaOptions,
     }
-    let keep_alive = if keep_alive_minutes < 0 {
-        -1
-    } else {
-        i64::from(keep_alive_minutes) * 60
-    };
     SERVER_CLIENT
         .post(format!("{}/api/generate", ollama_root(url)?))
         .timeout(LOAD_TIMEOUT)
-        .json(&LoadRequest { model, keep_alive })
+        .json(&LoadRequest {
+            model,
+            keep_alive: keep_alive_seconds(keep_alive_minutes),
+            options: OllamaOptions {
+                num_ctx: OLLAMA_CONTEXT,
+                temperature: None,
+                num_predict: None,
+            },
+        })
         .send()
         .and_then(|r| r.error_for_status())
         .map(|_| ())
@@ -662,6 +688,74 @@ static SERVER_CLIENT: LazyLock<reqwest::blocking::Client> =
     LazyLock::new(reqwest::blocking::Client::new);
 
 fn server_chat(settings: &CleanupSettings, text: &str) -> Result<String, String> {
+    if settings.server_model.trim().is_empty() {
+        return Err("No server model chosen".into());
+    }
+    match ollama_chat(settings, text)? {
+        Some(reply) => Ok(reply),
+        None => openai_chat(settings, text),
+    }
+}
+
+/// Cleans up through Ollama's own API, which, unlike its OpenAI-compatible
+/// one, can set the context size, the keep-alive and thinking. `None` when the
+/// server isn't Ollama.
+fn ollama_chat(settings: &CleanupSettings, text: &str) -> Result<Option<String>, String> {
+    #[derive(Serialize)]
+    struct ChatRequest<'a> {
+        model: &'a str,
+        messages: Vec<Message>,
+        stream: bool,
+        /// Thinking first would make cleanup take many seconds, so turn it off.
+        think: bool,
+        keep_alive: i64,
+        options: OllamaOptions,
+    }
+    #[derive(Deserialize)]
+    struct ChatResponse {
+        message: ChoiceMessage,
+    }
+    #[derive(Deserialize)]
+    struct ChoiceMessage {
+        content: Option<String>,
+    }
+
+    let response = SERVER_CLIENT
+        .post(format!("{}/api/chat", ollama_root(&settings.server_url)?))
+        .timeout(reply_timeout(text))
+        .json(&ChatRequest {
+            model: settings.server_model.trim(),
+            messages: messages(text),
+            stream: false,
+            think: false,
+            keep_alive: keep_alive_seconds(settings.server_keep_alive_minutes),
+            options: OllamaOptions {
+                num_ctx: OLLAMA_CONTEXT,
+                temperature: Some(0.0),
+                num_predict: Some(max_tokens(text)),
+            },
+        })
+        .send()
+        .map_err(|e| format!("Cleanup server: {e}"))?;
+    // Not Ollama. Ollama itself answers 404 for a model it doesn't have, and
+    // the OpenAI-compatible API then reports that too.
+    if response.status() == reqwest::StatusCode::NOT_FOUND {
+        return Ok(None);
+    }
+    let response: ChatResponse = response
+        .error_for_status()
+        .map_err(|e| format!("Cleanup server: {e}"))?
+        .json()
+        .map_err(|e| format!("Cleanup server sent an unreadable reply: {e}"))?;
+    response
+        .message
+        .content
+        .map(Some)
+        .ok_or_else(|| "Cleanup server sent an empty reply".into())
+}
+
+/// Cleans up through an OpenAI-compatible API, such as LM Studio's.
+fn openai_chat(settings: &CleanupSettings, text: &str) -> Result<String, String> {
     #[derive(Serialize)]
     struct ChatRequest<'a> {
         model: &'a str,
@@ -685,9 +779,6 @@ fn server_chat(settings: &CleanupSettings, text: &str) -> Result<String, String>
         content: Option<String>,
     }
 
-    if settings.server_model.trim().is_empty() {
-        return Err("No server model chosen".into());
-    }
     let base = api_base(&settings.server_url)?;
     let response: ChatResponse = SERVER_CLIENT
         .post(format!("{base}/chat/completions"))
