@@ -95,8 +95,15 @@ impl Session {
         let tracks = sources
             .iter()
             .map(|source| TrackWriter::create(store.track_path(&meeting.id, *source)))
-            .collect::<Result<Vec<_>, _>>()?;
-        let mut tracks = tracks.into_iter();
+            .collect::<Result<Vec<_>, _>>();
+        let mut tracks = match tracks {
+            Ok(tracks) => tracks.into_iter(),
+            Err(e) => {
+                // Nothing was recorded, so nothing is kept.
+                let _ = store.delete(&meeting.id);
+                return Err(e);
+            }
+        };
         let (Some(mic_writer), system_writer) = (tracks.next(), tracks.next()) else {
             return Err("Couldn't create the recording".into());
         };
