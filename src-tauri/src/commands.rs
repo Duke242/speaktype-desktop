@@ -371,6 +371,8 @@ pub struct CleanupStatus {
     /// Whether this build ships the helper that runs built-in models.
     builtin_available: bool,
     models: Vec<ModelStatus>,
+    /// Whether cleanup is on with a model ready, so dictations are actually tidied.
+    set_up: bool,
 }
 
 #[tauri::command]
@@ -378,6 +380,7 @@ pub async fn get_cleanup_status(state: State<'_, AppState>) -> CommandResult<Cle
     Ok(CleanupStatus {
         builtin_available: cleanup::worker_path().is_some(),
         models: state.models.cleanup_statuses(),
+        set_up: cleanup::Cleaner::is_set_up(&state.settings().cleanup, &state.models),
     })
 }
 
