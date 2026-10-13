@@ -40,7 +40,7 @@ why, see [macos-v1/ROADMAP.md](macos-v1/ROADMAP.md).
 - [x] Dashboard, History (search, playback), Dictionary, Statistics, Settings
 - [x] Light and dark themes
 - [x] Update check against GitHub releases
-- [ ] Launch at login
+- [x] Launch at login
 
 ## Planned for a later v2 release
 - [x] Import settings, dictionary and history from SpeakType 1 (automatic on first launch, or from Settings)
