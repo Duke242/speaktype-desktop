@@ -49,7 +49,7 @@ class UpdateService: NSObject, ObservableObject {
 
         do {
             let url = URL(
-                string: "https://api.github.com/repos/Duke242/speaktype-desktop/releases/latest")!
+                string: "https://api.github.com/repos/Duke242/wordfall/releases/latest")!
             var request = URLRequest(url: url)
             request.setValue("application/vnd.github.v3+json", forHTTPHeaderField: "Accept")
 

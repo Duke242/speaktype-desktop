@@ -27,7 +27,7 @@ Thanks for helping out! This guide covers everything from a fresh machine to a m
 
 You don't have to write code to help. A clear bug report from a Windows or Linux machine is one of the most useful things you can send.
 
-**Before you start on something big,** [open an issue](https://github.com/Duke242/speaktype-desktop/issues) or comment on an existing one so we can agree on the approach. Small fixes can go straight to a pull request.
+**Before you start on something big,** [open an issue](https://github.com/Duke242/wordfall/issues) or comment on an existing one so we can agree on the approach. Small fixes can go straight to a pull request.
 
 ---
 
@@ -82,8 +82,8 @@ Every system needs:
 Then clone the repo and install the interface's dependencies:
 
 ```bash
-git clone https://github.com/<your-username>/speaktype-desktop.git
-cd speaktype-desktop
+git clone https://github.com/<your-username>/wordfall.git
+cd wordfall
 npm install
 ```
 
@@ -132,7 +132,7 @@ Windows 10 or 11, 64-bit.
 
 WebView2, which draws the interface, comes with Windows 10 and 11. If the window stays blank, install the [WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/).
 
-**Tip:** clone into a short path like `C:\dev\speaktype-desktop`. Deep folders can hit Windows' path length limit during the first build.
+**Tip:** clone into a short path like `C:\dev\wordfall`. Deep folders can hit Windows' path length limit during the first build.
 
 ### Linux
 
@@ -397,4 +397,4 @@ GGML_NATIVE=OFF GGML_CPU_ARM_ARCH=armv8.2-a+fp16 npm run app
 
 **Linux: the hotkey doesn't work on Wayland.** It only fires while an X11 app has focus (see [Linux](#linux)). An X11 session is the most reliable option for now.
 
-**Something else?** [Open an issue](https://github.com/Duke242/speaktype-desktop/issues) with your system, what you ran, and the full error output. Stuck setups are worth reporting too: they help us improve this guide.
+**Something else?** [Open an issue](https://github.com/Duke242/wordfall/issues) with your system, what you ran, and the full error output. Stuck setups are worth reporting too: they help us improve this guide.
