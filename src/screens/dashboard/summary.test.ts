@@ -28,6 +28,7 @@ describe("wording", () => {
   it("follows the recording mode and the OS", () => {
     expect(hotkeyVerb("hold")).toBe("Hold");
     expect(hotkeyVerb("toggle")).toBe("Press");
+    expect(hotkeyVerb("hybrid")).toBe("Hold");
     expect(thisDevice("macos")).toBe("this Mac");
     expect(thisDevice("windows")).toBe("this computer");
     expect(thisDevice("linux")).toBe("this computer");

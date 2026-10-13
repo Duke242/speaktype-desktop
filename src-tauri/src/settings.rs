@@ -20,6 +20,15 @@ pub enum RecordingMode {
     Hold,
     /// Press once to start, again to stop.
     Toggle,
+    /// Hold to talk, or tap to start and press again to stop.
+    Hybrid,
+}
+
+impl RecordingMode {
+    /// Whether holding the hotkey records, so releasing it stops.
+    pub fn holds(self) -> bool {
+        self != Self::Toggle
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

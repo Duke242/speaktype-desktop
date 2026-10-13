@@ -11,7 +11,8 @@
 //!
 //! In Hold mode, double-tapping the hotkey locks recording on, so the user can
 //! let go and keep talking. The next press stops it. This works the same for
-//! every kind of hotkey, since it only looks at presses and releases.
+//! every kind of hotkey, since it only looks at presses and releases. Hybrid
+//! mode is Hold mode where a single quick tap locks.
 
 use std::{
     mem,
@@ -242,7 +243,7 @@ fn decide(
     hotkey: &mut Hotkey,
     now: Instant,
 ) -> Action {
-    let hold = mode == RecordingMode::Hold;
+    let hold = mode.holds();
     let within_tap = |since: Option<Instant>| since.is_some_and(|t| now - t <= DOUBLE_TAP);
     match input {
         Input::HotkeyDown(shortcut) => {
@@ -301,6 +302,12 @@ fn decide(
                     } else {
                         Action::Nothing
                     }
+                }
+                // Hybrid mode: a quick tap keeps recording until the next press.
+                Activity::Recording { .. }
+                    if within_tap(hotkey.pressed_at) && mode == RecordingMode::Hybrid =>
+                {
+                    Action::Lock
                 }
                 Activity::Recording { .. } if within_tap(hotkey.pressed_at) => {
                     hotkey.tapped_at = Some(now);
@@ -622,9 +629,8 @@ impl Session {
                 self.typing_paused = false;
                 // Held shortcut modifiers interfere with typing on some systems.
                 // Fn events are swallowed on macOS; other shortcuts use Toggle.
-                let compatible = !by_hotkey
-                    || settings.recording_mode == RecordingMode::Toggle
-                    || settings.hotkey == "Fn";
+                let compatible =
+                    !by_hotkey || !settings.recording_mode.holds() || settings.hotkey == "Fn";
                 let live = if settings.live_typing && compatible && !command {
                     platform::typing_target().and_then(|target| {
                         live::Handle::spawn(
@@ -1007,6 +1013,15 @@ mod tests {
     /// Runs `inputs`, each at its time in milliseconds, from idle in Hold mode,
     /// moving between activities as the session would. Returns each action.
     fn hold(inputs: &[(u64, Input)]) -> Vec<Action> {
+        timed(RecordingMode::Hold, inputs)
+    }
+
+    /// Like [`hold`], in Hybrid mode.
+    fn hybrid(inputs: &[(u64, Input)]) -> Vec<Action> {
+        timed(RecordingMode::Hybrid, inputs)
+    }
+
+    fn timed(mode: RecordingMode, inputs: &[(u64, Input)]) -> Vec<Action> {
         let mut hotkey = Hotkey::default();
         let mut activity = Activity::Idle;
         let start = Instant::now();
@@ -1014,7 +1029,7 @@ mod tests {
             .iter()
             .map(|&(ms, input)| {
                 let now = start + Duration::from_millis(ms);
-                let action = decide(input, activity, RecordingMode::Hold, &mut hotkey, now);
+                let action = decide(input, activity, mode, &mut hotkey, now);
                 activity = match (action, activity) {
                     (Action::Start { by }, _) => recording(by),
                     (Action::Stop { .. }, _) => Activity::Transcribing,
@@ -1086,6 +1101,51 @@ mod tests {
                 ]
             );
         }
+    }
+
+    #[test]
+    fn hybrid_mode_locks_on_a_tap_and_stops_on_the_next_press() {
+        use Input::*;
+        for shortcut in [DICTATION, COMMAND] {
+            assert_eq!(
+                hybrid(&[
+                    (0, HotkeyDown(shortcut)),
+                    (150, HotkeyUp(shortcut)),
+                    (6_000, HotkeyDown(shortcut)),
+                    (6_100, HotkeyUp(shortcut)),
+                ]),
+                [
+                    Action::Start { by: Some(shortcut) },
+                    Action::Lock,
+                    Action::Nothing,
+                    STOP
+                ]
+            );
+        }
+    }
+
+    #[test]
+    fn hybrid_mode_holds_to_talk_on_a_long_press() {
+        use Input::*;
+        assert_eq!(
+            hybrid(&[(0, HotkeyDown(DICTATION)), (2_000, HotkeyUp(DICTATION))]),
+            [START, STOP]
+        );
+        // A shortcut like ⌘C, from a single-modifier hotkey, is still discarded.
+        assert_eq!(
+            hybrid(&[(0, HotkeyDown(DICTATION)), (80, HotkeyInterrupted)]),
+            [START, Action::Discard]
+        );
+        // Only the shortcut that started the recording locks it.
+        assert_eq!(
+            hybrid(&[
+                (0, HotkeyDown(DICTATION)),
+                (50, HotkeyDown(COMMAND)),
+                (120, HotkeyUp(COMMAND)),
+                (3_000, HotkeyUp(DICTATION)),
+            ]),
+            [START, Action::Nothing, Action::Nothing, STOP]
+        );
     }
 
     #[test]
