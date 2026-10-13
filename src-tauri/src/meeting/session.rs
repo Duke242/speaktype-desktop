@@ -469,6 +469,13 @@ fn recognize(
         // A window ending is not the end of a sentence to tidy.
         smart_trailing_punctuation: false,
         dictionary: &settings.dictionary,
+        // Commands, corrections and snippets are for dictating; a meeting
+        // transcript keeps what people said.
+        voice_commands: false,
+        self_corrections: false,
+        smart_formatting: false,
+        snippets: &[],
+        english: text::is_english(&settings.language),
     };
     Ok(text::finish(
         &text::normalize_transcription(&raw, options.auto_edit),
