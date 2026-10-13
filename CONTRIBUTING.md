@@ -268,13 +268,16 @@ Automated tests can't press your hotkey or paste into another app. For anything 
 **Dictation**
 - [ ] Hold the hotkey, speak, release: the text appears in a text editor, a browser text field and a terminal.
 - [ ] Toggle mode (Settings → Recording mode): press once to start and again to stop.
+- [ ] Hold mode: double-tap the hotkey, let go and keep talking; the pill shows a lock. Press the hotkey once to stop.
 - [ ] <kbd>Esc</kbd> while recording stops without pasting, and the transcript still shows up in History.
 - [ ] Pressing another key while holding the hotkey cancels the recording.
 - [ ] With "Restore clipboard" on, whatever you had copied before is still on the clipboard afterwards.
+- [ ] With "Pause media while dictating" on, music playing in a player or browser pauses while you record and carries on after. Something you paused yourself stays paused.
 
 **Recorder pill and menu bar**
 - [ ] The pill appears while recording, shows a moving waveform and the elapsed time, and hides afterwards.
 - [ ] Each pill position in Settings puts it in the right place, including on a second display.
+- [ ] Right-clicking the pill, while recording or with "Always show" on, lists downloaded models with the current one checked, and picking one switches to it. Clicks around an idle pill still reach the app underneath.
 - [ ] Clicking the menu bar or tray icon opens the panel, and dictation can start from there. On Linux, the icon shows a menu instead.
 
 **Models**

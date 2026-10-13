@@ -6,6 +6,7 @@ mod commands;
 mod device;
 mod dictation;
 mod engine;
+mod gain;
 mod history;
 mod learn;
 mod legacy;
@@ -17,6 +18,7 @@ mod paste;
 mod pill;
 mod pipeline;
 mod platform;
+mod playback;
 mod settings;
 mod snippets;
 mod spoken;
@@ -28,6 +30,7 @@ mod tray;
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock, PoisonError, RwLock, TryLockError};
 
 use tauri::{AppHandle, Emitter, Manager, WindowEvent};
+use tauri_plugin_autostart::ManagerExt;
 
 use crate::{
     cleanup::Cleaner,
@@ -253,6 +256,20 @@ impl AppState {
     }
 }
 
+/// Passed to Wordfall when the system starts it at login.
+const AT_LOGIN_ARG: &str = "--at-login";
+
+/// Turns starting at login on or off with the system.
+pub(crate) fn set_launch_at_login(app: &AppHandle, enabled: bool) -> Result<(), String> {
+    let autostart = app.autolaunch();
+    let result = if enabled {
+        autostart.enable()
+    } else {
+        autostart.disable()
+    };
+    result.map_err(|e| format!("Couldn't change launch at login: {e}"))
+}
+
 /// Brings over what SpeakType 1 saved on this computer, once.
 ///
 /// Settings only come across on a fresh install: someone who already set
@@ -290,6 +307,15 @@ fn import_speaktype1(
     (!summary.is_empty()).then_some(summary)
 }
 
+/// Keeps the system's login item in step with the setting.
+fn sync_launch_at_login(app: &AppHandle, enabled: bool) -> Result<(), String> {
+    let registered = app.autolaunch().is_enabled().unwrap_or(false);
+    if enabled || registered {
+        set_launch_at_login(app, enabled)?;
+    }
+    Ok(())
+}
+
 pub fn run() {
     let app = tauri::Builder::default()
         // Launching Wordfall again brings the running app forward instead of
@@ -298,6 +324,12 @@ pub fn run() {
             tray::open_main_window(app, None);
         }))
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
+        .plugin(
+            tauri_plugin_autostart::Builder::new()
+                .app_name("Wordfall")
+                .arg(AT_LOGIN_ARG)
+                .build(),
+        )
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
@@ -325,6 +357,10 @@ pub fn run() {
                 fresh_install,
             );
             let show_tray_icon = settings.show_tray_icon;
+            // Started at login: stay in the menu bar or tray until needed.
+            let in_background = std::env::args().any(|arg| arg == AT_LOGIN_ARG)
+                && settings.has_completed_onboarding
+                && show_tray_icon;
 
             app.manage(AppState {
                 settings: RwLock::new(settings),
@@ -344,6 +380,9 @@ pub fn run() {
 
             if let Some(main) = app.get_webview_window("main") {
                 platform::style_main_window(&main);
+                if in_background {
+                    let _ = main.hide();
+                }
             }
 
             // Shortcut registration waits on the main thread, so it can't run
@@ -375,6 +414,11 @@ pub fn run() {
                     state.warm_up(&handle, &settings.selected_model);
                     state.cleaner.warm_up(&settings.cleanup, &state.models);
                     sync::start(&handle);
+                    // Re-registered each launch, so it follows the app if it moves.
+                    let at_login = sync_launch_at_login(&handle, settings.launch_at_login);
+                    if let Err(e) = at_login {
+                        eprintln!("[startup] {e}");
+                    }
                     state.device();
                 })?;
 

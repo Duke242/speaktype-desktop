@@ -122,6 +122,12 @@ pub struct Settings {
     pub recent_languages: Vec<String>,
     /// Input device id from cpal, or empty for the system default.
     pub input_device: String,
+    /// Whisper mode: raise quiet speech to a normal level before transcribing.
+    pub boost_quiet_speech: bool,
+    /// Pause music and videos while recording, and resume them afterwards.
+    pub pause_media: bool,
+    /// Start Wordfall, in the background, when the user logs in.
+    pub launch_at_login: bool,
     pub auto_edit: bool,
     pub smart_trailing_punctuation: bool,
     pub cleanup: CleanupSettings,
@@ -169,6 +175,9 @@ impl Default for Settings {
             language: "auto".to_string(),
             recent_languages: Vec::new(),
             input_device: String::new(),
+            boost_quiet_speech: true,
+            pause_media: false,
+            launch_at_login: false,
             auto_edit: false,
             smart_trailing_punctuation: true,
             cleanup: CleanupSettings::default(),
@@ -320,6 +329,8 @@ mod tests {
         assert!(!settings.live_typing);
         assert!(settings.voice_commands && settings.self_corrections && settings.smart_formatting);
         assert!(settings.snippets.is_empty() && settings.sync_folder.is_empty());
+        assert!(settings.boost_quiet_speech);
+        assert!(!settings.pause_media && !settings.launch_at_login);
         let entry = &settings.dictionary[0];
         assert!(entry.is_enabled && entry.match_whole_word);
         assert_eq!(settings.cleanup, CleanupSettings::default());
@@ -349,6 +360,9 @@ mod tests {
             "language",
             "recentLanguages",
             "inputDevice",
+            "boostQuietSpeech",
+            "pauseMedia",
+            "launchAtLogin",
             "autoEdit",
             "smartTrailingPunctuation",
             "cleanup",

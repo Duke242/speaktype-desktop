@@ -23,7 +23,7 @@ why, see [macos-v1/ROADMAP.md](macos-v1/ROADMAP.md).
 - [x] Nine screen positions, always-show option
 - [x] Hover controls: microphone, mode, language
 - [x] Click the dot to stop
-- [ ] Right-click menu to switch model
+- [x] Right-click menu to switch model
 - [ ] Frosted idle look in light mode
 
 ### Transcription
@@ -40,7 +40,7 @@ why, see [macos-v1/ROADMAP.md](macos-v1/ROADMAP.md).
 - [x] Dashboard, History (search, playback), Dictionary, Statistics, Settings
 - [x] Light and dark themes
 - [x] Update check against GitHub releases
-- [ ] Launch at login
+- [x] Launch at login
 
 ## Planned for a later v2 release
 - [x] Import settings, dictionary and history from SpeakType 1 (automatic on first launch, or from Settings)

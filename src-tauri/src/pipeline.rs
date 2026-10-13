@@ -12,6 +12,7 @@ use crate::{
     AppState, LockExt,
     cleanup::Cleaner,
     engine::Engine,
+    gain,
     history::{self, HistoryItem},
     live, media, models,
     platform::FrontApp,
@@ -100,14 +101,20 @@ pub fn run(
         on_stage(Stage::Transcribing);
         loaded.map_err(Error::ModelLoad)?;
     }
+    // Whisper mode. The recording is saved as it was captured.
+    let heard = if settings.boost_quiet_speech {
+        gain::boost(samples)
+    } else {
+        samples.into()
+    };
     // Given words to expect and only silence, Whisper may write those words.
-    let prompt = if live::has_speech(samples) {
+    let prompt = if live::has_speech(&heard) {
         text::prompt(&settings.dictionary, "")
     } else {
         String::new()
     };
     let raw = engine
-        .transcribe(samples, &settings.language, &prompt)
+        .transcribe(&heard, &settings.language, &prompt)
         .map_err(Error::Transcribe)?;
     drop(engine);
 
@@ -149,12 +156,18 @@ pub fn transcribe_only(
     samples: &[f32],
     on_stage: impl Fn(Stage),
 ) -> Result<(String, &'static str), Error> {
+    let state = app.state::<AppState>();
+    let settings = state.settings();
+    // Whisper mode, as for dictation.
+    let samples = &*if settings.boost_quiet_speech {
+        gain::boost(samples)
+    } else {
+        samples.into()
+    };
     // Whisper may hear words in silence, which mustn't become an edit.
     if !live::has_speech(samples) {
         return Err(Error::NoSpeech);
     }
-    let state = app.state::<AppState>();
-    let settings = state.settings();
     let model = models::find(&settings.selected_model)
         .filter(|m| state.models.is_downloaded(m.id))
         .ok_or(Error::NoModel)?;

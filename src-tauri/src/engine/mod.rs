@@ -54,9 +54,11 @@ impl Engine {
         self.loaded = None;
     }
 
-    /// Transcribes 16 kHz mono audio. `language` is a Whisper code or "auto";
-    /// Parakeet detects the language itself. `prompt` (see `text::prompt`) is
-    /// only used by Whisper, as Parakeet has no way to take one.
+    /// Transcribes 16 kHz mono audio. `language` is a Whisper code or "auto",
+    /// which Whisper detects for each part of a longer dictation separated by
+    /// pauses. Parakeet takes no language: v3 recognizes its 25 languages
+    /// without being told which. `prompt` (see `text::prompt`) is only used by
+    /// Whisper, as Parakeet has no way to take one.
     pub fn transcribe(
         &mut self,
         samples: &[f32],

@@ -3,6 +3,7 @@ import {
   BookA,
   ClipboardCheck,
   Command,
+  Ear,
   Globe,
   Hand,
   Import,
@@ -10,6 +11,8 @@ import {
   Lightbulb,
   Mic,
   Monitor,
+  Music,
+  Power,
   Moon,
   PanelBottom,
   RefreshCw,
@@ -73,7 +76,12 @@ export function SettingsScreen() {
         actions={<SegmentedControl value={tab} options={tabs} onChange={setTab} className={tabs.length > 2 ? "w-[340px]" : "w-[230px]"} />}
       />
       {tab === "general" && <GeneralTab />}
-      {tab === "audio" && <AudioTab />}
+      {tab === "audio" && (
+        <>
+          <AudioTab />
+          <RecordingSection />
+        </>
+      )}
       {tab === "permissions" && <PermissionsTab />}
     </Page>
   );
@@ -134,7 +142,7 @@ function GeneralTab() {
           label="Recording mode"
           description={
             settings.recordingMode === "hold"
-              ? "Hold the hotkey while you talk, and let go when you're done."
+              ? "Hold the hotkey while you talk, and let go when you're done. Double-tap it to keep recording hands-free, then press it once to stop."
               : "Press the hotkey to start recording, and press it again to stop."
           }
         >
@@ -175,6 +183,17 @@ function GeneralTab() {
             For live typing with this shortcut, choose Toggle mode. Hold mode inserts the transcript when you release the shortcut.
           </p>
         )}
+        <SettingRow
+          icon={Power}
+          label="Launch at login"
+          description={
+            settings.launchAtLogin
+              ? "Wordfall starts in the background when you log in, ready for your hotkey."
+              : "Wordfall only runs when you open it."
+          }
+        >
+          <Switch label="Launch at login" checked={settings.launchAtLogin} onChange={(launchAtLogin) => save({ launchAtLogin })} />
+        </SettingRow>
         <SettingRow
           icon={Command}
          
@@ -315,7 +334,8 @@ function LanguageSection() {
         />
       </SettingRow>
       <div className="py-3.5 pl-8 type-small text-ink-muted">
-        For languages other than English, use a multilingual model. English-only models can only write English.
+        For languages other than English, use a multilingual model. English-only models can only write English. With
+        detection on, you can switch languages between sentences: Whisper listens again after each pause.
       </div>
     </Section>
   );
@@ -474,6 +494,37 @@ function AudioTab() {
           );
         })
       )}
+    </Section>
+  );
+}
+
+function RecordingSection() {
+  const { settings } = useStore();
+  const save = useSave();
+  return (
+    <Section title="While you dictate">
+      <SettingRow
+        icon={Ear}
+        label="Whisper mode"
+        description={
+          settings.boostQuietSpeech
+            ? "Speaking softly? Quiet speech is turned up before it's transcribed. Silence and background noise are left alone."
+            : "Audio is transcribed at the level it was recorded."
+        }
+      >
+        <Switch label="Whisper mode" checked={settings.boostQuietSpeech} onChange={(boostQuietSpeech) => save({ boostQuietSpeech })} />
+      </SettingRow>
+      <SettingRow
+        icon={Music}
+        label="Pause media while dictating"
+        description={
+          settings.pauseMedia
+            ? "Music and videos pause when you start recording, and carry on when you stop."
+            : "Music and videos keep playing while you dictate."
+        }
+      >
+        <Switch label="Pause media while dictating" checked={settings.pauseMedia} onChange={(pauseMedia) => save({ pauseMedia })} />
+      </SettingRow>
     </Section>
   );
 }

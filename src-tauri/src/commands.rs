@@ -76,6 +76,10 @@ pub async fn save_settings(
         return Err("The command shortcut can't be the dictation hotkey".into());
     }
 
+    if settings.launch_at_login != previous.launch_at_login {
+        crate::set_launch_at_login(&app, settings.launch_at_login)?;
+    }
+
     if hotkey_changed {
         let registered =
             state

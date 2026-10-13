@@ -1,4 +1,4 @@
-import { ChevronsUpDown, Globe, Hand, Mic, Repeat, type LucideIcon } from "lucide-react";
+import { ChevronsUpDown, Globe, Hand, Lock, Mic, Repeat, type LucideIcon } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { api, type PillState, type Settings } from "@/lib/api";
 import { cn } from "@/lib/cn";
@@ -6,7 +6,7 @@ import { formatClock } from "@/lib/format";
 import { useNow } from "@/lib/hooks";
 import { useApplyTheme } from "@/lib/theme";
 import { useTauriEvent } from "@/lib/useTauriEvent";
-import { showLanguageMenu, showMicrophoneMenu, showModeMenu } from "@/lib/menus";
+import { showLanguageMenu, showMicrophoneMenu, showModeMenu, showModelMenu } from "@/lib/menus";
 import { Waveform } from "./Waveform";
 
 // Pill sizes per phase, from the macOS recorder.
@@ -19,7 +19,12 @@ const SIZES = {
 };
 
 export function Pill({ preview = false }: { preview?: boolean }) {
-  const [state, setState] = useState<PillState>(() => preview ? { phase: "recording", startedAtMs: Date.now() } : { phase: "idle" });
+  // Add ?locked=1 to preview a hands-free recording.
+  const [state, setState] = useState<PillState>(() =>
+    preview
+      ? { phase: "recording", startedAtMs: Date.now(), locked: new URLSearchParams(location.search).has("locked") }
+      : { phase: "idle" },
+  );
   const [settings, setSettings] = useState<Settings>();
   const [hovered, setHovered] = useState(false);
   const level = useRef({ value: 0, updatedAt: 0 });
@@ -71,6 +76,11 @@ export function Pill({ preview = false }: { preview?: boolean }) {
       <div
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
+        onContextMenu={(event) => {
+          // Right-click to switch model.
+          event.preventDefault();
+          if (settings) showModelMenu(settings);
+        }}
         style={{ width: size.width, height: size.height, borderRadius: size.height / 2 }}
         className={cn(
           "relative flex items-center overflow-hidden text-white",
@@ -90,6 +100,7 @@ export function Pill({ preview = false }: { preview?: boolean }) {
         {state.phase === "recording" && (
           <div className="flex w-full animate-fade-in items-center gap-2.5 px-3.5">
             <RecordingDot />
+            {state.locked && <LockBadge />}
             <Waveform level={level} />
             <span className="shrink-0 type-caption font-medium text-white/60 tabular-nums">
               {formatClock((now - state.startedAtMs) / 1000)}
@@ -165,6 +176,17 @@ function RecordingDot() {
       <span className="absolute size-2.5 animate-ping rounded-full bg-recording/35 [animation-duration:1.4s]" />
       <span className="relative size-2.5 rounded-full bg-recording" />
     </button>
+  );
+}
+
+function LockBadge() {
+  return (
+    <span
+      title="Hands-free. Press your hotkey to stop."
+      className="flex size-5 shrink-0 animate-pop-in items-center justify-center rounded-full bg-white/12 text-white/80"
+    >
+      <Lock size={10} strokeWidth={2.75} />
+    </span>
   );
 }
 

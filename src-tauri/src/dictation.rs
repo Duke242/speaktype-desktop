@@ -8,6 +8,10 @@
 //!
 //! What user input does is decided by [`decide`], a pure function, so it can be
 //! tested without a microphone or windows.
+//!
+//! In Hold mode, double-tapping the hotkey locks recording on, so the user can
+//! let go and keep talking. The next press stops it. This works the same for
+//! every kind of hotkey, since it only looks at presses and releases.
 
 use std::{
     mem,
@@ -18,7 +22,7 @@ use std::{
         mpsc::{self, Sender},
     },
     thread,
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use serde::Serialize;
@@ -35,6 +39,7 @@ use crate::{
     pill::{self, PillState},
     pipeline,
     platform::{self, FrontApp, HotkeyEvent},
+    playback::Playback,
     settings::RecordingMode,
     tone,
 };
@@ -51,6 +56,10 @@ const ERROR_MESSAGE: Duration = Duration::from_millis(2000);
 const NO_SPEECH_MESSAGE: Duration = Duration::from_millis(1500);
 const STOPPING_MESSAGE: Duration = Duration::from_millis(800);
 const LEARNED_MESSAGE: Duration = Duration::from_millis(2500);
+
+/// Hold mode: a press released this quickly is a tap, and a second press this
+/// soon after a tap locks recording on.
+const DOUBLE_TAP: Duration = Duration::from_millis(350);
 
 /// "Learned “Karan”", or "Learned “Karan” and 2 more" for several words.
 fn learned_message(words: &[String]) -> String {
@@ -96,6 +105,10 @@ pub enum Event {
     LiveTypingPaused {
         session: u64,
     },
+    /// The time for a second tap after a quick tap in Hold mode has passed.
+    TapExpired {
+        session: u64,
+    },
     MessageExpired {
         generation: u64,
     },
@@ -117,6 +130,8 @@ enum Input {
     HotkeyInterrupted,
     Toggle,
     Escape,
+    /// No second tap came after a quick tap in Hold mode.
+    TapExpired,
 }
 
 /// The part of [`Phase`] that decides what input does.
@@ -127,8 +142,23 @@ enum Activity {
     Recording {
         /// Started by pressing the hotkey, rather than from the UI or tray.
         by_hotkey: bool,
+        /// Hold mode only: double-tapped, so it records without the hotkey held.
+        locked: bool,
     },
     Transcribing,
+}
+
+/// What the hotkey has been doing, as far as [`decide`] needs to know.
+#[derive(Debug, Default, Clone, Copy)]
+struct Hotkey {
+    /// Held right now, so key repeat is ignored.
+    down: bool,
+    pressed_at: Option<Instant>,
+    /// Hold mode: when a quick tap was let go. A second press soon after locks.
+    tapped_at: Option<Instant>,
+    /// Locked: releasing this press stops recording, unless another key was
+    /// pressed with it, which makes it a shortcut like ⌘C instead.
+    stop_on_release: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -145,44 +175,98 @@ enum Action {
     Discard,
     /// Leaves the running transcription to finish in the background.
     CancelTranscription,
+    /// Hold mode: keeps recording for a moment after a quick tap, in case a
+    /// second tap follows. Ends with [`Input::TapExpired`].
+    AwaitSecondTap,
+    /// Hold mode: keeps recording until the hotkey is pressed again.
+    Lock,
 }
 
-/// Decides what `input` does. `hotkey_down` tracks whether the hotkey is held,
-/// so key repeat is ignored.
-fn decide(input: Input, activity: Activity, mode: RecordingMode, hotkey_down: &mut bool) -> Action {
+/// Decides what `input`, arriving at `now`, does.
+fn decide(
+    input: Input,
+    activity: Activity,
+    mode: RecordingMode,
+    hotkey: &mut Hotkey,
+    now: Instant,
+) -> Action {
+    let hold = mode == RecordingMode::Hold;
     let recording = matches!(activity, Activity::Recording { .. });
+    let within_tap = |since: Option<Instant>| since.is_some_and(|t| now - t <= DOUBLE_TAP);
     match input {
         Input::HotkeyDown => {
-            if mem::replace(hotkey_down, true) {
+            if mem::replace(&mut hotkey.down, true) {
                 return Action::Nothing;
             }
+            hotkey.pressed_at = Some(now);
             match activity {
-                Activity::Idle => Action::Start { by_hotkey: true },
-                Activity::Recording { .. } if mode == RecordingMode::Toggle => {
-                    Action::Stop { cancelled: false }
+                Activity::Idle => {
+                    hotkey.tapped_at = None;
+                    hotkey.stop_on_release = false;
+                    Action::Start { by_hotkey: true }
                 }
+                Activity::Recording { .. } if !hold => Action::Stop { cancelled: false },
+                Activity::Recording { locked: true, .. } => {
+                    hotkey.stop_on_release = true;
+                    Action::Nothing
+                }
+                Activity::Recording {
+                    by_hotkey: true,
+                    locked: false,
+                } if within_tap(hotkey.tapped_at.take()) => Action::Lock,
                 _ => Action::Nothing,
             }
         }
         Input::HotkeyUp => {
-            let was_down = mem::replace(hotkey_down, false);
-            if was_down && recording && mode == RecordingMode::Hold {
-                Action::Stop { cancelled: false }
-            } else {
-                Action::Nothing
+            let was_down = mem::replace(&mut hotkey.down, false);
+            if !(was_down && recording && hold) {
+                return Action::Nothing;
+            }
+            match activity {
+                // Releasing the second tap, which locked, does nothing.
+                Activity::Recording { locked: true, .. } => {
+                    if mem::take(&mut hotkey.stop_on_release) {
+                        Action::Stop { cancelled: false }
+                    } else {
+                        Action::Nothing
+                    }
+                }
+                Activity::Recording {
+                    by_hotkey: true, ..
+                } if within_tap(hotkey.pressed_at) => {
+                    hotkey.tapped_at = Some(now);
+                    Action::AwaitSecondTap
+                }
+                _ => Action::Stop { cancelled: false },
             }
         }
         Input::HotkeyInterrupted => {
-            *hotkey_down = false;
+            hotkey.down = false;
+            hotkey.tapped_at = None;
+            hotkey.stop_on_release = false;
             // The hotkey was part of a shortcut like ⌘C. A recording it started
-            // wasn't a dictation, but one started from the UI carries on.
+            // wasn't a dictation, but one started from the UI, or locked on,
+            // carries on.
             match activity {
-                Activity::Recording { by_hotkey: true } if mode == RecordingMode::Hold => {
-                    Action::Discard
-                }
+                Activity::Recording {
+                    by_hotkey: true,
+                    locked: false,
+                } if hold => Action::Discard,
                 _ => Action::Nothing,
             }
         }
+        // Only the timer for the latest tap counts: an older one finds it too recent.
+        Input::TapExpired => match activity {
+            Activity::Recording { locked: false, .. }
+                if hold
+                    && !hotkey.down
+                    && hotkey.tapped_at.is_some_and(|t| now - t >= DOUBLE_TAP) =>
+            {
+                hotkey.tapped_at = None;
+                Action::Stop { cancelled: false }
+            }
+            _ => Action::Nothing,
+        },
         Input::Toggle => match activity {
             Activity::Idle => Action::Start { by_hotkey: false },
             Activity::Recording { .. } => Action::Stop { cancelled: false },
@@ -203,6 +287,8 @@ enum Phase {
     Recording {
         recording: Recording,
         by_hotkey: bool,
+        locked: bool,
+        started_at_ms: u64,
         session: u64,
         live: Option<live::Handle>,
     },
@@ -222,8 +308,11 @@ impl Phase {
     fn activity(&self) -> Activity {
         match self {
             Phase::Idle | Phase::Message { .. } => Activity::Idle,
-            Phase::Recording { by_hotkey, .. } => Activity::Recording {
+            Phase::Recording {
+                by_hotkey, locked, ..
+            } => Activity::Recording {
                 by_hotkey: *by_hotkey,
+                locked: *locked,
             },
             Phase::Transcribing { .. } => Activity::Transcribing,
         }
@@ -243,8 +332,9 @@ impl Controller {
             app,
             controller: controller.clone(),
             paster: Paster::spawn(),
+            playback: Playback::spawn(),
             phase: Phase::Idle,
-            hotkey_down: false,
+            hotkey: Hotkey::default(),
             owns_cancel_key: false,
             next_id: 0,
             typing_paused: false,
@@ -318,8 +408,9 @@ struct Session {
     app: AppHandle,
     controller: Controller,
     paster: Paster,
+    playback: Playback,
     phase: Phase,
-    hotkey_down: bool,
+    hotkey: Hotkey,
     /// Whether this session registered Escape, as opposed to the user's hotkey being Escape.
     owns_cancel_key: bool,
     next_id: u64,
@@ -359,6 +450,11 @@ impl Session {
                     self.typing_paused = true;
                 }
             }
+            Event::TapExpired { session } => {
+                if matches!(self.phase, Phase::Recording { session: s, .. } if s == session) {
+                    self.input(Input::TapExpired);
+                }
+            }
             Event::MessageExpired { generation } => {
                 if matches!(self.phase, Phase::Message { generation: g } if g == generation) {
                     self.go_idle();
@@ -381,13 +477,50 @@ impl Session {
 
     fn input(&mut self, input: Input) {
         let mode = self.state().settings().recording_mode;
-        match decide(input, self.phase.activity(), mode, &mut self.hotkey_down) {
+        let activity = self.phase.activity();
+        match decide(input, activity, mode, &mut self.hotkey, Instant::now()) {
             Action::Nothing => {}
             Action::Start { by_hotkey } => self.start(by_hotkey),
             Action::Stop { cancelled } => self.stop(cancelled),
             Action::Discard => self.go_idle(),
             Action::CancelTranscription => self.flash(STOPPING, STOPPING_MESSAGE),
+            Action::AwaitSecondTap => self.await_second_tap(),
+            Action::Lock => self.lock(),
         }
+    }
+
+    /// Keeps recording after a quick tap, and stops if no second tap follows.
+    fn await_second_tap(&mut self) {
+        let Phase::Recording { session, .. } = self.phase else {
+            return;
+        };
+        let controller = self.controller.clone();
+        let timer = thread::Builder::new()
+            .name("double-tap".into())
+            .spawn(move || {
+                thread::sleep(DOUBLE_TAP);
+                controller.send(Event::TapExpired { session });
+            });
+        if let Err(e) = timer {
+            eprintln!("[dictation] {e}");
+            self.stop(false);
+        }
+    }
+
+    fn lock(&mut self) {
+        let Phase::Recording {
+            ref mut locked,
+            started_at_ms,
+            ..
+        } = self.phase
+        else {
+            return;
+        };
+        *locked = true;
+        self.show(PillState::Recording {
+            started_at_ms,
+            locked: true,
+        });
     }
 
     fn start(&mut self, by_hotkey: bool) {
@@ -439,11 +572,19 @@ impl Session {
                 self.phase = Phase::Recording {
                     recording,
                     by_hotkey,
+                    locked: false,
+                    started_at_ms,
                     session,
                     live,
                 };
                 self.set_cancel_key(true);
-                self.show(PillState::Recording { started_at_ms });
+                self.show(PillState::Recording {
+                    started_at_ms,
+                    locked: false,
+                });
+                if settings.pause_media {
+                    self.playback.pause();
+                }
                 self.broadcast(DictationState::Recording { started_at_ms });
                 // Load the models while the user speaks, so they're ready on release.
                 self.state().warm_up(&self.app, &settings.selected_model);
@@ -477,7 +618,10 @@ impl Session {
             message: message.into(),
         });
         self.broadcast(DictationState::Transcribing);
-        let captured = match recording.finish() {
+        let finished = recording.finish();
+        // Once the microphone is closed, so it doesn't hear the music start.
+        self.playback.resume();
+        let captured = match finished {
             Ok(captured) => captured,
             Err(e) => {
                 eprintln!("[dictation] {e}");
@@ -626,6 +770,8 @@ impl Session {
     /// Returns to idle. Dropping a recording stops the microphone and discards its audio.
     fn go_idle(&mut self) {
         self.cancel_live_typing();
+        // After a discarded recording; does nothing otherwise.
+        self.playback.resume();
         self.phase = Phase::Idle;
         self.set_cancel_key(false);
         self.show(PillState::Idle);
@@ -729,40 +875,220 @@ fn transcribe(
 mod tests {
     use super::*;
 
-    /// Runs `inputs` from `activity`, returning each action.
+    /// Runs `inputs` from `activity`, a second apart so none of them is a
+    /// quick tap, returning each action.
     fn run(activity: Activity, mode: RecordingMode, inputs: &[Input]) -> Vec<Action> {
-        let mut hotkey_down = false;
+        let mut hotkey = Hotkey::default();
+        let start = Instant::now();
         inputs
             .iter()
-            .map(|&input| decide(input, activity, mode, &mut hotkey_down))
+            .enumerate()
+            .map(|(i, &input)| {
+                let now = start + Duration::from_secs(i as u64);
+                decide(input, activity, mode, &mut hotkey, now)
+            })
             .collect()
     }
 
+    /// Runs `inputs`, each at its time in milliseconds, from idle in Hold mode,
+    /// moving between activities as the session would. Returns each action.
+    fn hold(inputs: &[(u64, Input)]) -> Vec<Action> {
+        let mut hotkey = Hotkey::default();
+        let mut activity = Activity::Idle;
+        let start = Instant::now();
+        inputs
+            .iter()
+            .map(|&(ms, input)| {
+                let now = start + Duration::from_millis(ms);
+                let action = decide(input, activity, RecordingMode::Hold, &mut hotkey, now);
+                activity = match (action, activity) {
+                    (Action::Start { by_hotkey }, _) => Activity::Recording {
+                        by_hotkey,
+                        locked: false,
+                    },
+                    (Action::Stop { .. }, _) => Activity::Transcribing,
+                    (Action::Discard, _) => Activity::Idle,
+                    (Action::Lock, Activity::Recording { by_hotkey, .. }) => Activity::Recording {
+                        by_hotkey,
+                        locked: true,
+                    },
+                    (_, activity) => activity,
+                };
+                action
+            })
+            .collect()
+    }
+
+    const STOP: Action = Action::Stop { cancelled: false };
+    const START: Action = Action::Start { by_hotkey: true };
+
     #[test]
     fn hold_mode_records_while_the_hotkey_is_held() {
-        let mut down = false;
+        let mut hotkey = Hotkey::default();
+        let mode = RecordingMode::Hold;
+        let start = Instant::now();
+        assert_eq!(
+            decide(Input::HotkeyDown, Activity::Idle, mode, &mut hotkey, start),
+            START
+        );
+        let recording = Activity::Recording {
+            by_hotkey: true,
+            locked: false,
+        };
+        // Key repeat while held does nothing.
+        let later = start + Duration::from_millis(500);
+        assert_eq!(
+            decide(Input::HotkeyDown, recording, mode, &mut hotkey, later),
+            Action::Nothing
+        );
+        let released = start + Duration::from_secs(3);
+        assert_eq!(
+            decide(Input::HotkeyUp, recording, mode, &mut hotkey, released),
+            STOP
+        );
+        assert!(!hotkey.down);
+    }
+
+    #[test]
+    fn a_double_tap_locks_and_the_next_press_stops_on_release() {
+        use Input::*;
+        assert_eq!(
+            hold(&[
+                (0, HotkeyDown),
+                (120, HotkeyUp),
+                (300, HotkeyDown),
+                (380, HotkeyUp),
+                // Hands free: the old tap timer finds the lock and does nothing.
+                (470, TapExpired),
+                (8_000, HotkeyDown),
+                (8_090, HotkeyUp),
+            ]),
+            [
+                START,
+                Action::AwaitSecondTap,
+                Action::Lock,
+                Action::Nothing,
+                Action::Nothing,
+                Action::Nothing,
+                STOP
+            ]
+        );
+    }
+
+    #[test]
+    fn a_single_quick_tap_stops_once_the_second_tap_would_be_too_late() {
+        use Input::*;
+        assert_eq!(
+            hold(&[(0, HotkeyDown), (100, HotkeyUp), (450, TapExpired)]),
+            [START, Action::AwaitSecondTap, STOP]
+        );
+        // A timer that fires early, for an older tap, is ignored.
+        assert_eq!(
+            hold(&[
+                (0, HotkeyDown),
+                (100, HotkeyUp),
+                (200, TapExpired),
+                (460, TapExpired)
+            ]),
+            [START, Action::AwaitSecondTap, Action::Nothing, STOP]
+        );
+    }
+
+    #[test]
+    fn slow_presses_and_long_holds_dont_lock() {
+        use Input::*;
+        // Held too long to be a tap: an ordinary hold-to-talk.
+        assert_eq!(hold(&[(0, HotkeyDown), (400, HotkeyUp)]), [START, STOP]);
+        // The second press comes too late after the tap.
+        assert_eq!(
+            hold(&[(0, HotkeyDown), (100, HotkeyUp), (500, HotkeyDown)]),
+            [START, Action::AwaitSecondTap, Action::Nothing]
+        );
+        // ...and it behaves as a hold from then on.
+        assert_eq!(
+            hold(&[
+                (0, HotkeyDown),
+                (100, HotkeyUp),
+                (500, HotkeyDown),
+                (600, TapExpired),
+                (2_000, HotkeyUp)
+            ])[3..],
+            [Action::Nothing, STOP]
+        );
+    }
+
+    #[test]
+    fn a_shortcut_while_locked_keeps_recording() {
+        use Input::*;
+        assert_eq!(
+            hold(&[
+                (0, HotkeyDown),
+                (100, HotkeyUp),
+                (200, HotkeyDown),
+                (250, HotkeyUp),
+                // ⌘C with ⌘ as the hotkey.
+                (5_000, HotkeyDown),
+                (5_050, HotkeyInterrupted),
+                (5_100, HotkeyUp),
+                (9_000, HotkeyDown),
+                (9_100, HotkeyUp),
+            ])[4..],
+            [
+                Action::Nothing,
+                Action::Nothing,
+                Action::Nothing,
+                Action::Nothing,
+                STOP
+            ]
+        );
+    }
+
+    #[test]
+    fn taps_dont_lock_recordings_from_the_ui_or_in_toggle_mode() {
+        let start = Instant::now();
+        let at = |ms| start + Duration::from_millis(ms);
+        let mut hotkey = Hotkey::default();
+        let from_ui = Activity::Recording {
+            by_hotkey: false,
+            locked: false,
+        };
         let mode = RecordingMode::Hold;
         assert_eq!(
-            decide(Input::HotkeyDown, Activity::Idle, mode, &mut down),
-            Action::Start { by_hotkey: true }
-        );
-        let recording = Activity::Recording { by_hotkey: true };
-        // Key repeat while held does nothing.
-        assert_eq!(
-            decide(Input::HotkeyDown, recording, mode, &mut down),
+            decide(Input::HotkeyDown, from_ui, mode, &mut hotkey, at(0)),
             Action::Nothing
         );
         assert_eq!(
-            decide(Input::HotkeyUp, recording, mode, &mut down),
-            Action::Stop { cancelled: false }
+            decide(Input::HotkeyUp, from_ui, mode, &mut hotkey, at(100)),
+            STOP
         );
-        assert!(!down);
+
+        let mut hotkey = Hotkey::default();
+        let mode = RecordingMode::Toggle;
+        assert_eq!(
+            decide(Input::HotkeyDown, Activity::Idle, mode, &mut hotkey, at(0)),
+            START
+        );
+        let recording = Activity::Recording {
+            by_hotkey: true,
+            locked: false,
+        };
+        assert_eq!(
+            decide(Input::HotkeyUp, recording, mode, &mut hotkey, at(100)),
+            Action::Nothing
+        );
+        assert_eq!(
+            decide(Input::HotkeyDown, recording, mode, &mut hotkey, at(200)),
+            STOP
+        );
     }
 
     #[test]
     fn toggle_mode_stops_on_the_next_press() {
         let mode = RecordingMode::Toggle;
-        let recording = Activity::Recording { by_hotkey: true };
+        let recording = Activity::Recording {
+            by_hotkey: true,
+            locked: false,
+        };
         assert_eq!(
             run(recording, mode, &[Input::HotkeyDown, Input::HotkeyUp]),
             [Action::Stop { cancelled: false }, Action::Nothing]
@@ -775,7 +1101,10 @@ mod tests {
 
     #[test]
     fn a_release_without_a_press_is_ignored() {
-        let recording = Activity::Recording { by_hotkey: false };
+        let recording = Activity::Recording {
+            by_hotkey: false,
+            locked: false,
+        };
         assert_eq!(
             run(recording, RecordingMode::Hold, &[Input::HotkeyUp]),
             [Action::Nothing]
@@ -787,17 +1116,34 @@ mod tests {
         let mode = RecordingMode::Hold;
         let inputs = [Input::HotkeyDown, Input::HotkeyInterrupted, Input::HotkeyUp];
         assert_eq!(
-            run(Activity::Recording { by_hotkey: true }, mode, &inputs),
+            run(
+                Activity::Recording {
+                    by_hotkey: true,
+                    locked: false
+                },
+                mode,
+                &inputs
+            ),
             [Action::Nothing, Action::Discard, Action::Nothing]
         );
         // Recording from the tray, then pressing ⌘Tab with ⌘ as the hotkey.
         assert_eq!(
-            run(Activity::Recording { by_hotkey: false }, mode, &inputs),
+            run(
+                Activity::Recording {
+                    by_hotkey: false,
+                    locked: false
+                },
+                mode,
+                &inputs
+            ),
             [Action::Nothing, Action::Nothing, Action::Nothing]
         );
         assert_eq!(
             run(
-                Activity::Recording { by_hotkey: true },
+                Activity::Recording {
+                    by_hotkey: true,
+                    locked: false
+                },
                 RecordingMode::Toggle,
                 &[Input::HotkeyInterrupted]
             ),
@@ -828,7 +1174,10 @@ mod tests {
         );
         assert_eq!(
             run(
-                Activity::Recording { by_hotkey: false },
+                Activity::Recording {
+                    by_hotkey: false,
+                    locked: false
+                },
                 mode,
                 &[Input::Toggle]
             ),
@@ -845,7 +1194,10 @@ mod tests {
         let mode = RecordingMode::Hold;
         assert_eq!(
             run(
-                Activity::Recording { by_hotkey: false },
+                Activity::Recording {
+                    by_hotkey: false,
+                    locked: false
+                },
                 mode,
                 &[Input::Escape]
             ),
