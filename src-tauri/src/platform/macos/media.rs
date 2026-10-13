@@ -1,7 +1,10 @@
 //! Pausing media. MediaRemote, the private framework behind Now Playing in
-//! Control Center, reaches browsers and most players. macOS 15.4 and later no
-//! longer tell other apps whether anything is playing, so Music and Spotify are
-//! also asked directly, through AppleScript.
+//! Control Center, reaches browsers and most players. macOS 15.4 and later
+//! only answer Apple's own programs: other apps are told nothing is playing,
+//! and their commands are accepted but ignored. So MediaRemote is reached
+//! through osascript, which Apple signs, and called directly only when that
+//! fails, on older systems. Music and Spotify are also asked directly,
+//! through AppleScript.
 
 use std::{
     ffi::c_void,
@@ -31,10 +34,10 @@ pub enum PausedMedia {
 
 /// Pauses what's playing.
 pub fn pause_media() -> Option<PausedMedia> {
-    if let Some(remote) = media_remote()
-        && remote.is_playing() == Some(true)
-        && remote.send(PAUSE)
-    {
+    let paused = now_playing_script(PAUSE).or_else(|| {
+        media_remote().map(|remote| remote.is_playing() == Some(true) && remote.send(PAUSE))
+    });
+    if paused == Some(true) {
         return Some(PausedMedia::NowPlaying);
     }
     let paused: Vec<&'static str> = PLAYERS
@@ -54,7 +57,8 @@ pub fn pause_media() -> Option<PausedMedia> {
 pub fn resume_media(paused: PausedMedia) {
     match paused {
         PausedMedia::NowPlaying => {
-            if let Some(remote) = media_remote()
+            if now_playing_script(PLAY).is_none()
+                && let Some(remote) = media_remote()
                 && remote.is_playing() == Some(false)
             {
                 remote.send(PLAY);
@@ -67,6 +71,39 @@ pub fn resume_media(paused: PausedMedia) {
                 }
             }
         }
+    }
+}
+
+/// Sends PAUSE if Now Playing is playing, or PLAY if it's paused. Prints
+/// whether it sent anything, or "unavailable" before macOS has
+/// `MRNowPlayingRequest`.
+const NOW_PLAYING_SCRIPT: &str = r#"
+function run(argv) {
+  $.NSBundle.bundleWithPath("/System/Library/PrivateFrameworks/MediaRemote.framework/").load;
+  const request = $.NSClassFromString("MRNowPlayingRequest");
+  if (request.isNil()) return "unavailable";
+  const command = parseInt(argv[0]);
+  if (request.localIsPlaying !== (command === 1)) return "false";
+  ObjC.bindFunction("MRMediaRemoteSendCommand", ["bool", ["int", "id"]]);
+  return String($.MRMediaRemoteSendCommand(command, $()));
+}
+"#;
+
+/// Sends `command` through osascript, unless Now Playing is already in that
+/// state. Whether it was sent, or `None` if osascript couldn't reach MediaRemote.
+fn now_playing_script(command: u32) -> Option<bool> {
+    let output = Command::new("/usr/bin/osascript")
+        .args(["-l", "JavaScript", "-e", NOW_PLAYING_SCRIPT])
+        .arg(command.to_string())
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    match String::from_utf8_lossy(&output.stdout).trim() {
+        "true" => Some(true),
+        "false" => Some(false),
+        _ => None,
     }
 }
 
