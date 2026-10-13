@@ -1,12 +1,16 @@
 //! Rule-based edits for the way people talk, applied after transcription:
-//! voice commands ("scratch that", "new line").
+//! voice commands ("scratch that", "new line") and corrections made
+//! mid-sentence ("meet at 3, actually 4").
 //!
 //! English only, and cautious on purpose: when a rule isn't sure what was
 //! meant, the words stay as they were said.
 
 mod commands;
+mod corrections;
+mod numbers;
 
 pub use commands::apply as apply_commands;
+pub use corrections::apply as apply_corrections;
 
 /// A word in a transcript and where it sits.
 #[derive(Debug, Clone, Copy)]
@@ -28,6 +32,10 @@ impl Word<'_> {
 
     fn is_any(&self, words: &[&str]) -> bool {
         words.contains(&self.lower().as_str())
+    }
+
+    fn is_capitalized(&self) -> bool {
+        self.text.chars().next().is_some_and(char::is_uppercase)
     }
 }
 
@@ -86,6 +94,23 @@ fn spaced(text: &str, before: &Word, after: &Word) -> bool {
     gap(text, before, after).chars().all(char::is_whitespace)
 }
 
+fn ends_sentence(gap: &str) -> bool {
+    gap.contains(['.', '!', '?', '\n'])
+}
+
+/// Whether the word at `i` is the first of a sentence.
+fn starts_sentence(text: &str, words: &[Word], i: usize) -> bool {
+    i == 0 || ends_sentence(gap(text, &words[i - 1], &words[i]))
+}
+
+/// Whether punctuation, a line break or the end of the text follows the word.
+fn ends_phrase(text: &str, word: &Word) -> bool {
+    text[word.end..]
+        .chars()
+        .next()
+        .is_none_or(|c| ",.;:!?\n".contains(c))
+}
+
 /// Whether something written at `at` starts a sentence.
 fn at_sentence_start(text: &str, at: usize) -> bool {
     let before = text[..at].trim_end_matches([' ', '\t']);
@@ -131,8 +156,13 @@ mod tests {
 
     #[test]
     fn sentence_helpers() {
-        assert!(at_sentence_start("", 0) && at_sentence_start("Hi. ", 4));
-        assert!(!at_sentence_start("Hi ", 3));
+        let text = "Hi there. Bob, ok";
+        let w = words(text);
+        assert!(starts_sentence(text, &w, 0));
+        assert!(!starts_sentence(text, &w, 1));
+        assert!(starts_sentence(text, &w, 2));
+        assert!(ends_phrase(text, &w[1]) && ends_phrase(text, &w[2]) && ends_phrase(text, &w[3]));
+        assert!(!ends_phrase(text, &w[0]));
         assert_eq!(capitalize("éa"), "Éa");
     }
 }

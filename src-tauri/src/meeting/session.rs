@@ -484,6 +484,7 @@ fn recognize(
         // Commands and other spoken rules are for dictating; a meeting
         // transcript keeps what people said.
         voice_commands: false,
+        self_corrections: false,
         english: text::is_english(&settings.language),
     };
     Ok(text::finish(

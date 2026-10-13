@@ -63,7 +63,7 @@ why, see [macos-v1/ROADMAP.md](macos-v1/ROADMAP.md).
 - [ ] Windows build, tested
 - [ ] Linux build, tested (X11 and Wayland)
 - [ ] Single-modifier hotkeys on Windows and Linux
-- [x] Voice commands ("scratch that", "new line", "new paragraph"), for English
+- [x] Voice commands ("scratch that", "new line", "new paragraph") and mid-sentence corrections ("at 3, actually 4"), for English
 - [ ] The same rules for other languages
 
 ### Meeting notes

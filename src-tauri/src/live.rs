@@ -337,6 +337,7 @@ fn phrase_options(settings: &Settings, final_phrase: bool) -> text::Options<'_> 
         // running a terminal command) and type a stray character on macOS, and
         // "scratch that" could only take back the phrase it's in.
         voice_commands: false,
+        self_corrections: settings.self_corrections,
         english: text::is_english(&settings.language),
     }
 }
