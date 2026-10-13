@@ -110,7 +110,8 @@ function MeetingRow({ item, onOpen }: { item: MeetingListItem; onOpen: () => voi
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <span className="truncate type-label text-ink">{item.title}</span>
-            {item.status !== "done" && <Badge tone="danger">Recording</Badge>}
+            {item.status === "recording" && <Badge tone="danger">Recording</Badge>}
+            {item.status === "processing" && <Badge>Saving…</Badge>}
             {item.hasNotes && (
               <Badge tone="accent" icon={Sparkles}>
                 Notes
@@ -208,13 +209,14 @@ function StartMeeting() {
                 {setup?.systemAudioNote ?? "The output your call plays through."}
               </div>
             </div>
-            <Select
-              aria-label="System audio source"
-              value={meetings.systemAudioSource}
-              options={sourceOptions}
-              onChange={(systemAudioSource) => save({ systemAudioSource })}
-              className="w-[240px]"
-            />
+            <div className="w-[240px] shrink-0">
+              <Select
+                aria-label="System audio source"
+                value={meetings.systemAudioSource}
+                options={sourceOptions}
+                onChange={(systemAudioSource) => save({ systemAudioSource })}
+              />
+            </div>
           </div>
         )}
         <div className="flex items-center gap-6 py-3.5">
