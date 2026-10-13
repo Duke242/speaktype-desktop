@@ -104,6 +104,11 @@ pub fn run(
         auto_edit: settings.auto_edit,
         smart_trailing_punctuation: settings.smart_trailing_punctuation,
         dictionary: &settings.dictionary,
+        voice_commands: settings.voice_commands,
+        self_corrections: settings.self_corrections,
+        smart_formatting: settings.smart_formatting,
+        snippets: &settings.snippets,
+        english: text::is_english(&settings.language),
     };
     let mut text = text::normalize_transcription(&raw, options.auto_edit);
     if Cleaner::will_run(&settings.cleanup, &state.models, &text) {

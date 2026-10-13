@@ -288,6 +288,11 @@ fn recognize(
         // Preserve sentence punctuation within the stream.
         smart_trailing_punctuation: final_phrase && settings.smart_trailing_punctuation,
         dictionary: &settings.dictionary,
+        voice_commands: settings.voice_commands,
+        self_corrections: settings.self_corrections,
+        smart_formatting: settings.smart_formatting,
+        snippets: &settings.snippets,
+        english: text::is_english(&settings.language),
     };
     // No language-model cleanup here: it needs whole sentences, and would hold
     // up every phrase. Typing live trades it for words appearing as you speak.

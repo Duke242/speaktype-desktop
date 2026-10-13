@@ -23,6 +23,7 @@ use crate::{
     models::{self, ModelStatus},
     platform::{self, Permission, PermissionKind},
     settings::{CleanupBackend, Settings},
+    sync,
     text::DictionaryEntry,
     tray,
 };
@@ -121,12 +122,62 @@ pub async fn save_settings(
     }
     state.controller.send(Event::RefreshPill);
     let _ = app.emit("settings-changed", ());
+    // Shares any dictionary or snippet change; does nothing when sharing is off.
+    sync::nudge();
     Ok(settings)
 }
 
 #[tauri::command]
 pub async fn list_input_devices() -> CommandResult<Vec<InputDevice>> {
     Ok(audio::list_input_devices())
+}
+
+// ---- Sharing ----
+
+#[tauri::command]
+pub async fn get_sync_status() -> CommandResult<sync::Status> {
+    Ok(sync::status())
+}
+
+/// Asks for a folder to share the dictionary and snippets through, and syncs
+/// with it. `None` if the user cancelled.
+#[tauri::command]
+pub async fn choose_sync_folder(app: AppHandle) -> CommandResult<Option<sync::Status>> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let Some(folder) = sync::pick_folder(&app) else {
+            return Ok(None);
+        };
+        let state = app.state::<AppState>();
+        state.update_settings(|s| s.sync_folder = folder.to_string_lossy().into_owned())?;
+        let _ = app.emit("settings-changed", ());
+        Ok(Some(sync::sync_now(&app)))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+pub async fn sync_now(app: AppHandle) -> CommandResult<sync::Status> {
+    tauri::async_runtime::spawn_blocking(move || sync::sync_now(&app))
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// Saves the dictionary and snippets to a file. Returns its path, or `None`
+/// if the user cancelled.
+#[tauri::command]
+pub async fn export_library(app: AppHandle) -> CommandResult<Option<String>> {
+    tauri::async_runtime::spawn_blocking(move || sync::export(&app))
+        .await
+        .map_err(|e| e.to_string())?
+        .map(|path| path.map(|p| p.to_string_lossy().into_owned()))
+}
+
+#[tauri::command]
+pub async fn import_library(app: AppHandle) -> CommandResult<Option<sync::ImportSummary>> {
+    tauri::async_runtime::spawn_blocking(move || sync::import(&app))
+        .await
+        .map_err(|e| e.to_string())?
 }
 
 // ---- Models ----

@@ -9,7 +9,9 @@ use std::sync::LazyLock;
 use regex::{NoExpand, Regex};
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+use crate::{snippets::Snippet, spoken};
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct DictionaryEntry {
     pub id: String,
@@ -32,6 +34,20 @@ pub struct Options<'a> {
     pub auto_edit: bool,
     pub smart_trailing_punctuation: bool,
     pub dictionary: &'a [DictionaryEntry],
+    /// "Scratch that", "new line" and "new paragraph".
+    pub voice_commands: bool,
+    /// "Meet at 3, actually 4" becomes "meet at 4".
+    pub self_corrections: bool,
+    /// Spoken lists, numbers, dates and times written out.
+    pub smart_formatting: bool,
+    pub snippets: &'a [Snippet],
+    /// The three rules above only understand English.
+    pub english: bool,
+}
+
+/// Whether the spoken language setting allows English: chosen, or detected.
+pub fn is_english(language: &str) -> bool {
+    language == "auto" || language == "en" || language.starts_with("en-")
 }
 
 /// Full pipeline: engine cleanup, then dictionary, then trailing punctuation.
@@ -42,9 +58,29 @@ pub fn process(raw: &str, options: &Options) -> String {
     finish(&normalize_transcription(raw, options.auto_edit), options)
 }
 
-/// Dictionary rules, then trailing punctuation.
+/// Voice commands, corrections and formatting, then dictionary rules,
+/// snippets and trailing punctuation.
 pub fn finish(text: &str, options: &Options) -> String {
-    let text = apply_dictionary(text, options.dictionary);
+    let english = |on: bool| on && options.english;
+    let mut text = text.to_string();
+    if english(options.voice_commands) {
+        text = spoken::apply_commands(&text);
+    }
+    if english(options.self_corrections) {
+        text = spoken::apply_corrections(&text);
+    }
+    let format = english(options.smart_formatting);
+    if format {
+        text = spoken::format(&text);
+    }
+    let text = apply_dictionary(&text, options.dictionary);
+    let text = crate::snippets::expand(&text, options.snippets, |trigger| {
+        if format {
+            spoken::format(trigger)
+        } else {
+            trigger.to_string()
+        }
+    });
     if options.smart_trailing_punctuation {
         strip_trailing_period(&text)
     } else {
@@ -536,17 +572,99 @@ mod tests {
         assert_eq!(strip_trailing_period("é"), "é");
     }
 
+    fn options<'a>(dictionary: &'a [DictionaryEntry], snippets: &'a [Snippet]) -> Options<'a> {
+        Options {
+            auto_edit: true,
+            smart_trailing_punctuation: true,
+            dictionary,
+            voice_commands: true,
+            self_corrections: true,
+            smart_formatting: true,
+            snippets,
+            english: true,
+        }
+    }
+
+    #[test]
+    fn spoken_rules_run_in_order_before_dictionary_and_snippets() {
+        let dictionary = [entry("word fall", "Wordfall", true)];
+        let snippets = [Snippet {
+            id: "1".into(),
+            trigger: "my zoom room".into(),
+            expansion: "https://zoom.us/j/1".into(),
+            is_enabled: true,
+        }];
+        let options = options(&dictionary, &snippets);
+        assert_eq!(
+            process(
+                "um, meet at three pm, actually four pm in my zoom room.",
+                &options
+            ),
+            "meet at 4 PM in https://zoom.us/j/1."
+        );
+        assert_eq!(
+            process(
+                "Try word fall. Scratch that. Use word fall new line thanks",
+                &options
+            ),
+            "Use Wordfall\nThanks"
+        );
+        assert_eq!(process("My zoom room.", &options), "https://zoom.us/j/1");
+        assert_eq!(
+            process(
+                "todo: first, twenty five emails. Second, call Bob.",
+                &options
+            ),
+            "todo:\n1. 25 emails\n2. Call Bob"
+        );
+    }
+
+    #[test]
+    fn everyday_sentences_pass_through_unchanged() {
+        let options = options(&[], &[]);
+        for said in [
+            "I think we should ship it behind a flag first and watch the numbers.",
+            "Let's move the design review to Thursday afternoon so the whole team can make it.",
+            "Remind me to send the invoice to the client before the end of the week.",
+            "One of the two options is better, actually.",
+            "Sorry I'm late, the train was delayed.",
+            "I mean, it works.",
+            "No wait, I'm not ready.",
+            "We drew a new line in the sand.",
+            "The first and second drafts are done.",
+            "Give me one second.",
+            "She has two dogs and one cat.",
+            "May I ask a question?",
+            "I actually think the second one is fine.",
+        ] {
+            assert_eq!(process(said, &options), said);
+        }
+    }
+
+    #[test]
+    fn spoken_rules_are_off_for_other_languages_and_when_switched_off() {
+        let mut options = options(&[], &[]);
+        let said = "meet at three pm, actually four pm";
+        options.english = false;
+        assert_eq!(process(said, &options), said);
+        options.english = true;
+        options.self_corrections = false;
+        assert_eq!(process(said, &options), "meet at 3 PM, actually 4 PM");
+        options.smart_formatting = false;
+        options.voice_commands = false;
+        assert_eq!(process("one new line two", &options), "one new line two");
+        assert!(is_english("auto") && is_english("en") && !is_english("de"));
+    }
+
     #[test]
     fn process_respects_the_punctuation_toggle() {
         let on = Options {
-            auto_edit: false,
             smart_trailing_punctuation: true,
-            dictionary: &[],
+            ..options(&[], &[])
         };
         let off = Options {
-            auto_edit: false,
             smart_trailing_punctuation: false,
-            dictionary: &[],
+            ..options(&[], &[])
         };
         assert_eq!(process("Hello.", &on), "Hello");
         assert_eq!(process("Hello.", &off), "Hello.");
