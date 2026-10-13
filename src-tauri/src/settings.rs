@@ -65,6 +65,9 @@ pub struct CleanupSettings {
     pub server_url: String,
     /// Model name as the server knows it, e.g. "llama3.2".
     pub server_model: String,
+    /// How long Ollama keeps the model in memory after a dictation, in
+    /// minutes. Negative keeps it until Ollama quits.
+    pub server_keep_alive_minutes: i32,
 }
 
 impl Default for CleanupSettings {
@@ -75,6 +78,7 @@ impl Default for CleanupSettings {
             builtin_model: String::new(),
             server_url: "http://localhost:11434/v1".to_string(),
             server_model: String::new(),
+            server_keep_alive_minutes: 60,
         }
     }
 }
