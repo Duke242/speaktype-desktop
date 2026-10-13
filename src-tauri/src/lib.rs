@@ -413,12 +413,12 @@ pub fn run() {
                     state.controller.send(Event::RefreshPill);
                     state.warm_up(&handle, &settings.selected_model);
                     state.cleaner.warm_up(&settings.cleanup, &state.models);
-                    sync::start(&handle);
                     // Re-registered each launch, so it follows the app if it moves.
                     let at_login = sync_launch_at_login(&handle, settings.launch_at_login);
                     if let Err(e) = at_login {
                         eprintln!("[startup] {e}");
                     }
+                    sync::start(&handle);
                     state.device();
                 })?;
 

@@ -83,6 +83,7 @@ impl Session {
         } else {
             (None, None)
         };
+        start_together(&mic, system.as_ref());
 
         let mut sources = vec![Source::Microphone];
         if system.is_some() {
@@ -195,6 +196,17 @@ impl Session {
             .lock_unpoisoned()
             .take()
             .is_some_and(|tx| tx.send(()).is_ok())
+    }
+}
+
+/// Drops what the microphone recorded while system audio was opening, which
+/// takes a few hundred milliseconds, so both tracks start at the same moment.
+/// The aligner pairs their first samples, so keeping the microphone's head
+/// start would put the system track that much early.
+fn start_together(mic: &Track, system: Option<&Track>) {
+    if let Some(system) = system {
+        mic.take();
+        system.take();
     }
 }
 
@@ -469,12 +481,12 @@ fn recognize(
         // A window ending is not the end of a sentence to tidy.
         smart_trailing_punctuation: false,
         dictionary: &settings.dictionary,
-        // Commands, corrections and snippets are for dictating; a meeting
+        // Commands and other spoken rules are for dictating; a meeting
         // transcript keeps what people said.
         voice_commands: false,
-        self_corrections: false,
-        smart_formatting: false,
         snippets: &[],
+        smart_formatting: false,
+        self_corrections: false,
         english: text::is_english(&settings.language),
     };
     Ok(text::finish(
@@ -567,6 +579,30 @@ mod tests {
         let reader = hound::WavReader::open(&audio).unwrap();
         assert_eq!(reader.len() as u64, written);
         fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn tracks_start_together_once_both_are_open() {
+        let source = |samples: &'static [f32]| {
+            move |buffer: &capture::Buffer| {
+                buffer.lock_unpoisoned().extend_from_slice(samples);
+                Ok(capture::Opened {
+                    keep: Box::new(()),
+                    sample_rate: 16_000,
+                })
+            }
+        };
+        // The microphone's head start while system audio was opening.
+        let mic = Track::start("test-mic", source(&[0.1; 4800])).unwrap();
+        let system = Track::start("test-system", source(&[0.2; 10])).unwrap();
+        start_together(&mic, Some(&system));
+        assert!(mic.take().is_empty());
+        assert!(system.take().is_empty());
+
+        // Without system audio there's nothing to line up with.
+        let mic = Track::start("test-mic", source(&[0.1; 4800])).unwrap();
+        start_together(&mic, None);
+        assert_eq!(mic.take().len(), 4800);
     }
 
     #[test]

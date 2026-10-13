@@ -35,6 +35,14 @@ const UNITS: &[&str] = &[
 
 const AM_PM: &[&str] = &["am", "pm", "a.m", "p.m"];
 
+/// Words after a number that make it an amount of its own rather than a
+/// correction ("we need 5, actually 2 more").
+const NOT_AFTER_NUMBER: &[&str] = &["of", "more", "less", "fewer", "extra", "too", "than"];
+
+/// Words that may follow a corrected day before the phrase ends ("Tuesday,
+/// I mean Wednesday at noon").
+const AFTER_DAY: &[&str] = &["at", "morning", "afternoon", "evening", "night"];
+
 const DAYS: &[&str] = &[
     "monday",
     "tuesday",
@@ -127,11 +135,14 @@ fn correct(text: &str, words: &[Word], m: usize, len: usize) -> Option<Edit> {
         return None;
     }
     let new_sentence = ends_sentence(before);
+    // "No wait" and "or rather" only ever correct; "actually", "I mean" and
+    // "sorry" can also go on to say more ("it's fine, actually it's great").
+    let hard = words[m].is_any(&["no", "or"]);
     number(text, words, prev, r, new_sentence)
         .or_else(|| single_word(text, words, prev, r, new_sentence))
         .or_else(|| {
             (!new_sentence)
-                .then(|| phrase(text, words, prev, r))
+                .then(|| phrase(text, words, prev, r, hard))
                 .flatten()
         })
 }
@@ -211,8 +222,11 @@ fn number(text: &str, words: &[Word], prev: usize, r: usize, new_sentence: bool)
             }
     });
     let end = if r_unit.is_some() { r_last + 1 } else { r_last };
-    // "5, actually one of them" isn't a correction.
-    if words.get(end + 1).is_some_and(|w| w.is("of")) {
+    // "5, actually one of them" and "5, actually 2 more" aren't corrections.
+    if words
+        .get(end + 1)
+        .is_some_and(|w| w.is_any(NOT_AFTER_NUMBER))
+    {
         return None;
     }
     let finished = ends_phrase(text, &words[end]);
@@ -239,7 +253,11 @@ fn single_word(
     let finished = ends_phrase(text, &right);
     let same_kind = |set: &[&str]| left.is_any(set) && right.is_any(set);
     let ok = if same_kind(DAYS) || same_kind(MONTHS) {
-        finished || !new_sentence
+        // Not "free on Monday, actually Tuesday too", which adds a day.
+        let time_follows = words
+            .get(r + 1)
+            .is_some_and(|next| spaced(text, &right, next) && next.is_any(AFTER_DAY));
+        finished || (time_follows && !new_sentence)
     } else {
         // Capitalized mid-sentence, so most likely names.
         let is_name = |w: &Word| {
@@ -251,9 +269,18 @@ fn single_word(
         .then(|| (left.start, right.end, right.text.to_string()))
 }
 
-/// "the red one, actually the blue one": a short phrase that starts or ends
-/// like the one before it.
-fn phrase(text: &str, words: &[Word], prev: usize, r: usize) -> Option<Edit> {
+/// Whether two words are the same kind of thing: days, months or numbers.
+fn alike(left: &Word, right: &Word) -> bool {
+    let both = |set: &[&str]| left.is_any(set) && right.is_any(set);
+    both(DAYS) || both(MONTHS) || (is_number(left) && is_number(right))
+}
+
+/// "the red one, actually the blue one": a short phrase that ends like the
+/// one before it. One that only starts the same way ("I was wrong, actually
+/// I was right") says something new, unless the marker is "no wait" or "or
+/// rather", or the words that differ are the same kind ("call me tomorrow,
+/// actually call me Friday").
+fn phrase(text: &str, words: &[Word], prev: usize, r: usize, hard: bool) -> Option<Edit> {
     for n in [3, 2] {
         if prev + 1 < n || r + n > words.len() {
             continue;
@@ -266,7 +293,8 @@ fn phrase(text: &str, words: &[Word], prev: usize, r: usize) -> Option<Edit> {
         }
         let left: Vec<String> = (l..=prev).map(|k| words[k].lower()).collect();
         let right: Vec<String> = (r..=r_last).map(|k| words[k].lower()).collect();
-        if left != right && (left[0] == right[0] || left[n - 1] == right[n - 1]) {
+        let same_start = left[0] == right[0] && (hard || alike(&words[prev], &words[r_last]));
+        if left != right && (same_start || left[n - 1] == right[n - 1]) {
             return Some((
                 words[l].start,
                 words[r_last].end,
@@ -336,6 +364,11 @@ mod tests {
                 "Call me Friday.",
             ),
             ("Today, actually tomorrow, works.", "Tomorrow, works."),
+            (
+                "I'm free on Monday, actually Tuesday.",
+                "I'm free on Tuesday.",
+            ),
+            ("It's fine, no wait, it's broken.", "It's broken."),
         ];
         for (input, expected) in cases {
             assert_eq!(apply(input), expected, "input: {input:?}");
@@ -365,6 +398,14 @@ mod tests {
             "Go left, sorry, I mean right.",
             "It was cold, actually freezing.",
             "Bob said sorry Alice.",
+            "I'm free on Monday, actually Tuesday too.",
+            "I'm busy today, actually tomorrow too.",
+            "I was wrong, actually I was right.",
+            "It's fine, actually it's great.",
+            "This is good, I mean this is great.",
+            "We're close, actually we're done.",
+            "We need 5, actually 2 more.",
+            "We sold 10, actually 5 more than last year.",
         ] {
             assert_eq!(apply(input), input, "input: {input:?}");
         }

@@ -63,6 +63,13 @@ const MONTHS: [&str; 12] = [
 ];
 const AM_PM: [&str; 4] = ["am", "pm", "a.m", "p.m"];
 
+/// Words that make a lowercase "march" after them a verb ("we march first").
+const BEFORE_VERB: &[&str] = &[
+    "i", "you", "we", "they", "he", "she", "it", "i'll", "you'll", "we'll", "they'll", "he'll",
+    "she'll", "i'd", "we'd", "they'd", "let's", "to", "will", "would", "shall", "should", "can",
+    "could", "must", "might", "may", "don't", "didn't", "won't", "then",
+];
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum Piece {
     /// 0 to 9.
@@ -297,11 +304,13 @@ fn date(text: &str, words: &[Word], i: usize) -> Option<(usize, Option<Edit>)> {
     }
     let day_word = next_word(text, words, i)?;
     // "may" and "march" are verbs too. Lowercase "march" only counts before a
-    // spoken day like "third", lowercase "may" never.
+    // spoken day like "third", and not after "I", "will" or "to" ("I'll march
+    // first"); lowercase "may" never.
     if matches!(lower.as_str(), "may" | "march") && !month.is_capitalized() {
         let ordinal_follows = ordinal(&day_word.lower()).is_some()
             || next_word(text, words, i + 1).is_some_and(|w| ordinal(&w.lower()).is_some());
-        if lower == "may" || !ordinal_follows {
+        let verb = i > 0 && spaced(text, &words[i - 1], &month) && words[i - 1].is_any(BEFORE_VERB);
+        if lower == "may" || !ordinal_follows || verb {
             return None;
         }
     }
@@ -620,6 +629,8 @@ mod tests {
             "It's a one-off.",
             "We march forward.",
             "You may first ask.",
+            "I'll march first and you follow.",
+            "We march third in the parade.",
             "Wait a second.",
             "zero",
         ] {
@@ -632,6 +643,7 @@ mod tests {
         check(&[
             ("march third twenty twenty six", "March 3, 2026"),
             ("we march twenty miles", "we march 20 miles"),
+            ("due march third", "due March 3"),
             ("March third twenty twenty six", "March 3, 2026"),
             ("on March third, twenty twenty six.", "on March 3, 2026."),
             ("due june twenty first", "due June 21"),

@@ -291,7 +291,13 @@ impl Cleaner {
 
     /// Whether cleanup is on with a model ready to use. Command mode needs this too.
     pub fn is_set_up(settings: &CleanupSettings, models: &ModelStore) -> bool {
-        settings.enabled && is_set_up(settings, models)
+        settings.enabled
+            && match settings.backend {
+                CleanupBackend::Builtin => {
+                    builtin_model_path(settings, models).is_ok() && worker_path().is_some()
+                }
+                CleanupBackend::Server => !settings.server_model.trim().is_empty(),
+            }
     }
 
     /// The model's reply for `text`, before any checks.

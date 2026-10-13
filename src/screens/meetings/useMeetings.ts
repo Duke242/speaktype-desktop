@@ -9,7 +9,7 @@ import {
   type MeetingState,
 } from "@/lib/api";
 import { useTauriEvent } from "@/lib/useTauriEvent";
-import { insertSegment } from "./transcript";
+import { insertSegment, withSegments } from "./transcript";
 
 export function useMeetingState() {
   const [state, setState] = useState<MeetingState>({ phase: "idle" });
@@ -23,12 +23,12 @@ export function useMeetingState() {
 /** Saved meetings matching `query`, kept fresh as meetings change. */
 export function useMeetingList(query: string) {
   const [items, setItems] = useState<MeetingListItem[]>();
-  const latest = useRef(0);
+  // A slow search for an older query mustn't replace a newer one's results.
+  const request = useRef(0);
   const refresh = useCallback(() => {
-    // A slower, older search mustn't replace a newer one's results.
-    const request = ++latest.current;
-    return api.listMeetings(query.trim()).then((found) => {
-      if (request === latest.current) setItems(found);
+    const current = ++request.current;
+    return api.listMeetings(query.trim()).then((list) => {
+      if (current === request.current) setItems(list);
     });
   }, [query]);
   useEffect(() => {
@@ -44,27 +44,25 @@ export function useMeetingList(query: string) {
 export function useMeeting(id: string) {
   const [meeting, setMeeting] = useState<Meeting | null>();
   const [error, setError] = useState<string>();
-  // Segments that arrive while a fetch is out may be missing from its snapshot.
+  const request = useRef(0);
+  // Segments that arrive while a fetch is in flight, which its older snapshot
+  // may not have. Null when no fetch is pending.
   const pending = useRef<MeetingSegment[] | null>(null);
-  const latest = useRef(0);
   const refresh = useCallback(() => {
-    const request = ++latest.current;
+    const current = ++request.current;
     pending.current ??= [];
-    const done = () => {
-      const missed = pending.current ?? [];
-      pending.current = null;
-      return missed;
-    };
     return api
       .getMeeting(id)
       .then((m) => {
-        if (request !== latest.current) return;
-        setMeeting({ ...m, segments: done().reduce(insertSegment, m.segments) });
+        if (current !== request.current) return;
+        const arrived = pending.current ?? [];
+        pending.current = null;
+        setMeeting(withSegments(m, arrived));
         setError(undefined);
       })
       .catch((e) => {
-        if (request !== latest.current) return;
-        done();
+        if (current !== request.current) return;
+        pending.current = null;
         setMeeting(null);
         setError(String(e));
       });

@@ -123,11 +123,20 @@ fn copy(
     enigo: Option<&mut Enigo>,
     terminal: bool,
 ) -> Result<Option<String>, String> {
-    let saved = save(clipboard);
-    // Cleared first, so a selection is told apart from what was there before.
-    clipboard
-        .clear()
-        .map_err(|e| format!("Couldn't clear clipboard: {e}"))?;
+    // Text and images are put back afterwards. Anything else, like copied
+    // files, can't be, so it's left alone rather than cleared: copying with
+    // nothing selected then keeps it, and as it has no text, any text that
+    // appears is the selection.
+    let saved = match save(clipboard) {
+        Saved::Empty => None,
+        saved => Some(saved),
+    };
+    if saved.is_some() {
+        // Cleared first, so a selection is told apart from what was there before.
+        clipboard
+            .clear()
+            .map_err(|e| format!("Couldn't clear clipboard: {e}"))?;
+    }
     thread::sleep(BEFORE_PASTE);
     let sent = platform::send_copy_shortcut(enigo, terminal);
     let mut copied = None;
@@ -144,9 +153,9 @@ fn copy(
         }
     }
     let restored = match saved {
-        Saved::Text(text) => clipboard.set_text(text),
-        Saved::Image(image) => clipboard.set_image(image),
-        Saved::Empty => clipboard.clear(),
+        Some(Saved::Text(text)) => clipboard.set_text(text),
+        Some(Saved::Image(image)) => clipboard.set_image(image),
+        Some(Saved::Empty) | None => Ok(()),
     };
     if let Err(e) = restored {
         eprintln!("[paste] couldn't restore clipboard: {e}");

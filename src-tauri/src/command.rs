@@ -24,7 +24,8 @@ use crate::{
 /// take too long to rewrite.
 pub const MAX_SELECTION_WORDS: usize = 1200;
 
-pub const NOT_SET_UP: &str = "Set up AI cleanup to use commands";
+const NOT_SET_UP: &str = "Set up AI cleanup to use commands";
+const NO_SAFE_COPY: &str = "Commands can't run on Wayland yet";
 const NO_SELECTION: &str = "Select some text first";
 const TOO_LONG: &str = "Selection is too long";
 const FAILED: &str = "Couldn't edit the text";
@@ -154,10 +155,24 @@ pub fn register_hotkey(
         .map_err(|e| format!("Couldn't register {hotkey}: {e}"))
 }
 
-/// Whether command mode can run: AI cleanup on, with a model ready.
-pub fn is_ready(app: &AppHandle) -> bool {
+/// Why command mode can't run, if it can't: it needs AI cleanup on with a
+/// model ready, and a copy shortcut that's safe to press in the focused app.
+pub fn unavailable(app: &AppHandle) -> Option<&'static str> {
+    if !platform::can_copy_selection() {
+        return Some(NO_SAFE_COPY);
+    }
     let state = app.state::<AppState>();
-    Cleaner::is_set_up(&state.settings().cleanup, &state.models)
+    (!Cleaner::is_set_up(&state.settings().cleanup, &state.models)).then_some(NOT_SET_UP)
+}
+
+/// With nothing selected, VS Code and JetBrains IDEs copy the whole current
+/// line, line break included. Taken as the selection, the edit would be
+/// pasted next to the line rather than over it, so in code editors a copy
+/// ending in a line break counts as no selection. Selecting whole lines down
+/// to the next one is refused too; selecting up to the end of the last line
+/// isn't.
+fn is_whole_line_copy(category: AppCategory, copied: &str) -> bool {
+    category == AppCategory::Code && copied.ends_with('\n')
 }
 
 /// Runs on a worker thread once the instruction is recorded. Returns the
@@ -173,6 +188,7 @@ pub fn run(
     let selection = paster
         .copy_selection(category == AppCategory::Terminal)
         .map_err(|e| Error::Command(FAILED, Some(e)))?
+        .filter(|copied| !is_whole_line_copy(category, copied))
         .ok_or(Error::Command(NO_SELECTION, None))?;
     if selection.split_whitespace().count() > MAX_SELECTION_WORDS {
         return Err(Error::Command(TOO_LONG, None));
@@ -296,6 +312,16 @@ mod tests {
         assert_eq!(sanitize("hey", "   \n "), None);
         assert_eq!(sanitize("hey", "\"\""), None);
         assert_eq!(sanitize("hey", "<result></result>"), None);
+    }
+
+    #[test]
+    fn a_whole_line_copied_in_a_code_editor_is_no_selection() {
+        assert!(is_whole_line_copy(AppCategory::Code, "let x = 1;\n"));
+        assert!(is_whole_line_copy(AppCategory::Code, "let x = 1;\r\n"));
+        assert!(!is_whole_line_copy(AppCategory::Code, "let x = 1;"));
+        assert!(!is_whole_line_copy(AppCategory::Code, "a\nb"));
+        assert!(!is_whole_line_copy(AppCategory::Other, "Dear Sam,\n"));
+        assert!(!is_whole_line_copy(AppCategory::Terminal, "ls -la\n"));
     }
 
     #[test]

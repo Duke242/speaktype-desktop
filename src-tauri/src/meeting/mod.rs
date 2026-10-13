@@ -341,8 +341,11 @@ impl Meetings {
         }
         let (session, state) = session::Session::start(app, &self.store, title)?;
         *active = Some(session);
-        drop(active);
+        // Still holding `active`: a recording that ends at once reports Idle
+        // from `finished`, which waits for the lock, so it can't be
+        // overwritten by Recording here.
         self.set_state(app, state.clone());
+        drop(active);
         let _ = app.emit("meetings-changed", ());
         Ok(state)
     }

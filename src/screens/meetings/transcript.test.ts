@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import type { Meeting, MeetingSegment, MeetingSource } from "@/lib/api";
-import { formatTimestamp, insertSegment, isLabelled, meetingMarkdown, transcriptBlocks } from "./transcript";
+import {
+  formatTimestamp,
+  insertSegment,
+  isLabelled,
+  meetingMarkdown,
+  transcriptBlocks,
+  withSegments,
+} from "./transcript";
 
 const segment = (startSecs: number, source: MeetingSource, text: string): MeetingSegment => ({
   startSecs,
@@ -32,6 +39,15 @@ describe("formatTimestamp", () => {
     expect(formatTimestamp(754)).toBe("12:34");
     expect(formatTimestamp(3725)).toBe("1:02:05");
     expect(formatTimestamp(-3)).toBe("0:00");
+  });
+});
+
+describe("withSegments", () => {
+  it("adds segments that arrived during a fetch, once each, in time order", () => {
+    const fetched = meeting({ segments: [segment(0, "microphone", "a"), segment(15, "system", "b")] });
+    const buffered = [segment(30, "microphone", "c"), segment(15, "system", "b"), segment(5, "system", "x")];
+    expect(withSegments(fetched, buffered).segments.map((s) => s.text)).toEqual(["a", "x", "b", "c"]);
+    expect(withSegments(fetched, [])).toBe(fetched);
   });
 });
 

@@ -374,7 +374,7 @@ export function installBrowserPreview() {
     },
     { shouldMockEvents: true },
   );
-  // After mockIPC, which the events it sends need.
+  // Only once mockIPC is installed: starting a meeting emits events.
   if (params.get("meeting") === "recording") startMeeting("Design review");
 }
 

@@ -327,10 +327,10 @@ mod tests {
             "recordings stay on for people upgrading"
         );
         assert!(!settings.live_typing);
-        assert!(settings.voice_commands && settings.self_corrections && settings.smart_formatting);
-        assert!(settings.snippets.is_empty() && settings.sync_folder.is_empty());
         assert!(settings.boost_quiet_speech);
         assert!(!settings.pause_media && !settings.launch_at_login);
+        assert!(settings.voice_commands && settings.self_corrections && settings.smart_formatting);
+        assert!(settings.snippets.is_empty() && settings.sync_folder.is_empty());
         let entry = &settings.dictionary[0];
         assert!(entry.is_enabled && entry.match_whole_word);
         assert_eq!(settings.cleanup, CleanupSettings::default());

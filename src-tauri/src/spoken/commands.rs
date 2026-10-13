@@ -16,10 +16,36 @@ const SCRATCH_BEFORE: &[&str] = &[
     "bit", "one", "surface",
 ];
 
-/// Words before "new line" that make it a noun ("a new line of products").
+/// Words before "new line" that make it a noun ("a new line of products",
+/// "a brand new line").
 const BREAK_AFTER: &[&str] = &[
-    "a", "an", "the", "this", "that", "these", "those", "our", "your", "my", "his", "her", "their",
-    "its", "each", "every", "another", "any", "no", "whole", "entire", "same",
+    "a",
+    "an",
+    "the",
+    "this",
+    "that",
+    "these",
+    "those",
+    "our",
+    "your",
+    "my",
+    "his",
+    "her",
+    "their",
+    "its",
+    "each",
+    "every",
+    "another",
+    "any",
+    "no",
+    "whole",
+    "entire",
+    "same",
+    "brand",
+    "fresh",
+    "completely",
+    "totally",
+    "entirely",
 ];
 
 /// Words after "new line" that make it a noun ("the new line is").
@@ -263,6 +289,9 @@ mod tests {
             "Their new line for kids sold out.",
             "Our new paragraph reads better.",
             "Add the new line break",
+            "It's a brand new line.",
+            "We need a fresh new line.",
+            "That's a completely new line.",
         ] {
             assert_eq!(apply(input), input, "input: {input:?}");
         }

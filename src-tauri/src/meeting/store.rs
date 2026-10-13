@@ -10,7 +10,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use super::{Meeting, MeetingListItem, Source, Status};
+use super::{Meeting, MeetingListItem, Source, Status, mixer};
 
 const FILE: &str = "meeting.json";
 /// The mixed recording, made when a meeting ends.
@@ -102,7 +102,7 @@ impl MeetingStore {
     }
 
     /// Finishes meetings left recording when the app quit or crashed: what was
-    /// transcribed stays, and the microphone track becomes the recording.
+    /// transcribed stays, and the tracks are mixed into the recording.
     /// Call before any meeting starts. Returns how many were recovered.
     pub fn recover(&self) -> usize {
         let mut recovered = 0;
@@ -110,11 +110,7 @@ impl MeetingStore {
             if meeting.status == Status::Done {
                 continue;
             }
-            let folder = self.folder(&meeting.id);
-            let audio = [AUDIO_FILE, Source::Microphone.file_name()]
-                .iter()
-                .map(|name| folder.join(name))
-                .find(|path| path.is_file());
+            let audio = recover_audio(&self.folder(&meeting.id));
             meeting.audio_path = audio.map(|p| p.to_string_lossy().into_owned());
             meeting.duration_secs = meeting.duration_secs.max(
                 meeting
@@ -131,6 +127,29 @@ impl MeetingStore {
         }
         recovered
     }
+}
+
+/// The recording of an interrupted meeting: the mixed one if it was made,
+/// else both tracks mixed, else the microphone track on its own.
+fn recover_audio(folder: &Path) -> Option<PathBuf> {
+    let audio = folder.join(AUDIO_FILE);
+    let mic = folder.join(Source::Microphone.file_name());
+    let system = folder.join(Source::System.file_name());
+    if audio.is_file() {
+        return Some(audio);
+    }
+    if mic.is_file() && system.is_file() {
+        match mixer::mix_files(&mic, &system, &audio) {
+            Ok(()) => {
+                for track in [&mic, &system] {
+                    let _ = fs::remove_file(track);
+                }
+                return Some(audio);
+            }
+            Err(e) => eprintln!("[meetings] couldn't mix the recording: {e}"),
+        }
+    }
+    mic.is_file().then_some(mic)
 }
 
 /// Ids are folder names, so they must not reach outside the meetings folder.
@@ -286,6 +305,41 @@ mod tests {
                 .ends_with(Source::Microphone.file_name())
         );
         assert_eq!(store.recover(), 0);
+    }
+
+    #[test]
+    fn interrupted_recordings_keep_the_other_side() {
+        let dir = TempDir::new();
+        let store = MeetingStore::new(dir.0.clone());
+        let mut interrupted = meeting(1, "Call");
+        interrupted.status = Status::Recording;
+        store.save(&interrupted).unwrap();
+        let write = |source: Source, samples: &[f32]| {
+            let path = store.track_path(&interrupted.id, source);
+            let mut writer = hound::WavWriter::create(&path, mixer::wav_spec()).unwrap();
+            for s in samples {
+                writer.write_sample(mixer::to_i16(*s)).unwrap();
+            }
+            // Flushed but never finalized, as when the app crashes.
+            writer.flush().unwrap();
+            std::mem::forget(writer);
+        };
+        write(Source::Microphone, &[0.25; 1000]);
+        write(Source::System, &[0.25; 1500]);
+
+        assert_eq!(store.recover(), 1);
+        let loaded = store.load(&interrupted.id).unwrap();
+        let audio = PathBuf::from(loaded.audio_path.unwrap());
+        assert_eq!(audio, store.folder(&interrupted.id).join(AUDIO_FILE));
+        let samples: Vec<f32> = hound::WavReader::open(&audio)
+            .unwrap()
+            .into_samples::<i16>()
+            .map(|s| mixer::from_i16(s.unwrap()))
+            .collect();
+        assert_eq!(samples.len(), 1500);
+        assert!((samples[0] - 0.5).abs() < 1e-3, "both sides mixed");
+        assert!((samples[1200] - 0.25).abs() < 1e-3);
+        assert!(!store.track_path(&interrupted.id, Source::System).exists());
     }
 
     #[test]

@@ -50,14 +50,18 @@ pub fn send_paste_shortcut(enigo: Option<&mut Enigo>) -> Result<(), String> {
     super::press_combo(enigo, modifiers, Key::Unicode('v'))
 }
 
-/// Copies the selection. `terminal` says the app is known to be a terminal,
-/// which copies with Ctrl+Shift+C; X11 also checks for itself.
+/// Whether the copy shortcut can be pressed safely. Wayland doesn't say
+/// which app has focus, so a terminal can't be told apart, and there Ctrl+C
+/// would stop the running program instead of copying.
+pub fn can_copy_selection() -> bool {
+    !wayland::is_session()
+}
+
+/// Copies the selection through X11. `terminal` says the app is known to be
+/// a terminal, which copies with Ctrl+Shift+C; X11 also checks for itself.
 pub fn send_copy_shortcut(enigo: Option<&mut Enigo>, terminal: bool) -> Result<(), String> {
-    if wayland::is_session() {
-        match wayland::send_copy(terminal) {
-            Ok(()) => return Ok(()),
-            Err(e) => eprintln!("[paste] {e}"),
-        }
+    if !can_copy_selection() {
+        return Err("Copying isn't safe without knowing the app".into());
     }
     let enigo = enigo.ok_or("Keyboard simulation is unavailable")?;
     let modifiers: &[Key] = if terminal || x11::active_window_is_terminal() {

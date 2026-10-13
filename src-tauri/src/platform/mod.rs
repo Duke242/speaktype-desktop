@@ -6,7 +6,8 @@
 //!   `modifier_hotkey_blocked`: hotkeys made of one modifier key, where the OS
 //!   allows listening for them.
 //! - `send_paste_shortcut`: presses the paste keys for the focused app.
-//! - `send_copy_shortcut`: presses the copy keys, for command mode.
+//! - `send_copy_shortcut`, `can_copy_selection`: presses the copy keys, for
+//!   command mode, where it's safe to.
 //! - `frontmost_app`: which app has focus, so dictation can match its tone.
 //! - `setup_notes`: OS-specific hints shown in Settings.
 //! - `permissions`, `request_permission`, `permission_settings_url`: the OS
@@ -15,10 +16,10 @@
 //! - `NEURAL_ENGINE`, `extract_zip`, `ORT_ACCELERATOR`: speech model acceleration.
 //! - `FocusedField`: reads the focused text field in another app, so a
 //!   correction made after dictating can be learned. Never available on Linux.
-//! - `SYSTEM_AUDIO_NOTE`, `system_audio_sources`, `open_system_audio`: recording
-//!   what the computer plays, for meeting notes.
 //! - `pause_media`, `resume_media`, `PausedMedia`: pause what's playing while
 //!   the user dictates, and resume only that afterwards.
+//! - `SYSTEM_AUDIO_NOTE`, `system_audio_sources`, `open_system_audio`: recording
+//!   what the computer plays, for meeting notes.
 
 use enigo::{Direction, Enigo, Key, Keyboard};
 use serde::{Deserialize, Serialize};

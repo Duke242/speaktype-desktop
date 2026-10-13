@@ -636,6 +636,21 @@ mod tests {
             "She has two dogs and one cat.",
             "May I ask a question?",
             "I actually think the second one is fine.",
+            // Found in review: each of these was rewritten.
+            "It's a brand new line.",
+            "I'm free on Monday, actually Tuesday too.",
+            "I'm busy today, actually tomorrow too.",
+            "I was wrong, actually I was right.",
+            "It's fine, actually it's great.",
+            "This is good, I mean this is great.",
+            "We're close, actually we're done.",
+            "We need 5, actually 2 more.",
+            "We sold 10, actually 5 more than last year.",
+            "One coffee, two teas, three waters.",
+            "One problem. Two problems. Three problems.",
+            "Bullet point is a weird phrase.",
+            "First, I'm sorry. Second time's the charm.",
+            "I'll march first and you follow.",
         ] {
             assert_eq!(process(said, &options), said);
         }

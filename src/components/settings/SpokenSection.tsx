@@ -22,7 +22,7 @@ export function SpokenSection() {
       <SettingRow
         icon={Pilcrow}
         label="Voice commands"
-        description="Say “scratch that” to take back the last sentence, or “new line” and “new paragraph” to start one."
+        description="Say “scratch that” to take back the last sentence, or “new line” and “new paragraph” to start one. Off while typing live."
       >
         <Switch checked={settings.voiceCommands} onChange={(voiceCommands) => save({ voiceCommands })} />
       </SettingRow>

@@ -8,7 +8,10 @@
 //! In code editors and terminals, spoken file names and identifiers are also
 //! written as code (see `coding`).
 
-use std::sync::Mutex;
+use std::{
+    sync::Mutex,
+    thread::{self, JoinHandle},
+};
 
 use serde::{Deserialize, Serialize};
 
@@ -252,10 +255,32 @@ pub fn built_in_apps() -> Vec<(&'static str, AppCategory)> {
 static LAST_APP: Mutex<Option<FrontApp>> = Mutex::new(None);
 
 /// The app with focus now, remembered for Settings.
-pub fn detect() -> Option<FrontApp> {
+fn detect() -> Option<FrontApp> {
     let app = crate::platform::frontmost_app()?;
     *LAST_APP.lock_unpoisoned() = Some(app.clone());
     Some(app)
+}
+
+/// Finding the app with focus, on a thread of its own: it can take a moment
+/// (on macOS the window title comes from Accessibility, which may wait for an
+/// app that's slow to answer), and the hotkey mustn't wait for it.
+pub struct Detection(Option<JoinHandle<Option<FrontApp>>>);
+
+impl Detection {
+    /// Starts looking for the app with focus now.
+    pub fn start() -> Self {
+        let handle = thread::Builder::new()
+            .name("app-detection".into())
+            .spawn(detect)
+            .map_err(|e| eprintln!("[tone] couldn't start app detection: {e}"))
+            .ok();
+        Self(handle)
+    }
+
+    /// The app that had focus, once the detection has finished.
+    pub fn app(self) -> Option<FrontApp> {
+        self.0.and_then(|handle| handle.join().ok().flatten())
+    }
 }
 
 pub fn last_app() -> Option<FrontApp> {

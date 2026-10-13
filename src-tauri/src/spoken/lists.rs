@@ -4,7 +4,8 @@
 //! Markers can't follow words like "the" or "came", so "the first time" or
 //! "came second" don't start a list. Ordinals need three markers in a row, or
 //! two that each start a clause ("First, … Second, …"). Numbers need three,
-//! each starting a clause, and a bulleted list has to start a clause.
+//! each starting a clause and followed by a comma or colon ("One, …"), and a
+//! bulleted list has to start a clause.
 
 use super::{Word, capitalize, gap, spaced, words};
 
@@ -39,6 +40,13 @@ const NOT_BEFORE: &[&str] = &[
     "of", "time", "times", "place", "thing", "things", "half", "hand", "person", "people", "class",
     "floor", "grade", "round", "second", "seconds", "minute", "minutes", "and", "or", "more",
     "day", "days", "year", "years", "week", "weeks", "is", "was",
+];
+
+/// Words after "bullet point" that make it a noun ("bullet point is a weird
+/// phrase", "bullet point list").
+const BULLET_NOT_BEFORE: &[&str] = &[
+    "is", "was", "are", "were", "of", "for", "list", "lists", "style", "symbol", "symbols",
+    "format", "has", "had", "will", "would", "should", "can", "could", "and", "or",
 ];
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -109,10 +117,19 @@ fn marker_at(text: &str, words: &[Word], i: usize, n: usize, style: Style) -> Op
     // Something has to follow, and not something that makes it a phrase.
     let next = words.get(last + 1)?;
     let joined = spaced(text, &words[last], next);
-    if style != Style::Bullet
-        && joined
-        && (next.is_any(NOT_BEFORE) || super::numbers::is_number_word(&next.lower()))
-    {
+    let next_word = next.lower();
+    // "time's" as in "second time's the charm".
+    let next_word = next_word.strip_suffix("'s").unwrap_or(&next_word);
+    let phrase = match style {
+        Style::Bullet => BULLET_NOT_BEFORE.contains(&next_word),
+        _ => NOT_BEFORE.contains(&next_word) || super::numbers::is_number_word(next_word),
+    };
+    if joined && phrase {
+        return None;
+    }
+    // "One coffee, two teas" counts things: a number only marks an item when
+    // punctuation follows it ("One, budget. Two, hiring.").
+    if style == Style::Cardinal && !gap(text, &words[last], next).contains([',', ':']) {
         return None;
     }
     Some(Marker {
@@ -305,6 +322,10 @@ mod tests {
             "First things first.",
             "Second, I disagree.",
             "First, eggs.",
+            "One coffee, two teas, three waters.",
+            "One problem. Two problems. Three problems.",
+            "Bullet point is a weird phrase.",
+            "First, I'm sorry. Second time's the charm.",
         ] {
             assert_eq!(apply(input), input, "input: {input:?}");
         }
