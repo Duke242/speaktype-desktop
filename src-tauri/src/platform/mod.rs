@@ -2,8 +2,9 @@
 //! same items, so the rest of the app never needs `cfg` checks:
 //!
 //! - `DEFAULT_HOTKEY`: the shortcut used until the user picks one.
-//! - `MODIFIER_HOTKEYS`, `start_modifier_hotkey`, `stop_modifier_hotkey`:
-//!   hotkeys made of one modifier key, where the OS allows listening for them.
+//! - `MODIFIER_HOTKEYS`, `start_modifier_hotkey`, `stop_modifier_hotkey`,
+//!   `modifier_hotkey_blocked`: hotkeys made of one modifier key, where the OS
+//!   allows listening for them.
 //! - `send_paste_shortcut`: presses the paste keys for the focused app.
 //! - `setup_notes`: OS-specific hints shown in Settings.
 //! - `permissions`, `request_permission`, `permission_settings_url`: the OS

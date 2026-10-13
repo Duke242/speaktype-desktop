@@ -43,7 +43,8 @@ import {
 } from "@/components/ui";
 import { api, errorMessage, type InputDevice, type LegacyStatus, type Settings, type UpdateInfo } from "@/lib/api";
 import { cn } from "@/lib/cn";
-import { describeImport } from "@/lib/format";
+import { describeImport, hotkeyParts } from "@/lib/format";
+import { hotkeyBlockedMessage, useWhileHotkeyBlocked } from "@/lib/hotkeyBlocked";
 
 import { LANGUAGES, languageName } from "@/lib/languages";
 import { useStore } from "@/lib/store";
@@ -84,8 +85,9 @@ function useSave() {
 }
 
 function GeneralTab() {
-  const { settings, status } = useStore();
+  const { settings, status, refreshStatus } = useStore();
   const save = useSave();
+  useWhileHotkeyBlocked(status.hotkeyBlocked, refreshStatus);
   const isMac = status.os === "macos";
 
   return (
@@ -113,6 +115,14 @@ function GeneralTab() {
         >
           <HotkeyPicker />
         </SettingRow>
+        {status.hotkeyBlocked && (
+          <div className="flex items-center justify-between gap-4 py-3 pl-8 type-small text-ink-secondary">
+            <p>{hotkeyBlockedMessage(hotkeyParts(settings.hotkey).join(" + "))}</p>
+            <Button size="sm" variant="ghost" onClick={() => api.openPermissionSettings("accessibility")}>
+              Open Accessibility
+            </Button>
+          </div>
+        )}
         <SettingRow
           icon={Hand}
          

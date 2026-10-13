@@ -133,6 +133,8 @@ export function installBrowserPreview() {
             setupNotes: [],
             // Add ?hotkeyError=1 to preview a hotkey the system wouldn't register.
             hotkeyError: params.get("hotkeyError") ? "Ctrl+Shift+Space is already used by another app" : null,
+            // Add ?hotkeyBlocked=1 to preview Fn without Accessibility permission.
+            hotkeyBlocked: Boolean(params.get("hotkeyBlocked")),
             modifierHotkeys: os === "macos" ? ["Fn", "RightCommand", "LeftCommand", "RightOption", "LeftOption", "RightControl", "LeftControl"] : [],
           };
         case "get_settings":
