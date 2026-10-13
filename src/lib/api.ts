@@ -75,6 +75,8 @@ export interface Status {
   version: string;
   setupNotes: string[];
   hotkeyError: string | null;
+  /** The hotkey is a single modifier key (like Fn), but macOS won't let us listen for it. */
+  hotkeyBlocked: boolean;
   /** Single-modifier hotkeys this OS supports, e.g. "Fn". */
   modifierHotkeys: string[];
 }

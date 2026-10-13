@@ -55,6 +55,8 @@ static ACTIVE: Mutex<Option<Active>> = Mutex::new(None);
 /// reads or writes it.
 static TAP: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
 static TAP_STARTED: AtomicBool = AtomicBool::new(false);
+/// Whether macOS refused the tap last time, which happens without Accessibility permission.
+static TAP_REFUSED: AtomicBool = AtomicBool::new(false);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ModifierKey {
@@ -134,6 +136,11 @@ pub fn stop() {
     *ACTIVE.lock_unpoisoned() = None;
 }
 
+/// Whether a modifier hotkey is set but macOS won't let us listen for it.
+pub fn is_blocked() -> bool {
+    TAP_REFUSED.load(Ordering::Relaxed) && ACTIVE.lock_unpoisoned().is_some()
+}
+
 type CGEventRef = *mut c_void;
 type CGEventTapProxy = *mut c_void;
 type CGEventTapCallBack = unsafe extern "C" fn(
@@ -204,7 +211,15 @@ fn run_tap() {
                 ptr::null_mut(),
             )
         };
-        if !port.is_null() {
+        let refused = port.is_null();
+        if refused && !TAP_REFUSED.swap(true, Ordering::Relaxed) {
+            eprintln!(
+                "[hotkey] macOS refused the key listener; allow Accessibility for this app \
+                 (or, in a dev build, for the terminal that started it). Retrying."
+            );
+        }
+        if !refused {
+            TAP_REFUSED.store(false, Ordering::Relaxed);
             // SAFETY: CGEventTapCreate follows the Create rule, so the port is
             // ours to release, which the wrapper does when dropped.
             let port = unsafe { CFMachPort::wrap_under_create_rule(port) };

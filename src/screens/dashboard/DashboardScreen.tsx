@@ -7,6 +7,7 @@ import { api, errorMessage, type DictionaryEntry, type HistoryItem, type StatsEn
 import { cn } from "@/lib/cn";
 import { formatMinutesSaved, formatNumber, hotkeyParts, plural } from "@/lib/format";
 import { useCopy, useEngineStatus, useHistory, useNow } from "@/lib/hooks";
+import { hotkeyBlockedMessage, useWhileHotkeyBlocked } from "@/lib/hotkeyBlocked";
 import { useStore } from "@/lib/store";
 import { feedTime, hotkeyVerb, recentlyLearned, summarize, thisDevice } from "./summary";
 
@@ -60,14 +61,16 @@ function Hero({
   centered: boolean;
   onNavigate: (route: Route) => void;
 }) {
-  const { settings, status, models } = useStore();
+  const { settings, status, models, refreshStatus } = useStore();
   const model = models.find((m) => m.id === settings.selectedModel && m.downloaded);
   const keys = hotkeyParts(settings.hotkey).join(" + ");
+  useWhileHotkeyBlocked(status.hotkeyBlocked, refreshStatus);
 
-  // Anything stopping dictation from working; a hotkey problem is fixed in Settings.
-  const notices = [
-    ...(status.hotkeyError ? [{ text: `${status.hotkeyError}. Choose another hotkey in Settings.`, settings: true }] : []),
-    ...status.setupNotes.map((text) => ({ text, settings: false })),
+  // Anything stopping dictation from working, with what fixes it.
+  const notices: { text: string; action?: "settings" | "accessibility" }[] = [
+    ...(status.hotkeyError ? [{ text: `${status.hotkeyError}. Choose another hotkey in Settings.`, action: "settings" as const }] : []),
+    ...(status.hotkeyBlocked ? [{ text: hotkeyBlockedMessage(keys), action: "accessibility" as const }] : []),
+    ...status.setupNotes.map((text) => ({ text })),
   ];
 
   return (
@@ -120,11 +123,15 @@ function Hero({
               key={notice.text}
               icon={TriangleAlert}
               action={
-                notice.settings && (
+                notice.action === "settings" ? (
                   <Button size="sm" variant="ghost" onClick={() => onNavigate("settings")}>
                     Open Settings
                   </Button>
-                )
+                ) : notice.action === "accessibility" ? (
+                  <Button size="sm" variant="ghost" onClick={() => api.openPermissionSettings("accessibility")}>
+                    Open Accessibility
+                  </Button>
+                ) : undefined
               }
             >
               {notice.text}

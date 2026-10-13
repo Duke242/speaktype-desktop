@@ -65,6 +65,10 @@ pub fn start_modifier_hotkey(_name: &str, _handler: HotkeyHandler) -> Result<(),
 
 pub fn stop_modifier_hotkey() {}
 
+pub fn modifier_hotkey_blocked() -> bool {
+    false
+}
+
 /// No Neural Engine; Whisper uses the GPU backend chosen at build time.
 pub const NEURAL_ENGINE: bool = false;
 

@@ -36,6 +36,8 @@ pub struct Status {
     version: String,
     setup_notes: Vec<String>,
     hotkey_error: Option<String>,
+    /// The hotkey is a single modifier key, but the OS won't let us listen for it.
+    hotkey_blocked: bool,
     /// Single-modifier hotkeys this OS supports, e.g. "Fn".
     modifier_hotkeys: &'static [&'static str],
 }
@@ -47,6 +49,7 @@ pub async fn get_status(app: AppHandle, state: State<'_, AppState>) -> CommandRe
         version: app.package_info().version.to_string(),
         setup_notes: platform::setup_notes(),
         hotkey_error: state.hotkey_error.lock_unpoisoned().clone(),
+        hotkey_blocked: platform::modifier_hotkey_blocked(),
         modifier_hotkeys: platform::MODIFIER_HOTKEYS,
     })
 }

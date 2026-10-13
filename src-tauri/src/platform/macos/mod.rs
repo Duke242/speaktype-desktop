@@ -29,6 +29,10 @@ pub fn stop_modifier_hotkey() {
     hotkey::stop();
 }
 
+pub fn modifier_hotkey_blocked() -> bool {
+    hotkey::is_blocked()
+}
+
 /// macOS virtual keycode for V (kVK_ANSI_V), the same key the Swift app sends.
 const KEYCODE_V: u32 = 0x09;
 
