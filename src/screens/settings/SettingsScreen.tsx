@@ -255,27 +255,7 @@ function GeneralTab() {
       <LanguageSection />
       <UpdatesSection />
       <ImportSection />
-      <StudioMark />
     </>
-  );
-}
-
-/** The studio's wordmark, letters spread wide, quietly closing the page. */
-function StudioMark() {
-  return (
-    <a
-      href="https://2048labs.com"
-      target="_blank"
-      rel="noreferrer"
-      aria-label="Made by 2048 Labs"
-      className="mx-auto mt-4 flex w-[180px] justify-between type-overline text-ink-muted transition-colors hover:text-ink"
-    >
-      {"2048 LABS".split("").map((char, i) => (
-        <span key={i} aria-hidden className={char === " " ? "w-2" : undefined}>
-          {char}
-        </span>
-      ))}
-    </a>
   );
 }
 
