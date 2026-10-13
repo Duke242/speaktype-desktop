@@ -22,6 +22,13 @@ export function installBrowserPreview() {
     inputDevice: "",
     autoEdit: false,
     smartTrailingPunctuation: true,
+    cleanup: {
+      enabled: params.get("cleanup") !== null,
+      backend: (params.get("cleanup") === "server" ? "server" : "builtin") as "builtin" | "server",
+      builtinModel: "qwen2.5-1.5b",
+      serverUrl: "http://localhost:11434/v1",
+      serverModel: "llama3.2",
+    },
     restoreClipboard: true,
     saveRecordings: true,
     alwaysShowPill: false,
@@ -88,6 +95,27 @@ export function installBrowserPreview() {
     downloading: false,
   }));
 
+  const cleanupModels = [
+    ["qwen2.5-1.5b", "Qwen 2.5 1.5B", 1117, "Quick on any computer, and writes 29 languages. The one to start with.", true],
+    ["llama3.2-3b", "Llama 3.2 3B", 2020, "More careful edits, about twice as slow. Best with a GPU or Apple Silicon.", false],
+  ].map(([id, name, sizeMb, description, downloaded]) => ({
+    id,
+    name,
+    engine: "llama",
+    sizeMb,
+    acceleratorMb: 0,
+    downloadMb: sizeMb,
+    accelerator: "none",
+    englishOnly: false,
+    languages: null,
+    description,
+    speed: 9,
+    accuracy: 7.5,
+    minRamGb: 4,
+    downloaded,
+    downloading: false,
+  }));
+
   mockWindows("main");
   mockIPC(
     (cmd, args) => {
@@ -108,6 +136,10 @@ export function installBrowserPreview() {
           return settings;
         case "list_models":
           return models;
+        case "get_cleanup_status":
+          return { builtinAvailable: true, models: cleanupModels };
+        case "list_server_models":
+          return { models: ["gemma3:4b", "llama3.2", "qwen2.5:1.5b"], isLocal: String(a.url).includes("localhost") };
         case "get_engine_status":
           return { loaded: "small-en", loading: null };
         case "get_device_info":

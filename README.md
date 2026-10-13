@@ -9,7 +9,7 @@ Requires Node 22+, a current stable Rust toolchain and CMake. On Linux, also ins
 ```sh
 npm install
 npm run app        # run with live reload
-npm run app:build  # build installers into src-tauri/target/release/bundle
+npm run app:build  # build installers into src-tauri/target/release/bundle, with the cleanup helper
 ```
 
 To design screens without the native app, run `npm run dev` and open http://localhost:1420. The UI runs with sample data (add `?theme=dark` or `?onboarding=1` to the URL).
@@ -33,6 +33,8 @@ cd src-tauri
 cargo run --release --example transcribe_wav -- parakeet-tdt-v3 "<models folder>" clip.wav
 ```
 
+AI cleanup's built-in models run in a separate helper, [`cleanup-worker/`](cleanup-worker/README.md). `npm run app` finds it once you've run `cargo build --release` in that folder; without it, cleanup works through a local server only.
+
 ## Release
 
 ```sh
@@ -53,5 +55,6 @@ Pushing a `v2.*` tag builds the installers straight away, since the tagged commi
 ## Layout
 
 - `src/` UI. Colors, radii, shadows and type styles all come from `src/styles/globals.css`.
-- `src-tauri/src/` app core: audio, transcription engines, dictation, paste, history, models.
+- `src-tauri/src/` app core: audio, transcription engines, dictation, paste, history, models, cleanup.
+- `cleanup-worker/` the helper program that runs built-in cleanup models with llama.cpp.
 - `src-tauri/src/platform/{macos,windows,linux}/` everything OS-specific, one folder per OS with the same functions.
