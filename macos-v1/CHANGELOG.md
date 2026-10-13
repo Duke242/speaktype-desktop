@@ -5,11 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on Keep a Changelog, and this project adheres to Semantic Versioning.
 
 ## [Unreleased]
-- SpeakType 2: optional AI cleanup (Settings → AI cleanup). A language model on your computer fixes misheard words and grammar, keeps only your correction when you change your mind mid-sentence, and turns spoken lists into lists. Use a model SpeakType downloads (Qwen 2.5 1.5B or Llama 3.2 3B), or one you already run in Ollama or LM Studio. Off by default; if it's slow or fails, your transcript is pasted as it was.
+- A calmer new layout: a thin icon rail replaces the sidebar, the dashboard becomes one quiet invitation ("Hold fn and talk.") with your recent words flowing beneath it, and every screen now reads as a single centered column with soft dividers instead of boxed cards.
+- SpeakType 2 is now Wordfall, with a calm new look: deep blues and soft gradients in light and dark themes, a new app and menu bar icon, and a recorder whose waveform falls like rain. Your settings, dictionary and history carry over unchanged.
+- Optional AI cleanup (Settings → AI cleanup). A language model on your computer fixes misheard words and grammar, keeps only your correction when you change your mind mid-sentence, and turns spoken lists into lists. Use a model Wordfall downloads (Qwen 2.5 1.5B or Llama 3.2 3B), or one you already run in Ollama or LM Studio. Off by default; if it's slow or fails, your transcript is pasted as it was.
 - Models are now warmed up as soon as they finish downloading (and when you pick one), so the first dictation no longer stalls on "warming up".
 - Fix: the recorder's warming-up message was clipped mid-word, and pressing esc left it wedged on screen. It now shows the real loading stage, elapsed time, and settles back to idle.
 - Fix: the recommended model on the AI Models screen now shows download progress, a cancel button, and the actual reason a download failed (with a retry) instead of a Download button that appeared to do nothing.
 - Fix: a half-finished Parakeet download is no longer reported as installed.
+- New setting, "Keep recordings": turn it off to keep only the text of each dictation, with no audio saved (#114).
+- A model download now checks for enough free disk space before it starts, and says how much it needs if there isn't (#159).
+- Type while speaking: text appears in phrases as you talk, instead of all at once when you stop (#112).
+- Whisper models now hear the names and terms in your Dictionary as words to expect, so they're transcribed right more often.
+- Type while speaking gives each phrase the words before it, so sentences continue naturally instead of restarting.
+- A dictionary that learns (#151): fix a misheard name or term in History, or right where Wordfall typed it (macOS and Windows), and it's added to your Dictionary, marked Learned, with Undo. Switch it off under Settings → Transcript cleanup.
 
 ## [1.3.0] - 2026-07-10
 - 
