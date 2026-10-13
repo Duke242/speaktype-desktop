@@ -12,6 +12,7 @@ import {
   Mic,
   Monitor,
   Music,
+  Power,
   Moon,
   PanelBottom,
   RefreshCw,
@@ -166,6 +167,17 @@ function GeneralTab() {
             For live typing with this shortcut, choose Toggle mode. Hold mode inserts the transcript when you release the shortcut.
           </p>
         )}
+        <SettingRow
+          icon={Power}
+          label="Launch at login"
+          description={
+            settings.launchAtLogin
+              ? "Wordfall starts in the background when you log in, ready for your hotkey."
+              : "Wordfall only runs when you open it."
+          }
+        >
+          <Switch label="Launch at login" checked={settings.launchAtLogin} onChange={(launchAtLogin) => save({ launchAtLogin })} />
+        </SettingRow>
         <SettingRow
           icon={Command}
          
