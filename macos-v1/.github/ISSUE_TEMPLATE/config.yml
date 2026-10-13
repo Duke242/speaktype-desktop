@@ -1,8 +1,8 @@
 blank_issues_enabled: false
 contact_links:
   - name: Questions and ideas
-    url: https://github.com/Duke242/speaktype-desktop/discussions
+    url: https://github.com/Duke242/wordfall/discussions
     about: Ask anything about using SpeakType, or float an idea before opening an issue.
   - name: Contributing
-    url: https://github.com/Duke242/speaktype-desktop/blob/main/CONTRIBUTING.md
+    url: https://github.com/Duke242/wordfall/blob/main/CONTRIBUTING.md
     about: Setting up, running and testing SpeakType on macOS, Windows or Linux.

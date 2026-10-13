@@ -498,7 +498,7 @@ pub async fn open_permission_settings(app: AppHandle, kind: PermissionKind) -> C
 
 // ---- Updates ----
 
-const RELEASES_URL: &str = "https://api.github.com/repos/Duke242/speaktype-desktop/releases/latest";
+const RELEASES_URL: &str = "https://api.github.com/repos/Duke242/wordfall/releases/latest";
 /// Keeps a stalled connection from leaving the check pending forever.
 const UPDATE_CHECK_TIMEOUT: Duration = Duration::from_secs(15);
 

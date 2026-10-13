@@ -8,12 +8,12 @@
 
 <sub>Formerly SpeakType.</sub>
 
-[![Download for macOS](https://img.shields.io/badge/macOS-Download-111111?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/Duke242/speaktype-desktop/releases/latest)
-[![Download for Windows](https://img.shields.io/badge/Windows-Download-111111?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/Duke242/speaktype-desktop/releases/latest)
-[![Download for Linux](https://img.shields.io/badge/Linux-Download-111111?style=for-the-badge&logo=linux&logoColor=white)](https://github.com/Duke242/speaktype-desktop/releases/latest)
+[![Download for macOS](https://img.shields.io/badge/macOS-Download-111111?style=for-the-badge&logo=apple&logoColor=white)](https://github.com/Duke242/wordfall/releases/latest)
+[![Download for Windows](https://img.shields.io/badge/Windows-Download-111111?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/Duke242/wordfall/releases/latest)
+[![Download for Linux](https://img.shields.io/badge/Linux-Download-111111?style=for-the-badge&logo=linux&logoColor=white)](https://github.com/Duke242/wordfall/releases/latest)
 
-[![Stars](https://img.shields.io/github/stars/Duke242/speaktype-desktop?style=flat-square&color=111111)](https://github.com/Duke242/speaktype-desktop/stargazers)
-[![Downloads](https://img.shields.io/github/downloads/Duke242/speaktype-desktop/total?style=flat-square&color=111111)](https://github.com/Duke242/speaktype-desktop/releases)
+[![Stars](https://img.shields.io/github/stars/Duke242/wordfall?style=flat-square&color=111111)](https://github.com/Duke242/wordfall/stargazers)
+[![Downloads](https://img.shields.io/github/downloads/Duke242/wordfall/total?style=flat-square&color=111111)](https://github.com/Duke242/wordfall/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-111111?style=flat-square)](LICENSE)
 
 <img src=".github/assets/speaktype.webp" alt="The Wordfall dashboard: 5,210 words transcribed, this week's activity and recent transcriptions" width="100%">
@@ -50,7 +50,7 @@ Most voice typing apps send your recordings to a company's servers and charge a 
 
 ## Download
 
-**[Go to the downloads page](https://github.com/Duke242/speaktype-desktop/releases/latest)** and click the file for your computer:
+**[Go to the downloads page](https://github.com/Duke242/wordfall/releases/latest)** and click the file for your computer:
 
 | Your computer | Download this file |
 | --- | --- |
@@ -110,14 +110,14 @@ Only on your computer. You can delete single dictations or clear everything from
 <details>
 <summary><b>I used the old Mac app. Do I lose my history?</b></summary>
 
-No. SpeakType 1 offers Wordfall as an update, and the first time you open it, your history, dictionary and settings come with you. You'll need to download a speech model again, since Wordfall uses a different kind. If you'd rather stay on the old app, [SpeakType 1.3](https://github.com/Duke242/speaktype-desktop/releases/tag/v1.3.0) remains available.
+No. SpeakType 1 offers Wordfall as an update, and the first time you open it, your history, dictionary and settings come with you. You'll need to download a speech model again, since Wordfall uses a different kind. If you'd rather stay on the old app, [SpeakType 1.3](https://github.com/Duke242/wordfall/releases/tag/v1.3.0) remains available.
 
 </details>
 
 <details>
 <summary><b>Something isn't working</b></summary>
 
-Wordfall is new, and Windows and Linux support is especially young. Please [open an issue](https://github.com/Duke242/speaktype-desktop/issues) describing what happened and which computer you're on. It helps a lot.
+Wordfall is new, and Windows and Linux support is especially young. Please [open an issue](https://github.com/Duke242/wordfall/issues) describing what happened and which computer you're on. It helps a lot.
 
 </details>
 
@@ -151,7 +151,7 @@ Start with the **[contributing guide](../CONTRIBUTING.md)**. It explains how to 
 
 **If Wordfall saves you some typing, a star helps other people find it.**
 
-[![Star Wordfall on GitHub](https://img.shields.io/github/stars/Duke242/speaktype-desktop?style=for-the-badge&logo=github&label=Star%20Wordfall&color=2b6be0&labelColor=0b1a30)](https://github.com/Duke242/speaktype-desktop)
+[![Star Wordfall on GitHub](https://img.shields.io/github/stars/Duke242/wordfall?style=for-the-badge&logo=github&label=Star%20Wordfall&color=2b6be0&labelColor=0b1a30)](https://github.com/Duke242/wordfall)
 
 </div>
 
