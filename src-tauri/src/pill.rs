@@ -17,6 +17,8 @@ pub enum PillState {
     #[serde(rename_all = "camelCase")]
     Recording {
         started_at_ms: u64,
+        /// Double-tapped in Hold mode: recording carries on without the hotkey held.
+        locked: bool,
     },
     Warming,
     Processing {
