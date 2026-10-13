@@ -4228,39 +4228,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "speaktype-desktop"
-version = "2.0.0"
-dependencies = [
- "arboard",
- "block2",
- "core-foundation",
- "cpal",
- "enigo",
- "futures-util",
- "hound",
- "objc2",
- "objc2-foundation",
- "plist",
- "regex",
- "reqwest 0.12.28",
- "serde",
- "serde_json",
- "symphonia",
- "sysinfo",
- "tauri",
- "tauri-build",
- "tauri-plugin-global-shortcut",
- "tauri-plugin-opener",
- "tauri-plugin-single-instance",
- "tokio",
- "transcribe-rs",
- "uuid",
- "whisper-rs",
- "windows 0.62.2",
- "x11rb",
-]
-
-[[package]]
 name = "stable_deref_trait"
 version = "1.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6358,6 +6325,39 @@ name = "wit-bindgen"
 version = "0.46.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f17a85883d4e6d00e8a97c586de764dabcc06133f7f1d55dce5cdc070ad7fe59"
+
+[[package]]
+name = "wordfall"
+version = "2.0.0"
+dependencies = [
+ "arboard",
+ "block2",
+ "core-foundation",
+ "cpal",
+ "enigo",
+ "futures-util",
+ "hound",
+ "objc2",
+ "objc2-foundation",
+ "plist",
+ "regex",
+ "reqwest 0.12.28",
+ "serde",
+ "serde_json",
+ "symphonia",
+ "sysinfo",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-global-shortcut",
+ "tauri-plugin-opener",
+ "tauri-plugin-single-instance",
+ "tokio",
+ "transcribe-rs",
+ "uuid",
+ "whisper-rs",
+ "windows 0.62.2",
+ "x11rb",
+]
 
 [[package]]
 name = "writeable"

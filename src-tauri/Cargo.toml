@@ -1,5 +1,5 @@
 [package]
-name = "speaktype-desktop"
+name = "wordfall"
 version = "2.0.0"
 description = "Offline voice dictation for macOS, Windows and Linux"
 edition = "2024"
