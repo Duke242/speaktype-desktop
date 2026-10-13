@@ -156,7 +156,8 @@ pub fn run(
     if text.is_empty() {
         // Usually "scratch that". In case it wasn't meant, what was heard
         // stays in History rather than being lost with the recording.
-        let heard = text::normalize_transcription(&raw, options.auto_edit, options.plain_punctuation);
+        let heard =
+            text::normalize_transcription(&raw, options.auto_edit, options.plain_punctuation);
         let heard = heard.trim();
         if heard.is_empty() {
             return Err(Error::NoSpeech);

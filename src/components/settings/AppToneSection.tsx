@@ -1,6 +1,7 @@
-import { AppWindow, Braces, MessageSquareText, Plus, Trash2 } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { AppWindow, Braces, ChevronDown, MessageSquareText, Plus, Trash2 } from "lucide-react";
+import { Fragment, useCallback, useEffect, useState } from "react";
 import { Button, IconButton, Section, Select, SettingRow, Switch, TextField, useToast } from "@/components/ui";
+import { cn } from "@/lib/cn";
 import { api, errorMessage, type AppCategory, type AppRule, type AppTone, type ToneSettings } from "@/lib/api";
 import { useStore } from "@/lib/store";
 
@@ -44,12 +45,12 @@ const CATEGORY_OPTIONS = (Object.keys(STYLES) as AppCategory[]).map((value) => (
   detail: STYLES[value].apps,
 }));
 
-/** "Slack, Discord, Messages" for the built-in apps in one category. */
+/** How many built-in apps each style names before "and 10 more". */
+const PREVIEW_APPS = 3;
+
+/** The built-in apps in one category, by name. */
 function builtInNames(builtIn: AppTone["builtIn"], category: AppCategory) {
-  return builtIn
-    .filter((app) => app.category === category)
-    .map((app) => app.name)
-    .join(", ");
+  return builtIn.filter((app) => app.category === category).map((app) => app.name);
 }
 
 /** Matching dictation to the app it goes into, and writing code as code. */
@@ -111,6 +112,7 @@ function AppRules({
 }) {
   // Edited here and saved on blur, so typing doesn't save on every key.
   const [names, setNames] = useState(rules.map((r) => r.app));
+  const [allApps, setAllApps] = useState(false);
   useEffect(() => setNames(rules.map((r) => r.app)), [rules]);
 
   const update = (index: number, patch: Partial<AppRule>) =>
@@ -128,23 +130,40 @@ function AppRules({
           <div className="mt-0.5 type-small text-ink-secondary">
             Each app gets one of these styles. Apps not listed get Standard.
           </div>
-          <dl className="mt-2 space-y-2 type-small">
+          <dl className="mt-3 grid grid-cols-[88px_minmax(0,1fr)] gap-x-4 gap-y-2.5 type-small">
             {(Object.keys(STYLES) as AppCategory[]).map((category) => {
-              const builtIn = info && builtInNames(info.builtIn, category);
+              const builtIn = info ? builtInNames(info.builtIn, category) : [];
               return (
-                <div key={category}>
-                  <dt className="text-ink">
-                    {STYLES[category].label} <span className="text-ink-muted">· {STYLES[category].apps}</span>
-                  </dt>
-                  <dd className="text-ink-secondary">{ai ? STYLES[category].withAi : STYLES[category].withoutAi}</dd>
-                  {builtIn && <dd className="text-ink-muted">Already set for {builtIn}.</dd>}
-                </div>
+                <Fragment key={category}>
+                  <dt className="text-ink">{STYLES[category].label}</dt>
+                  <dd>
+                    <div className="text-ink-secondary">{ai ? STYLES[category].withAi : STYLES[category].withoutAi}</div>
+                    <div className="text-ink-muted">
+                      {builtIn.length === 0
+                        ? STYLES[category].apps
+                        : allApps || builtIn.length <= PREVIEW_APPS
+                          ? builtIn.join(", ")
+                          : `${builtIn.slice(0, PREVIEW_APPS).join(", ")} and ${builtIn.length - PREVIEW_APPS} more`}
+                    </div>
+                  </dd>
+                </Fragment>
               );
             })}
           </dl>
-          <p className="mt-2 type-small text-ink-muted">
-            Gmail, Outlook, Slack and other web apps get their style in a browser too.
-          </p>
+          {allApps && (
+            <p className="mt-2 type-small text-ink-muted">Web apps like Gmail and Slack count too in a browser.</p>
+          )}
+          {info && info.builtIn.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setAllApps(!allApps)}
+              aria-expanded={allApps}
+              className="mt-2 flex items-center gap-1 type-small text-ink-muted hover:text-ink"
+            >
+              {allApps ? "Show fewer apps" : "Show every built-in app"}
+              <ChevronDown size={14} className={cn("transition-transform duration-200", allApps && "rotate-180")} />
+            </button>
+          )}
 
           <div className="mt-4 type-label text-ink">Your apps</div>
           <div className="mt-0.5 type-small text-ink-secondary">
