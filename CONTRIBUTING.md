@@ -64,7 +64,7 @@ SpeakType 2 is one app for macOS, Windows and Linux. It has two halves:
 
 Each folder in `platform/` exposes the same functions (hotkeys, pasting, permissions…), so the rest of the core never checks which OS it's on. To change how something works on one system, you usually only touch that system's folder.
 
-> SpeakType 1, the previous macOS-only Swift app, lives in its own repository. It only gets critical fixes. New work goes here.
+> SpeakType 1, the previous macOS-only Swift app, lives in [its own repository](https://github.com/karansinghgit/speaktype). It only gets critical fixes. New work goes here.
 
 ---
 
