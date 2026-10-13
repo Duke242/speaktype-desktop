@@ -272,6 +272,7 @@ Automated tests can't press your hotkey or paste into another app. For anything 
 **Recorder pill and menu bar**
 - [ ] The pill appears while recording, shows a moving waveform and the elapsed time, and hides afterwards.
 - [ ] Each pill position in Settings puts it in the right place, including on a second display.
+- [ ] Right-clicking the pill, while recording or with "Always show" on, lists downloaded models with the current one checked, and picking one switches to it. Clicks around an idle pill still reach the app underneath.
 - [ ] Clicking the menu bar or tray icon opens the panel, and dictation can start from there. On Linux, the icon shows a menu instead.
 
 **Models**

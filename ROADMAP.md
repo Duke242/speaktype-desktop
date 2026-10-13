@@ -23,7 +23,7 @@ why, see [macos-v1/ROADMAP.md](macos-v1/ROADMAP.md).
 - [x] Nine screen positions, always-show option
 - [x] Hover controls: microphone, mode, language
 - [x] Click the dot to stop
-- [ ] Right-click menu to switch model
+- [x] Right-click menu to switch model
 - [ ] Frosted idle look in light mode
 
 ### Transcription
