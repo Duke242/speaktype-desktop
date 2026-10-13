@@ -1,4 +1,4 @@
-//! SpeakType's cleanup helper: runs a local language model through llama.cpp.
+//! Wordfall's cleanup helper: runs a local language model through llama.cpp.
 //!
 //! The app starts this program when transcript cleanup is on, and talks to it
 //! over stdin and stdout, one JSON object per line:

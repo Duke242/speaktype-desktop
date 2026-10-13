@@ -249,7 +249,7 @@ impl AppState {
 /// Brings over what SpeakType 1 saved on this computer, once.
 ///
 /// Settings only come across on a fresh install: someone who already set
-/// SpeakType 2 up keeps their own. Either way this is recorded in settings, so
+/// Wordfall up keeps their own. Either way this is recorded in settings, so
 /// it never runs twice. Failures are logged and the app starts without the old data.
 fn import_speaktype1(
     app: &AppHandle,
