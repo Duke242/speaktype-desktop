@@ -267,6 +267,7 @@ Automated tests can't press your hotkey or paste into another app. For anything 
 - [ ] <kbd>Esc</kbd> while recording stops without pasting, and the transcript still shows up in History.
 - [ ] Pressing another key while holding the hotkey cancels the recording.
 - [ ] With "Restore clipboard" on, whatever you had copied before is still on the clipboard afterwards.
+- [ ] With "Pause media while dictating" on, music playing in a player or browser pauses while you record and carries on after. Something you paused yourself stays paused.
 
 **Recorder pill and menu bar**
 - [ ] The pill appears while recording, shows a moving waveform and the elapsed time, and hides afterwards.

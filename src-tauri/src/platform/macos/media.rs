@@ -103,12 +103,13 @@ fn media_remote() -> Option<&'static MediaRemote> {
             }
             // SAFETY: both pointers are non-null functions exported by
             // MediaRemote, with the signatures declared above.
-            Some(unsafe {
+            let remote = unsafe {
                 MediaRemote {
                     is_playing: std::mem::transmute::<*const c_void, IsPlayingFn>(is_playing),
                     send_command: std::mem::transmute::<*const c_void, SendCommandFn>(send_command),
                 }
-            })
+            };
+            Some(remote)
         })
         .as_ref()
 }
