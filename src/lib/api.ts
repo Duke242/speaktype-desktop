@@ -170,7 +170,8 @@ export type DictationState =
 
 export type PillState =
   | { phase: "idle" }
-  | { phase: "recording"; startedAtMs: number }
+  /** `locked`: double-tapped in Hold mode, so it records without the hotkey held. */
+  | { phase: "recording"; startedAtMs: number; locked: boolean }
   | { phase: "warming" }
   | { phase: "processing"; message: string };
 

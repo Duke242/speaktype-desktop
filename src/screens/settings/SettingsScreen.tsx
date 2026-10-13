@@ -129,7 +129,7 @@ function GeneralTab() {
           label="Recording mode"
           description={
             settings.recordingMode === "hold"
-              ? "Hold the hotkey while you talk, and let go when you're done."
+              ? "Hold the hotkey while you talk, and let go when you're done. Double-tap it to keep recording hands-free, then press it once to stop."
               : "Press the hotkey to start recording, and press it again to stop."
           }
         >
