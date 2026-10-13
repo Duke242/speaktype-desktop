@@ -4,17 +4,44 @@ import { Button, IconButton, Section, Select, SettingRow, Switch, TextField, use
 import { api, errorMessage, type AppCategory, type AppRule, type AppTone, type ToneSettings } from "@/lib/api";
 import { useStore } from "@/lib/store";
 
-const CATEGORY_LABELS: Record<AppCategory, string> = {
-  chat: "Chat",
-  email: "Email",
-  terminal: "Terminal",
-  code: "Code editor",
-  other: "Documents and other",
+/** Each category is named after what it does to the text, with the kind of app it's for. */
+const STYLES: Record<AppCategory, { label: string; apps: string; withAi: string; withoutAi: string }> = {
+  chat: {
+    label: "Casual",
+    apps: "chat apps",
+    withAi: "Short and relaxed: lowercase is fine and there's no period at the end.",
+    withoutAi: "No period at the end.",
+  },
+  email: {
+    label: "Formal",
+    apps: "email",
+    withAi: "Full sentences and paragraphs, with a greeting or sign-off on its own line.",
+    withoutAi: "Unchanged without AI cleanup.",
+  },
+  terminal: {
+    label: "Command",
+    apps: "terminals",
+    withAi: "Only the command, as you'd type it: no capital letter, quotes or period.",
+    withoutAi: "No capital letter or punctuation at the end.",
+  },
+  code: {
+    label: "Code",
+    apps: "code editors",
+    withAi: "Written as a code comment or commit message.",
+    withoutAi: "Unchanged, apart from writing code as code.",
+  },
+  other: {
+    label: "Standard",
+    apps: "everything else",
+    withAi: "Ordinary sentences and punctuation.",
+    withoutAi: "Ordinary sentences and punctuation.",
+  },
 };
 
-const CATEGORY_OPTIONS = (Object.keys(CATEGORY_LABELS) as AppCategory[]).map((value) => ({
+const CATEGORY_OPTIONS = (Object.keys(STYLES) as AppCategory[]).map((value) => ({
   value,
-  label: CATEGORY_LABELS[value],
+  label: STYLES[value].label,
+  detail: STYLES[value].apps,
 }));
 
 /** "Slack, Discord, Messages" for the built-in apps in one category. */
@@ -63,7 +90,9 @@ export function AppToneSection() {
       >
         <Switch label="Write code as code" checked={tone.formatCode} onChange={(formatCode) => save({ formatCode })} />
       </SettingRow>
-      {(tone.enabled || tone.formatCode) && <AppRules rules={tone.apps} info={info} onChange={(apps) => save({ apps })} />}
+      {(tone.enabled || tone.formatCode) && (
+        <AppRules rules={tone.apps} info={info} ai={settings.cleanup.enabled} onChange={(apps) => save({ apps })} />
+      )}
     </Section>
   );
 }
@@ -71,10 +100,13 @@ export function AppToneSection() {
 function AppRules({
   rules,
   info,
+  ai,
   onChange,
 }: {
   rules: AppRule[];
   info: AppTone | undefined;
+  /** AI cleanup is on, which changes what each style does. */
+  ai: boolean;
   onChange: (rules: AppRule[]) => void;
 }) {
   // Edited here and saved on blur, so typing doesn't save on every key.
@@ -92,21 +124,32 @@ function AppRules({
       <div className="flex items-start gap-3.5">
         <AppWindow size={18} strokeWidth={1.75} className="mt-px shrink-0 text-ink-muted" />
         <div className="min-w-0 flex-1">
-          <div className="type-label text-ink">Your apps</div>
+          <div className="type-label text-ink">Styles</div>
           <div className="mt-0.5 type-small text-ink-secondary">
-            Choose how an app is treated, by its name or id. These come before the built-in list.
+            Each app gets one of these styles. Apps not listed get Standard.
           </div>
-          {info && (
-            <ul className="mt-2 space-y-0.5 type-small text-ink-muted">
-              {(["chat", "email", "terminal", "code"] as AppCategory[]).map((category) => (
-                <li key={category}>
-                  <span className="text-ink-secondary">{CATEGORY_LABELS[category]}:</span>{" "}
-                  {builtInNames(info.builtIn, category)}
-                </li>
-              ))}
-              <li>Gmail, Outlook, Slack and other web apps count too when they're open in a browser.</li>
-            </ul>
-          )}
+          <dl className="mt-2 space-y-2 type-small">
+            {(Object.keys(STYLES) as AppCategory[]).map((category) => {
+              const builtIn = info && builtInNames(info.builtIn, category);
+              return (
+                <div key={category}>
+                  <dt className="text-ink">
+                    {STYLES[category].label} <span className="text-ink-muted">· {STYLES[category].apps}</span>
+                  </dt>
+                  <dd className="text-ink-secondary">{ai ? STYLES[category].withAi : STYLES[category].withoutAi}</dd>
+                  {builtIn && <dd className="text-ink-muted">Already set for {builtIn}.</dd>}
+                </div>
+              );
+            })}
+          </dl>
+          <p className="mt-2 type-small text-ink-muted">
+            Gmail, Outlook, Slack and other web apps get their style in a browser too.
+          </p>
+
+          <div className="mt-4 type-label text-ink">Your apps</div>
+          <div className="mt-0.5 type-small text-ink-secondary">
+            Pick a style for an app by its name or id. Yours come before the built-in list.
+          </div>
 
           {rules.length > 0 && (
             <div className="mt-3 space-y-2">
@@ -127,7 +170,7 @@ function AppRules({
                       value={rule.category}
                       options={CATEGORY_OPTIONS}
                       onChange={(category) => update(index, { category })}
-                      aria-label="Treat as"
+                      aria-label="Style"
                     />
                   </div>
                   <IconButton
@@ -160,7 +203,7 @@ function AppRules({
           {last && (
             <p className="mt-2 type-small text-ink-muted">
               Last app you dictated into: {lastName}
-              {last.id && last.id !== lastName ? ` (${last.id})` : ""}, treated as {CATEGORY_LABELS[last.category].toLowerCase()}.
+              {last.id && last.id !== lastName ? ` (${last.id})` : ""}, given the {STYLES[last.category].label} style.
             </p>
           )}
         </div>
