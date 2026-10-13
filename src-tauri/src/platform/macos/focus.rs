@@ -59,12 +59,15 @@ impl Element {
     }
 
     fn focused(system: &Element) -> Option<Element> {
-        let focused = system.attribute("AXFocusedUIElement")?;
-        // The attribute is an AXUIElement. Keep our own reference to it, as
-        // dropping `focused` releases the one it holds.
-        let raw = focused.as_CFTypeRef();
+        Some(Self::retained(system.attribute("AXFocusedUIElement")?))
+    }
+
+    /// An attribute value that is itself an AXUIElement. Keeps our own
+    /// reference to it, as dropping `value` releases the one it holds.
+    fn retained(value: CFType) -> Element {
+        let raw = value.as_CFTypeRef();
         // SAFETY: raw is a live CF object; CFRetain gives us a +1 reference.
-        Some(Element(unsafe { CFRetain(raw) }))
+        Element(unsafe { CFRetain(raw) })
     }
 }
 
@@ -73,6 +76,20 @@ impl Drop for Element {
         // SAFETY: we hold one reference to this element.
         unsafe { CFRelease(self.0) };
     }
+}
+
+/// The title of the frontmost app's focused window.
+pub fn focused_window_title() -> Option<String> {
+    // SAFETY: returns a +1 reference to the system-wide element.
+    let system = Element(unsafe { AXUIElementCreateSystemWide() });
+    if system.0.is_null() {
+        return None;
+    }
+    // SAFETY: system.0 is a live AXUIElement.
+    unsafe { AXUIElementSetMessagingTimeout(system.0, MESSAGING_TIMEOUT) };
+    let app = Element::retained(system.attribute("AXFocusedApplication")?);
+    let window = Element::retained(app.attribute("AXFocusedWindow")?);
+    window.string("AXTitle").filter(|title| !title.is_empty())
 }
 
 /// The text field that had keyboard focus when this was created.

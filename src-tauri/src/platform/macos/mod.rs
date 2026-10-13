@@ -1,6 +1,7 @@
 //! macOS: Fn and other single-modifier hotkeys through an event tap, TCC
 //! permission prompts, and the Neural Engine for Whisper.
 
+mod app;
 mod focus;
 mod hotkey;
 mod permissions;
@@ -11,6 +12,7 @@ use std::{path::Path, process::Command};
 use enigo::{Enigo, Key};
 use tauri::{TitleBarStyle, WebviewWindow};
 
+pub use app::frontmost_app;
 pub use focus::FocusedField;
 pub use hotkey::MODIFIER_HOTKEYS;
 pub use permissions::{permission_settings_url, permissions, request_permission};
@@ -39,6 +41,15 @@ const KEYCODE_V: u32 = 0x09;
 pub fn send_paste_shortcut(enigo: Option<&mut Enigo>) -> Result<(), String> {
     let enigo = enigo.ok_or("Keyboard simulation is unavailable")?;
     super::press_combo(enigo, &[Key::Meta], Key::Other(KEYCODE_V))
+}
+
+/// macOS virtual keycode for C (kVK_ANSI_C).
+const KEYCODE_C: u32 = 0x08;
+
+/// ⌘C copies in every app, terminals included.
+pub fn send_copy_shortcut(enigo: Option<&mut Enigo>, _terminal: bool) -> Result<(), String> {
+    let enigo = enigo.ok_or("Keyboard simulation is unavailable")?;
+    super::press_combo(enigo, &[Key::Meta], Key::Other(KEYCODE_C))
 }
 
 /// Whisper models get a CoreML encoder so they run on the Neural Engine.

@@ -11,7 +11,7 @@ use std::{
 
 use serde::{Deserialize, Serialize};
 
-use crate::text::DictionaryEntry;
+use crate::{text::DictionaryEntry, tone::ToneSettings};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -102,6 +102,10 @@ pub struct Settings {
     pub auto_edit: bool,
     pub smart_trailing_punctuation: bool,
     pub cleanup: CleanupSettings,
+    /// Match the tone to the app being dictated into, and write code as code.
+    pub tone: ToneSettings,
+    /// Shortcut for command mode, which edits selected text by voice. Empty when off.
+    pub command_hotkey: String,
     pub restore_clipboard: bool,
     /// Keep each dictation's audio next to its transcript, so it can be replayed.
     pub save_recordings: bool,
@@ -133,6 +137,8 @@ impl Default for Settings {
             auto_edit: false,
             smart_trailing_punctuation: true,
             cleanup: CleanupSettings::default(),
+            tone: ToneSettings::default(),
+            command_hotkey: String::new(),
             restore_clipboard: true,
             save_recordings: true,
             learn_corrections: true,
@@ -274,6 +280,9 @@ mod tests {
         let entry = &settings.dictionary[0];
         assert!(entry.is_enabled && entry.match_whole_word);
         assert_eq!(settings.cleanup, CleanupSettings::default());
+        assert_eq!(settings.tone, ToneSettings::default());
+        assert!(settings.tone.enabled && settings.tone.format_code);
+        assert_eq!(settings.command_hotkey, "", "command mode starts off");
     }
 
     #[test]
@@ -300,6 +309,8 @@ mod tests {
             "autoEdit",
             "smartTrailingPunctuation",
             "cleanup",
+            "tone",
+            "commandHotkey",
             "restoreClipboard",
             "saveRecordings",
             "learnCorrections",
@@ -318,6 +329,8 @@ mod tests {
         assert_eq!(value["cleanup"]["backend"], "builtin");
         assert_eq!(value["cleanup"]["enabled"], false);
         assert!(value["cleanup"].get("serverUrl").is_some());
+        assert_eq!(value["tone"]["formatCode"], true);
+        assert!(value["tone"]["apps"].is_array());
     }
 
     #[test]

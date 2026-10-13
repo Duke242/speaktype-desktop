@@ -32,6 +32,12 @@ export function installBrowserPreview() {
       serverModel: "llama3.2",
       serverKeepAliveMinutes: 60,
     },
+    tone: {
+      enabled: true,
+      formatCode: true,
+      apps: [{ app: "Obsidian", category: "code" }] as { app: string; category: string }[],
+    },
+    commandHotkey: "",
     restoreClipboard: true,
     saveRecordings: true,
     learnCorrections: true,
@@ -147,6 +153,22 @@ export function installBrowserPreview() {
           return models;
         case "get_cleanup_status":
           return { builtinAvailable: true, models: cleanupModels };
+        case "get_app_tone":
+          return {
+            builtIn: [
+              ["Slack", "chat"],
+              ["Discord", "chat"],
+              ["Messages", "chat"],
+              ["Mail", "email"],
+              ["Outlook", "email"],
+              ["Terminal", "terminal"],
+              ["iTerm2", "terminal"],
+              ["VS Code", "code"],
+              ["Cursor", "code"],
+              ["Xcode", "code"],
+            ].map(([name, category]) => ({ name, category })),
+            lastApp: { id: "com.tinyspeck.slackmacgap", name: "Slack", title: "general - Acme", category: "chat" },
+          };
         case "list_server_models":
           return { models: ["gemma3:4b", "llama3.2", "qwen2.5:1.5b"], isLocal: String(a.url).includes("localhost") };
         case "get_engine_status":

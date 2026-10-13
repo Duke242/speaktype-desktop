@@ -85,7 +85,7 @@ pub struct Message {
 }
 
 impl Message {
-    fn new(role: &str, content: impl Into<String>) -> Self {
+    pub(crate) fn new(role: &str, content: impl Into<String>) -> Self {
         Self {
             role: role.into(),
             content: content.into(),
@@ -93,15 +93,55 @@ impl Message {
     }
 }
 
+/// How the text should read in the app it's going to, from `tone`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Hint {
+    /// Added to the instructions, e.g. "It's a chat message: keep it casual."
+    pub instruction: String,
+    /// A dictation and its cleaned-up version in this style, shown last.
+    pub example: Option<(&'static str, &'static str)>,
+}
+
 /// The conversation that asks for `text` to be cleaned up.
+#[cfg_attr(not(test), allow(dead_code))]
 pub fn messages(text: &str) -> Vec<Message> {
-    let mut messages = vec![Message::new("system", SYSTEM_PROMPT)];
-    for (dictated, cleaned) in EXAMPLES {
+    messages_for(text, None)
+}
+
+/// Like `messages`, styled for the app the text is going to.
+pub fn messages_for(text: &str, hint: Option<&Hint>) -> Vec<Message> {
+    let system = match hint {
+        Some(hint) => format!("{SYSTEM_PROMPT}\n{}", hint.instruction),
+        None => SYSTEM_PROMPT.to_string(),
+    };
+    let mut messages = vec![Message::new("system", system)];
+    let example = hint.and_then(|hint| hint.example);
+    for (dictated, cleaned) in EXAMPLES.iter().copied().chain(example) {
         messages.push(Message::new("user", wrap(dictated)));
-        messages.push(Message::new("assistant", *cleaned));
+        messages.push(Message::new("assistant", cleaned));
     }
     messages.push(Message::new("user", wrap(text)));
     messages
+}
+
+/// A request for the model: the conversation, and how long and how much it
+/// may reply.
+#[derive(Debug, Clone)]
+pub struct Prompt {
+    pub messages: Vec<Message>,
+    pub max_tokens: u32,
+    pub timeout: Duration,
+}
+
+impl Prompt {
+    /// Asks for `text` to be cleaned up.
+    pub fn cleanup(text: &str, hint: Option<&Hint>) -> Self {
+        Self {
+            messages: messages_for(text, hint),
+            max_tokens: max_tokens(text),
+            timeout: reply_timeout(text),
+        }
+    }
 }
 
 fn wrap(text: &str) -> String {
@@ -198,7 +238,19 @@ pub struct Cleaner {
 
 impl Cleaner {
     /// `text` cleaned up, or `text` itself if cleanup is off, too long, or fails.
+    #[cfg_attr(not(test), allow(dead_code))]
     pub fn clean(&self, settings: &CleanupSettings, models: &ModelStore, text: &str) -> String {
+        self.clean_for(settings, models, text, None)
+    }
+
+    /// Like `clean`, styled for the app the text is going to.
+    pub fn clean_for(
+        &self,
+        settings: &CleanupSettings,
+        models: &ModelStore,
+        text: &str,
+        hint: Option<&Hint>,
+    ) -> String {
         if !settings.enabled || text.trim().is_empty() {
             return text.to_string();
         }
@@ -207,7 +259,7 @@ impl Cleaner {
         }
         let started = Instant::now();
         match self
-            .reply(settings, models, text)
+            .complete(settings, models, &Prompt::cleanup(text, hint))
             .map(|reply| accept(text, &reply))
         {
             Ok(Some(cleaned)) => {
@@ -234,12 +286,18 @@ impl Cleaner {
         if text.split_whitespace().count() > MAX_WORDS {
             return false;
         }
-        match settings.backend {
-            CleanupBackend::Builtin => {
-                builtin_model_path(settings, models).is_ok() && worker_path().is_some()
+        Self::is_set_up(settings, models)
+    }
+
+    /// Whether cleanup is on with a model ready to use. Command mode needs this too.
+    pub fn is_set_up(settings: &CleanupSettings, models: &ModelStore) -> bool {
+        settings.enabled
+            && match settings.backend {
+                CleanupBackend::Builtin => {
+                    builtin_model_path(settings, models).is_ok() && worker_path().is_some()
+                }
+                CleanupBackend::Server => !settings.server_model.trim().is_empty(),
             }
-            CleanupBackend::Server => !settings.server_model.trim().is_empty(),
-        }
     }
 
     /// The model's reply for `text`, before any checks.
@@ -249,9 +307,19 @@ impl Cleaner {
         models: &ModelStore,
         text: &str,
     ) -> Result<String, String> {
+        self.complete(settings, models, &Prompt::cleanup(text, None))
+    }
+
+    /// The model's reply to `prompt`, before any checks.
+    pub fn complete(
+        &self,
+        settings: &CleanupSettings,
+        models: &ModelStore,
+        prompt: &Prompt,
+    ) -> Result<String, String> {
         match settings.backend {
-            CleanupBackend::Builtin => self.builtin(settings, models, text),
-            CleanupBackend::Server => server_chat(settings, text),
+            CleanupBackend::Builtin => self.builtin(settings, models, prompt),
+            CleanupBackend::Server => server_chat(settings, prompt),
         }
     }
 
@@ -259,18 +327,18 @@ impl Cleaner {
         &self,
         settings: &CleanupSettings,
         models: &ModelStore,
-        text: &str,
+        prompt: &Prompt,
     ) -> Result<String, String> {
         let path = builtin_model_path(settings, models)?;
         let mut worker = self.worker.lock_unpoisoned();
         self.load(&mut worker, &path)?;
         let request = Request {
             model: &path,
-            messages: messages(text),
-            max_tokens: max_tokens(text),
+            messages: prompt.messages.clone(),
+            max_tokens: prompt.max_tokens,
         };
         let running = worker.as_mut().ok_or("The cleanup helper isn't running")?;
-        let result = running.call(&request, reply_timeout(text));
+        let result = running.call(&request, prompt.timeout);
         if running.broken {
             // It may still be generating; a fresh one is started next time.
             *worker = None;
@@ -687,20 +755,20 @@ pub fn warm_up_server(settings: &CleanupSettings, previous: Option<&CleanupSetti
 static SERVER_CLIENT: LazyLock<reqwest::blocking::Client> =
     LazyLock::new(reqwest::blocking::Client::new);
 
-fn server_chat(settings: &CleanupSettings, text: &str) -> Result<String, String> {
+fn server_chat(settings: &CleanupSettings, prompt: &Prompt) -> Result<String, String> {
     if settings.server_model.trim().is_empty() {
         return Err("No server model chosen".into());
     }
-    match ollama_chat(settings, text)? {
+    match ollama_chat(settings, prompt)? {
         Some(reply) => Ok(reply),
-        None => openai_chat(settings, text),
+        None => openai_chat(settings, prompt),
     }
 }
 
 /// Cleans up through Ollama's own API, which, unlike its OpenAI-compatible
 /// one, can set the context size, the keep-alive and thinking. `None` when the
 /// server isn't Ollama.
-fn ollama_chat(settings: &CleanupSettings, text: &str) -> Result<Option<String>, String> {
+fn ollama_chat(settings: &CleanupSettings, prompt: &Prompt) -> Result<Option<String>, String> {
     #[derive(Serialize)]
     struct ChatRequest<'a> {
         model: &'a str,
@@ -722,17 +790,17 @@ fn ollama_chat(settings: &CleanupSettings, text: &str) -> Result<Option<String>,
 
     let response = SERVER_CLIENT
         .post(format!("{}/api/chat", ollama_root(&settings.server_url)?))
-        .timeout(reply_timeout(text))
+        .timeout(prompt.timeout)
         .json(&ChatRequest {
             model: settings.server_model.trim(),
-            messages: messages(text),
+            messages: prompt.messages.clone(),
             stream: false,
             think: false,
             keep_alive: keep_alive_seconds(settings.server_keep_alive_minutes),
             options: OllamaOptions {
                 num_ctx: OLLAMA_CONTEXT,
                 temperature: Some(0.0),
-                num_predict: Some(max_tokens(text)),
+                num_predict: Some(prompt.max_tokens),
             },
         })
         .send()
@@ -755,7 +823,7 @@ fn ollama_chat(settings: &CleanupSettings, text: &str) -> Result<Option<String>,
 }
 
 /// Cleans up through an OpenAI-compatible API, such as LM Studio's.
-fn openai_chat(settings: &CleanupSettings, text: &str) -> Result<String, String> {
+fn openai_chat(settings: &CleanupSettings, prompt: &Prompt) -> Result<String, String> {
     #[derive(Serialize)]
     struct ChatRequest<'a> {
         model: &'a str,
@@ -782,12 +850,12 @@ fn openai_chat(settings: &CleanupSettings, text: &str) -> Result<String, String>
     let base = api_base(&settings.server_url)?;
     let response: ChatResponse = SERVER_CLIENT
         .post(format!("{base}/chat/completions"))
-        .timeout(reply_timeout(text))
+        .timeout(prompt.timeout)
         .json(&ChatRequest {
             model: settings.server_model.trim(),
-            messages: messages(text),
+            messages: prompt.messages.clone(),
             temperature: 0.0,
-            max_tokens: max_tokens(text),
+            max_tokens: prompt.max_tokens,
             stream: false,
             reasoning_effort: "none",
         })
@@ -849,6 +917,20 @@ mod tests {
         let last = messages.last().unwrap();
         assert_eq!(last.role, "user");
         assert_eq!(last.content, "<transcript>\nhello there\n</transcript>");
+    }
+
+    #[test]
+    fn a_hint_adds_to_the_instructions_and_an_example() {
+        let hint = Hint {
+            instruction: "It's a chat message.".into(),
+            example: Some(("sounds good", "sounds good")),
+        };
+        let messages = messages_for("ok", Some(&hint));
+        assert!(messages[0].content.starts_with(SYSTEM_PROMPT));
+        assert!(messages[0].content.ends_with("\nIt's a chat message."));
+        assert_eq!(messages.len(), 2 + (EXAMPLES.len() + 1) * 2);
+        assert_eq!(messages[messages.len() - 2].content, "sounds good");
+        assert_eq!(messages_for("ok", None), super::messages("ok"));
     }
 
     #[test]
@@ -1022,6 +1104,6 @@ mod tests {
             backend: CleanupBackend::Server,
             ..CleanupSettings::default()
         };
-        assert!(server_chat(&settings, "hi").is_err());
+        assert!(server_chat(&settings, &Prompt::cleanup("hi", None)).is_err());
     }
 }

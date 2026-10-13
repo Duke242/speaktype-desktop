@@ -1,6 +1,7 @@
 //! Windows: regular global shortcuts only, and GPU acceleration chosen at
 //! build time.
 
+mod app;
 mod focus;
 
 use std::path::Path;
@@ -8,6 +9,7 @@ use std::path::Path;
 use enigo::{Enigo, Key};
 use tauri::WebviewWindow;
 
+pub use app::frontmost_app;
 pub use focus::FocusedField;
 
 use super::{HotkeyHandler, Permission, PermissionKind};
@@ -29,6 +31,13 @@ pub fn send_paste_shortcut(enigo: Option<&mut Enigo>) -> Result<(), String> {
     let enigo = enigo.ok_or("Keyboard simulation is unavailable")?;
     // `Key::V` is a virtual-key code, so this also works with non-Latin keyboard layouts.
     super::press_combo(enigo, &[Key::Control], Key::V)
+}
+
+/// Ctrl+C copies in regular apps, and in Windows Terminal and the classic
+/// console while text is selected.
+pub fn send_copy_shortcut(enigo: Option<&mut Enigo>, _terminal: bool) -> Result<(), String> {
+    let enigo = enigo.ok_or("Keyboard simulation is unavailable")?;
+    super::press_combo(enigo, &[Key::Control], Key::C)
 }
 
 pub fn setup_notes() -> Vec<String> {

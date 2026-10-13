@@ -1,5 +1,7 @@
 mod audio;
 mod cleanup;
+mod coding;
+mod command;
 mod commands;
 mod device;
 mod dictation;
@@ -16,6 +18,7 @@ mod pipeline;
 mod platform;
 mod settings;
 mod text;
+mod tone;
 mod tray;
 
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock, PoisonError, RwLock, TryLockError};
@@ -354,6 +357,14 @@ pub fn run() {
                         eprintln!("[hotkey] {e}");
                         *state.hotkey_error.lock_unpoisoned() = Some(e);
                     }
+                    if let Err(e) = command::register_hotkey(
+                        &handle,
+                        &state.controller,
+                        &settings.command_hotkey,
+                        None,
+                    ) {
+                        eprintln!("[hotkey] command shortcut: {e}");
+                    }
                     state.controller.send(Event::RefreshPill);
                     state.warm_up(&handle, &settings.selected_model);
                     state.cleaner.warm_up(&settings.cleanup, &state.models);
@@ -388,6 +399,7 @@ pub fn run() {
             commands::delete_model,
             commands::get_cleanup_status,
             commands::list_server_models,
+            commands::get_app_tone,
             commands::get_history,
             commands::get_stats,
             commands::delete_history_item,
