@@ -41,7 +41,7 @@ SpeakType 2 is one app for macOS, Windows and Linux. It has two halves:
 ```
 .
 ├── src/                         Interface
-│   ├── app/                     Main window shell, sidebar, routes
+│   ├── app/                     Main window shell, icon rail, routes
 │   ├── screens/                 One folder per screen (dashboard, history, models, settings…)
 │   ├── components/ui/           Shared building blocks: Button, Card, Section, Select…
 │   ├── pill/  tray/             The recorder pill and menu bar panel windows
