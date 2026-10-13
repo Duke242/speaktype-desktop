@@ -39,6 +39,7 @@ use crate::{
     pill::{self, PillState},
     pipeline,
     platform::{self, HotkeyEvent},
+    playback::Playback,
     settings::RecordingMode,
 };
 
@@ -57,6 +58,11 @@ const LEARNED_MESSAGE: Duration = Duration::from_millis(2500);
 /// Hold mode: a press released this quickly is a tap, and a second press this
 /// soon after a tap locks recording on.
 const DOUBLE_TAP: Duration = Duration::from_millis(350);
+
+/// How long a recording runs before media is paused. A single-modifier hotkey
+/// starts a recording for every shortcut like ⌘C, which is discarded a moment
+/// later; pausing straight away would stutter the music on each one.
+const PAUSE_MEDIA_AFTER: Duration = Duration::from_millis(250);
 
 /// "Learned “Karan”", or "Learned “Karan” and 2 more" for several words.
 fn learned_message(words: &[String]) -> String {
@@ -101,6 +107,10 @@ pub enum Event {
     },
     /// The time for a second tap after a quick tap in Hold mode has passed.
     TapExpired {
+        session: u64,
+    },
+    /// A recording has run long enough to be a dictation: pause media.
+    PauseMedia {
         session: u64,
     },
     MessageExpired {
@@ -326,6 +336,7 @@ impl Controller {
             app,
             controller: controller.clone(),
             paster: Paster::spawn(),
+            playback: Playback::spawn(),
             phase: Phase::Idle,
             hotkey: Hotkey::default(),
             owns_cancel_key: false,
@@ -398,6 +409,7 @@ struct Session {
     app: AppHandle,
     controller: Controller,
     paster: Paster,
+    playback: Playback,
     phase: Phase,
     hotkey: Hotkey,
     /// Whether this session registered Escape, as opposed to the user's hotkey being Escape.
@@ -429,6 +441,11 @@ impl Session {
             Event::TapExpired { session } => {
                 if matches!(self.phase, Phase::Recording { session: s, .. } if s == session) {
                     self.input(Input::TapExpired);
+                }
+            }
+            Event::PauseMedia { session } => {
+                if matches!(self.phase, Phase::Recording { session: s, .. } if s == session) {
+                    self.playback.pause();
                 }
             }
             Event::MessageExpired { generation } => {
@@ -552,6 +569,19 @@ impl Session {
                     started_at_ms,
                     locked: false,
                 });
+                if settings.pause_media {
+                    let controller = self.controller.clone();
+                    let timer =
+                        thread::Builder::new()
+                            .name("pause-media".into())
+                            .spawn(move || {
+                                thread::sleep(PAUSE_MEDIA_AFTER);
+                                controller.send(Event::PauseMedia { session });
+                            });
+                    if let Err(e) = timer {
+                        eprintln!("[dictation] {e}");
+                    }
+                }
                 self.broadcast(DictationState::Recording { started_at_ms });
                 // Load the models while the user speaks, so they're ready on release.
                 self.state().warm_up(&self.app, &settings.selected_model);
@@ -585,7 +615,10 @@ impl Session {
             message: message.into(),
         });
         self.broadcast(DictationState::Transcribing);
-        let captured = match recording.finish() {
+        let finished = recording.finish();
+        // Once the microphone is closed, so it doesn't hear the music start.
+        self.playback.resume();
+        let captured = match finished {
             Ok(captured) => captured,
             Err(e) => {
                 eprintln!("[dictation] {e}");
@@ -715,6 +748,8 @@ impl Session {
     /// Returns to idle. Dropping a recording stops the microphone and discards its audio.
     fn go_idle(&mut self) {
         self.cancel_live_typing();
+        // After a discarded recording; does nothing otherwise.
+        self.playback.resume();
         self.phase = Phase::Idle;
         self.set_cancel_key(false);
         self.show(PillState::Idle);
