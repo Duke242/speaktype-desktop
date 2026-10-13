@@ -33,7 +33,7 @@ The aim is plain: whatever the paid dictation apps ask a monthly subscription fo
 - **A dictionary that learns** ([#151](https://github.com/karansinghgit/speaktype/issues/151)). When you correct a word SpeakType keeps getting wrong, it should remember, rather than making you add the rule by hand.
 - **Words as you speak** ([#112](https://github.com/karansinghgit/speaktype/issues/112)). Text appearing while you talk, instead of after you stop. The biggest change to how dictation feels, and the hardest to get right.
 - **Wayland support that isn't a compromise** ([#163](https://github.com/karansinghgit/speaktype/issues/163)). Today the hotkey only fires while an older-style app has focus. Using the desktop portals fixes the hotkey and typing for every Linux user.
-- **Small things people keep asking for:** launch at login, hiding the Dock icon on Mac, switching model by right-clicking the pill, pausing music while you record ([#63](https://github.com/karansinghgit/speaktype/issues/63)).
+- **Small things people keep asking for:** launch at login, hiding the Dock icon on Mac, switching model by right-clicking the pill, pausing music while you record ([#63](https://github.com/karansinghgit/speaktype/issues/63)). *Pausing music has shipped: turn on "Pause media while dictating" in Settings.*
 
 ## Also next: meeting notes
 
