@@ -20,6 +20,7 @@ use crate::{
     AppState, LockExt,
     audio::{Captured, Monitor, WHISPER_SAMPLE_RATE},
     dictation::{Controller, Event},
+    gain::{self, Booster},
     learn, models, pipeline, platform,
     settings::Settings,
     text,
@@ -147,6 +148,16 @@ fn run(
         enigo: None,
     };
     let mut failure = None;
+    // Whisper mode: pauses and speech are judged on amplified audio, which
+    // lowers the silence thresholds by the same factor.
+    let mut booster = Booster::default();
+    let current_gain = |booster: &Booster| {
+        if settings.boost_quiet_speech {
+            booster.gain()
+        } else {
+            1.0
+        }
+    };
 
     let captured = loop {
         match rx.recv_timeout(POLL) {
@@ -160,19 +171,26 @@ fn run(
         }
         let samples = monitor.read(offset);
         offset += samples.len();
+        booster.push(&samples);
         pending.extend(samples);
-        while let Some(end) = phrase_end(&pending, false) {
-            let carry = overlap_at(&pending, end);
-            let phrase = &pending[..end];
-            match recognize(
+        let gain = current_gain(&booster);
+        loop {
+            let heard = gain::amplify(&pending, gain);
+            let Some(end) = phrase_end(&heard, false) else {
+                break;
+            };
+            let carry = overlap_at(&heard, end);
+            let result = recognize(
                 app,
                 &settings,
-                phrase,
+                &heard[..end],
                 replayed,
                 &transcript,
                 false,
                 carry > 0,
-            ) {
+            );
+            drop(heard);
+            match result {
                 Ok(text) => {
                     append(
                         &mut transcript,
@@ -193,27 +211,35 @@ fn run(
         }
     };
 
-    pending.extend_from_slice(&captured.samples[offset.min(captured.samples.len())..]);
+    let rest = &captured.samples[offset.min(captured.samples.len())..];
+    booster.push(rest);
+    pending.extend_from_slice(rest);
+    let gain = current_gain(&booster);
     // If a worker was slower than the speaker, drain bounded phrases before
     // saving. Escape disables insertion immediately but keeps the transcript.
-    while let Some(end) = phrase_end(&pending, true) {
+    loop {
+        let heard = gain::amplify(&pending, gain);
+        let Some(end) = phrase_end(&heard, true) else {
+            break;
+        };
         if pending.len() <= replayed {
             break;
         }
         let carry = if end == pending.len() {
             0
         } else {
-            overlap_at(&pending, end)
+            overlap_at(&heard, end)
         };
         let result = recognize(
             app,
             &settings,
-            &pending[..end],
+            &heard[..end],
             replayed,
             &transcript,
             end == pending.len(),
             carry > 0,
         );
+        drop(heard);
         match result {
             Ok(text) => {
                 append(
