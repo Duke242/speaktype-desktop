@@ -11,7 +11,7 @@ use std::{
 
 use serde::{Deserialize, Serialize};
 
-use crate::{text::DictionaryEntry, tone::ToneSettings};
+use crate::{snippets::Snippet, text::DictionaryEntry, tone::ToneSettings};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -151,6 +151,8 @@ pub struct Settings {
     pub self_corrections: bool,
     /// Spoken lists, numbers, dates and times are written out.
     pub smart_formatting: bool,
+    /// Spoken phrases that expand into saved text.
+    pub snippets: Vec<Snippet>,
     pub has_completed_onboarding: bool,
     /// Set once SpeakType 1's data has been brought over, so it only happens once.
     pub has_imported_v1: bool,
@@ -189,6 +191,7 @@ impl Default for Settings {
             voice_commands: true,
             self_corrections: true,
             smart_formatting: true,
+            snippets: Vec::new(),
             has_completed_onboarding: false,
             has_imported_v1: false,
             has_shown_model_prompt: false,
@@ -323,6 +326,7 @@ mod tests {
         assert!(settings.boost_quiet_speech);
         assert!(!settings.pause_media && !settings.launch_at_login);
         assert!(settings.voice_commands && settings.self_corrections && settings.smart_formatting);
+        assert!(settings.snippets.is_empty());
         let entry = &settings.dictionary[0];
         assert!(entry.is_enabled && entry.match_whole_word);
         assert_eq!(settings.cleanup, CleanupSettings::default());
@@ -371,6 +375,7 @@ mod tests {
             "voiceCommands",
             "selfCorrections",
             "smartFormatting",
+            "snippets",
             "hasCompletedOnboarding",
             "hasShownModelPrompt",
             "meetings",

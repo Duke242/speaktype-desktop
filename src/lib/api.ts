@@ -26,6 +26,14 @@ export interface DictionaryEntry {
   learned?: boolean;
 }
 
+/** A spoken phrase that expands into saved text. */
+export interface Snippet {
+  id: string;
+  trigger: string;
+  expansion: string;
+  isEnabled: boolean;
+}
+
 export type CleanupBackend = "builtin" | "server";
 
 /** Optional tidying of each transcript by a local language model. */
@@ -106,6 +114,7 @@ export interface Settings {
   selfCorrections: boolean;
   /** Spoken lists, numbers, dates and times are written out. */
   smartFormatting: boolean;
+  snippets: Snippet[];
   hasCompletedOnboarding: boolean;
   hasShownModelPrompt: boolean;
   /** Set once SpeakType 1's data has been brought over. */

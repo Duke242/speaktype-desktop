@@ -339,6 +339,7 @@ fn phrase_options(settings: &Settings, final_phrase: bool) -> text::Options<'_> 
         voice_commands: false,
         self_corrections: settings.self_corrections,
         smart_formatting: settings.smart_formatting,
+        snippets: &settings.snippets,
         english: text::is_english(&settings.language),
     }
 }

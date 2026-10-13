@@ -9,7 +9,7 @@ use std::sync::LazyLock;
 use regex::{NoExpand, Regex};
 use serde::{Deserialize, Serialize};
 
-use crate::spoken;
+use crate::{snippets::Snippet, spoken};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -40,6 +40,7 @@ pub struct Options<'a> {
     pub self_corrections: bool,
     /// Spoken lists, numbers, dates and times written out.
     pub smart_formatting: bool,
+    pub snippets: &'a [Snippet],
     /// The three rules above only understand English.
     pub english: bool,
 }
@@ -57,8 +58,8 @@ pub fn process(raw: &str, options: &Options) -> String {
     finish(&normalize_transcription(raw, options.auto_edit), options)
 }
 
-/// Voice commands, corrections and formatting, then dictionary rules and
-/// trailing punctuation.
+/// Voice commands, corrections and formatting, then dictionary rules,
+/// snippets and trailing punctuation.
 pub fn finish(text: &str, options: &Options) -> String {
     let english = |on: bool| on && options.english;
     let mut text = text.to_string();
@@ -73,6 +74,13 @@ pub fn finish(text: &str, options: &Options) -> String {
         text = spoken::format(&text);
     }
     let text = apply_dictionary(&text, options.dictionary);
+    let text = crate::snippets::expand(&text, options.snippets, |trigger| {
+        if format {
+            spoken::format(trigger)
+        } else {
+            trigger.to_string()
+        }
+    });
     if options.smart_trailing_punctuation {
         strip_trailing_period(&text)
     } else {
@@ -564,7 +572,7 @@ mod tests {
         assert_eq!(strip_trailing_period("é"), "é");
     }
 
-    fn options(dictionary: &[DictionaryEntry]) -> Options<'_> {
+    fn options<'a>(dictionary: &'a [DictionaryEntry], snippets: &'a [Snippet]) -> Options<'a> {
         Options {
             auto_edit: true,
             smart_trailing_punctuation: true,
@@ -572,20 +580,27 @@ mod tests {
             voice_commands: true,
             self_corrections: true,
             smart_formatting: true,
+            snippets,
             english: true,
         }
     }
 
     #[test]
-    fn spoken_rules_run_in_order_before_the_dictionary() {
+    fn spoken_rules_run_in_order_before_dictionary_and_snippets() {
         let dictionary = [entry("word fall", "Wordfall", true)];
-        let options = options(&dictionary);
+        let snippets = [Snippet {
+            id: "1".into(),
+            trigger: "my zoom room".into(),
+            expansion: "https://zoom.us/j/1".into(),
+            is_enabled: true,
+        }];
+        let options = options(&dictionary, &snippets);
         assert_eq!(
             process(
-                "um, meet at three pm, actually four pm in word fall.",
+                "um, meet at three pm, actually four pm in my zoom room.",
                 &options
             ),
-            "meet at 4 PM in Wordfall."
+            "meet at 4 PM in https://zoom.us/j/1."
         );
         assert_eq!(
             process(
@@ -594,6 +609,7 @@ mod tests {
             ),
             "Use Wordfall\nThanks"
         );
+        assert_eq!(process("My zoom room.", &options), "https://zoom.us/j/1");
         assert_eq!(
             process(
                 "todo: first, twenty five emails. Second, call Bob.",
@@ -605,7 +621,7 @@ mod tests {
 
     #[test]
     fn everyday_sentences_pass_through_unchanged() {
-        let options = options(&[]);
+        let options = options(&[], &[]);
         for said in [
             "I think we should ship it behind a flag first and watch the numbers.",
             "Let's move the design review to Thursday afternoon so the whole team can make it.",
@@ -642,7 +658,7 @@ mod tests {
 
     #[test]
     fn spoken_rules_are_off_for_other_languages_and_when_switched_off() {
-        let mut options = options(&[]);
+        let mut options = options(&[], &[]);
         let said = "meet at three pm, actually four pm";
         options.english = false;
         assert_eq!(process(said, &options), said);
@@ -659,11 +675,11 @@ mod tests {
     fn process_respects_the_punctuation_toggle() {
         let on = Options {
             smart_trailing_punctuation: true,
-            ..options(&[])
+            ..options(&[], &[])
         };
         let off = Options {
             smart_trailing_punctuation: false,
-            ..options(&[])
+            ..options(&[], &[])
         };
         assert_eq!(process("Hello.", &on), "Hello");
         assert_eq!(process("Hello.", &off), "Hello.");
