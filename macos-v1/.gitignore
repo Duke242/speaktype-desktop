@@ -1,0 +1,59 @@
+# Xcode
+build/
+DerivedData/
+*.xcodeproj/xcuserdata/
+*.xcworkspace/xcuserdata/
+*.xcscmblueprint
+*.xccheckout
+
+# Swift Package Manager
+.swiftpm/
+.build/
+Packages/
+Package.resolved
+
+# Distribution
+dist/
+*.dmg
+*.zip
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Logs
+*.log
+
+# Code coverage / profiling artifacts
+*.profraw
+*.profdata
+
+# Temporary files
+*.swp
+*.tmp
+*~
+
+# Cursor
+.cursor/
+
+# Agent / Codex tooling
+.agents/
+.codex/
+.claude/
+
+# App-specific
+*.app
+
+# Don't ignore DMG assets (these are needed for builds)
+!dmg-assets/dmg-background.png
+!dmg-assets/dmg-background@2x.png
+!dmg-assets/*.sh
+!dmg-assets/*.py
+!dmg-assets/*.svg
+speaktype.xcodeproj/project.xcworkspace/xcuserdata/
+Config.xcconfig
+env.example
+
+# Xcode SPM checkout/build cache
+SourcePackages/
