@@ -33,6 +33,8 @@ fn yes() -> bool {
 pub struct Options<'a> {
     pub auto_edit: bool,
     pub smart_trailing_punctuation: bool,
+    /// Commas instead of the semicolons and colons the engine adds.
+    pub plain_punctuation: bool,
     pub dictionary: &'a [DictionaryEntry],
     /// "Scratch that", "new line" and "new paragraph".
     pub voice_commands: bool,
@@ -55,7 +57,10 @@ pub fn is_english(language: &str) -> bool {
 /// cleanup in between.
 #[cfg(test)]
 pub fn process(raw: &str, options: &Options) -> String {
-    finish(&normalize_transcription(raw, options.auto_edit), options)
+    finish(
+        &normalize_transcription(raw, options.auto_edit, options.plain_punctuation),
+        options,
+    )
 }
 
 /// Voice commands, corrections and formatting, then dictionary rules,
@@ -157,18 +162,28 @@ pub fn is_filler(word: &str) -> bool {
     FILLER_WORD.is_match(word)
 }
 
+/// A semicolon or colon the engine put between words. People rarely type them
+/// in messages, so they become commas. Times ("3:30") and links ("https://")
+/// have no space after the colon and are left alone.
+static SEMICOLON_OR_COLON: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(\w)\s*[;:]\s+").expect(STATIC_PATTERN));
+
 static SPACE_BEFORE_PUNCTUATION: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"\s+([,.;:!?])").expect(STATIC_PATTERN));
 
 /// Removes Whisper's placeholder tokens and bracketed noise labels, and
-/// optionally filler words ("Auto Edit").
-pub fn normalize_transcription(text: &str, auto_edit: bool) -> String {
+/// optionally filler words ("Auto Edit") and semicolons and colons ("plain
+/// punctuation"). Spoken lists put back the colon that introduces them.
+pub fn normalize_transcription(text: &str, auto_edit: bool, plain_punctuation: bool) -> String {
     let mut out = text.to_string();
     for re in PLACEHOLDERS.iter() {
         out = re.replace_all(&out, " ").into_owned();
     }
     out = NOISE_LABEL.replace_all(&out, " ").into_owned();
     out = WHITESPACE.replace_all(&out, " ").into_owned();
+    if plain_punctuation {
+        out = SEMICOLON_OR_COLON.replace_all(&out, "${1}, ").into_owned();
+    }
 
     if auto_edit {
         out = remove_fillers(&out);
@@ -417,15 +432,19 @@ mod tests {
     #[test]
     fn normalization_removes_whisper_placeholders() {
         assert_eq!(
-            normalize_transcription(" [BLANK_AUDIO]  hello   <|nospeech|> [SILENCE] ", false),
+            normalize_transcription(
+                " [BLANK_AUDIO]  hello   <|nospeech|> [SILENCE] ",
+                false,
+                false
+            ),
             "hello"
         );
         assert_eq!(
-            normalize_transcription("[wind blowing] (heartbeat) answer [S]", false),
+            normalize_transcription("[wind blowing] (heartbeat) answer [S]", false, false),
             "answer"
         );
         assert_eq!(
-            normalize_transcription("[wind] (Loud noise) (indistinct)", false),
+            normalize_transcription("[wind] (Loud noise) (indistinct)", false, false),
             ""
         );
     }
@@ -433,28 +452,58 @@ mod tests {
     #[test]
     fn placeholders_are_case_sensitive_but_noise_labels_are_not() {
         assert_eq!(
-            normalize_transcription("[blank_audio] hi", false),
+            normalize_transcription("[blank_audio] hi", false, false),
             "[blank_audio] hi"
         );
-        assert_eq!(normalize_transcription("[MUSIC] hi (wind)", false), "hi");
+        assert_eq!(
+            normalize_transcription("[MUSIC] hi (wind)", false, false),
+            "hi"
+        );
+    }
+
+    #[test]
+    fn plain_punctuation_turns_semicolons_and_colons_into_commas() {
+        assert_eq!(
+            normalize_transcription("I went home; it was late.", false, true),
+            "I went home, it was late."
+        );
+        assert_eq!(
+            normalize_transcription("Here's the thing: we ship it ; then we wait.", false, true),
+            "Here's the thing, we ship it, then we wait."
+        );
+        assert_eq!(
+            normalize_transcription("Meet at 3:30 on https://zoom.us/j/1.", false, true),
+            "Meet at 3:30 on https://zoom.us/j/1."
+        );
+        assert_eq!(
+            normalize_transcription("Smile :) ok", false, true),
+            "Smile :) ok"
+        );
+        assert_eq!(
+            normalize_transcription("I went home; it was late.", false, false),
+            "I went home; it was late."
+        );
     }
 
     #[test]
     fn auto_edit_removes_fillers() {
-        assert_eq!(normalize_transcription("um um", true), "");
+        assert_eq!(normalize_transcription("um um", true, false), "");
         assert_eq!(
-            normalize_transcription("So, um, I think uhh we should go.", true),
+            normalize_transcription("So, um, I think uhh we should go.", true, false),
             "So, I think we should go."
         );
-        assert_eq!(normalize_transcription("Hmm. Okay", true), "Okay");
+        assert_eq!(normalize_transcription("Hmm. Okay", true, false), "Okay");
         // Words that merely start with a filler are left alone.
         assert_eq!(
-            normalize_transcription("umbrella hummus", true),
+            normalize_transcription("umbrella hummus", true, false),
             "umbrella hummus"
         );
-        assert_eq!(normalize_transcription("um, hm er", true), "hm er");
+        assert_eq!(normalize_transcription("um, hm er", true, false), "hm er");
         // Auto Edit off keeps fillers.
-        assert_eq!(normalize_transcription("um hello", false), "um hello");
+        assert_eq!(
+            normalize_transcription("um hello", false, false),
+            "um hello"
+        );
     }
 
     #[test]
@@ -541,16 +590,19 @@ mod tests {
     #[test]
     fn filler_removal_handles_unicode_neighbours() {
         // Accented letters after a filler make it part of a word.
-        assert_eq!(normalize_transcription("umé ummé", true), "umé ummé");
+        assert_eq!(normalize_transcription("umé ummé", true, false), "umé ummé");
         // Multi-byte text around a removed filler survives intact.
         assert_eq!(
-            normalize_transcription("café, um, naïve 日本語 uh", true),
+            normalize_transcription("café, um, naïve 日本語 uh", true, false),
             "café, naïve 日本語"
         );
         // An ellipsis character isn't a boundary, so the filler stays.
-        assert_eq!(normalize_transcription("um… right", true), "um… right");
-        assert_eq!(normalize_transcription("", true), "");
-        assert_eq!(normalize_transcription("   ", true), "");
+        assert_eq!(
+            normalize_transcription("um… right", true, false),
+            "um… right"
+        );
+        assert_eq!(normalize_transcription("", true, false), "");
+        assert_eq!(normalize_transcription("   ", true, false), "");
     }
 
     #[test]
@@ -576,6 +628,7 @@ mod tests {
         Options {
             auto_edit: true,
             smart_trailing_punctuation: true,
+            plain_punctuation: true,
             dictionary,
             voice_commands: true,
             self_corrections: true,

@@ -95,6 +95,8 @@ export interface Settings {
   launchAtLogin: boolean;
   autoEdit: boolean;
   smartTrailingPunctuation: boolean;
+  /** Commas instead of the semicolons and colons the engine adds. */
+  plainPunctuation: boolean;
   cleanup: CleanupSettings;
   tone: ToneSettings;
   /** Shortcut that edits selected text by voice, or "" when off. */
