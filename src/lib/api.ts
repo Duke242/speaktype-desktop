@@ -368,7 +368,9 @@ export interface MeetingSegmentEvent {
 export const api = {
   getStatus: () => invoke<Status>("get_status"),
   getSettings: () => invoke<Settings>("get_settings"),
-  saveSettings: (settings: Settings) => invoke<Settings>("save_settings", { settings }),
+  /** `changed` names the fields being saved; the dictionary and snippets are kept as they are unless named. */
+  saveSettings: (settings: Settings, changed?: (keyof Settings)[]) =>
+    invoke<Settings>("save_settings", { settings, changed }),
   listInputDevices: () => invoke<InputDevice[]>("list_input_devices"),
 
   getSyncStatus: () => invoke<SyncStatus>("get_sync_status"),

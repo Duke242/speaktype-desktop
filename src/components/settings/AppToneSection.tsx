@@ -122,13 +122,14 @@ function AppRules({
                     aria-label="App"
                     className="min-w-0 flex-1"
                   />
-                  <Select
-                    value={rule.category}
-                    options={CATEGORY_OPTIONS}
-                    onChange={(category) => update(index, { category })}
-                    aria-label="Treat as"
-                    className="w-[200px]"
-                  />
+                  <div className="w-[200px] shrink-0">
+                    <Select
+                      value={rule.category}
+                      options={CATEGORY_OPTIONS}
+                      onChange={(category) => update(index, { category })}
+                      aria-label="Treat as"
+                    />
+                  </div>
                   <IconButton
                     icon={Trash2}
                     label="Remove"

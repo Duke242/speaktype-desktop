@@ -121,7 +121,6 @@ export function installBrowserPreview() {
       emit("meetings-changed");
     }, 1500);
   };
-  if (params.get("meeting") === "recording") startMeeting("Design review");
 
   const transcripts = [
     "Let's move the design review to Thursday afternoon so the whole team can make it.",
@@ -375,6 +374,8 @@ export function installBrowserPreview() {
     },
     { shouldMockEvents: true },
   );
+  // After mockIPC, which the events it sends need.
+  if (params.get("meeting") === "recording") startMeeting("Design review");
 }
 
 type Source = "microphone" | "system";

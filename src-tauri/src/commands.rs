@@ -67,9 +67,22 @@ pub async fn get_settings(state: State<'_, AppState>) -> CommandResult<Settings>
 pub async fn save_settings(
     app: AppHandle,
     state: State<'_, AppState>,
-    settings: Settings,
+    mut settings: Settings,
+    changed: Option<Vec<String>>,
 ) -> CommandResult<Settings> {
     let previous = state.settings();
+    // Sharing, import and learning change these in the background. A save that
+    // didn't touch them keeps the current ones, rather than undoing those
+    // changes from an older copy (and sharing the loss as deletions).
+    if let Some(changed) = &changed {
+        let touched = |key: &str| changed.iter().any(|c| c == key);
+        if !touched("dictionary") {
+            settings.dictionary = previous.dictionary.clone();
+        }
+        if !touched("snippets") {
+            settings.snippets = previous.snippets.clone();
+        }
+    }
     let hotkey_changed = settings.hotkey != previous.hotkey;
     let command_changed = settings.command_hotkey != previous.command_hotkey;
     if !settings.command_hotkey.is_empty() && settings.command_hotkey == settings.hotkey {

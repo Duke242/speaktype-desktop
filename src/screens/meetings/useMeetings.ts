@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   api,
   type Meeting,
   type MeetingListItem,
+  type MeetingSegment,
   type MeetingSegmentEvent,
   type MeetingSetup,
   type MeetingState,
@@ -22,7 +23,14 @@ export function useMeetingState() {
 /** Saved meetings matching `query`, kept fresh as meetings change. */
 export function useMeetingList(query: string) {
   const [items, setItems] = useState<MeetingListItem[]>();
-  const refresh = useCallback(() => api.listMeetings(query.trim()).then(setItems), [query]);
+  const latest = useRef(0);
+  const refresh = useCallback(() => {
+    // A slower, older search mustn't replace a newer one's results.
+    const request = ++latest.current;
+    return api.listMeetings(query.trim()).then((found) => {
+      if (request === latest.current) setItems(found);
+    });
+  }, [query]);
   useEffect(() => {
     // Searching reads every saved transcript, so wait for a pause in typing.
     const timer = setTimeout(refresh, query ? 200 : 0);
@@ -36,26 +44,38 @@ export function useMeetingList(query: string) {
 export function useMeeting(id: string) {
   const [meeting, setMeeting] = useState<Meeting | null>();
   const [error, setError] = useState<string>();
-  const refresh = useCallback(
-    () =>
-      api
-        .getMeeting(id)
-        .then((m) => {
-          setMeeting(m);
-          setError(undefined);
-        })
-        .catch((e) => {
-          setMeeting(null);
-          setError(String(e));
-        }),
-    [id],
-  );
+  // Segments that arrive while a fetch is out may be missing from its snapshot.
+  const pending = useRef<MeetingSegment[] | null>(null);
+  const latest = useRef(0);
+  const refresh = useCallback(() => {
+    const request = ++latest.current;
+    pending.current ??= [];
+    const done = () => {
+      const missed = pending.current ?? [];
+      pending.current = null;
+      return missed;
+    };
+    return api
+      .getMeeting(id)
+      .then((m) => {
+        if (request !== latest.current) return;
+        setMeeting({ ...m, segments: done().reduce(insertSegment, m.segments) });
+        setError(undefined);
+      })
+      .catch((e) => {
+        if (request !== latest.current) return;
+        done();
+        setMeeting(null);
+        setError(String(e));
+      });
+  }, [id]);
   useEffect(() => {
     refresh();
   }, [refresh]);
   useTauriEvent("meetings-changed", () => refresh());
   useTauriEvent<MeetingSegmentEvent>("meeting-segment", ({ payload }) => {
     if (payload.meetingId !== id) return;
+    pending.current?.push(payload.segment);
     setMeeting((m) => m && { ...m, segments: insertSegment(m.segments, payload.segment) });
   });
   return { meeting, error, setMeeting };

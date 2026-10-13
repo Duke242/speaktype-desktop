@@ -146,8 +146,10 @@ fn decode_f32le(carry: &mut Vec<u8>, bytes: &[u8]) -> Vec<f32> {
     carry.extend_from_slice(bytes);
     let whole = carry.len() / 4 * 4;
     let samples = carry[..whole]
-        .chunks_exact(4)
-        .map(|b| f32::from_le_bytes([b[0], b[1], b[2], b[3]]))
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .map(|b| f32::from_le_bytes(*b))
         .collect();
     carry.drain(..whole);
     samples
