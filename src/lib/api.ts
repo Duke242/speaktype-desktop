@@ -54,6 +54,8 @@ export interface AppRule {
 export interface ToneSettings {
   /** Match the tone to the app: instructions for AI cleanup, light rules without it. */
   enabled: boolean;
+  /** Write spoken file names, identifiers and flags as code in editors and terminals. */
+  formatCode: boolean;
   /** Checked before the built-in list. */
   apps: AppRule[];
 }

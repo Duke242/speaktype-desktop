@@ -5,6 +5,8 @@
 //! the user's own list first and then the built-in one below. With AI cleanup
 //! on, the category adds a line to the model's instructions. Without it, a few
 //! light rules do what they safely can, like dropping the final period in chat.
+//! In code editors and terminals, spoken file names and identifiers are also
+//! written as code (see `coding`).
 
 use std::{
     sync::Mutex,
@@ -13,7 +15,7 @@ use std::{
 
 use serde::{Deserialize, Serialize};
 
-use crate::{LockExt, cleanup::Hint, platform::FrontApp};
+use crate::{LockExt, cleanup::Hint, coding, platform::FrontApp};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -41,6 +43,8 @@ pub struct AppRule {
 pub struct ToneSettings {
     /// Match the tone to the app: instructions for AI cleanup, light rules without it.
     pub enabled: bool,
+    /// Write spoken file names, identifiers and flags as code in code editors and terminals.
+    pub format_code: bool,
     /// The user's categories, checked before the built-in ones.
     pub apps: Vec<AppRule>,
 }
@@ -49,6 +53,7 @@ impl Default for ToneSettings {
     fn default() -> Self {
         Self {
             enabled: true,
+            format_code: true,
             apps: Vec::new(),
         }
     }
@@ -282,25 +287,45 @@ pub fn last_app() -> Option<FrontApp> {
     LAST_APP.lock_unpoisoned().clone()
 }
 
-/// What a dictation into one app gets: its category, and whether the tone
-/// feature is on.
+/// What a dictation into one app gets: its category, and which of the
+/// tone and code features are on.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Style {
     pub category: AppCategory,
     tone: bool,
+    format_code: bool,
 }
 
 impl Style {
-    /// No app, or the feature off: text passes through unchanged.
+    /// No app, or both features off: text passes through unchanged.
     pub fn new(settings: &ToneSettings, app: Option<&FrontApp>) -> Self {
         Self {
             category: app.map_or(AppCategory::Other, |app| classify(app, &settings.apps)),
             tone: settings.enabled,
+            format_code: settings.format_code,
+        }
+    }
+
+    fn is_code(&self) -> bool {
+        matches!(self.category, AppCategory::Code | AppCategory::Terminal)
+    }
+
+    /// Writes spoken identifiers as code, in code editors and terminals.
+    /// Runs before AI cleanup, so the model sees them already written.
+    pub fn format(&self, text: &str) -> String {
+        if self.format_code && self.is_code() {
+            coding::format(text, self.category == AppCategory::Terminal)
+        } else {
+            text.to_string()
         }
     }
 
     /// The line added to AI cleanup's instructions for this app.
     pub fn hint(&self) -> Option<Hint> {
+        let code = (self.format_code && self.is_code()).then_some(
+            "Write file names, paths, identifiers and command-line flags exactly as code, \
+             like main.rs, user_id, getUserName or --verbose.",
+        );
         let (instruction, example) = match (self.tone, self.category) {
             (true, AppCategory::Chat) => (
                 "The text is a chat message. Keep it casual and short: lowercase is fine, \
@@ -328,8 +353,13 @@ impl Style {
             ),
             _ => ("", None),
         };
-        (!instruction.is_empty()).then(|| Hint {
-            instruction: instruction.to_string(),
+        let instruction = [instruction, code.unwrap_or_default()]
+            .into_iter()
+            .filter(|line| !line.is_empty())
+            .collect::<Vec<_>>()
+            .join(" ");
+        (!instruction.is_empty()).then_some(Hint {
+            instruction,
             example,
         })
     }
@@ -503,6 +533,7 @@ mod tests {
         Style {
             category,
             tone: true,
+            format_code: true,
         }
     }
 
@@ -550,10 +581,38 @@ mod tests {
         let email = style(AppCategory::Email).hint().unwrap();
         assert!(email.instruction.contains("email"));
         let terminal = style(AppCategory::Terminal).hint().unwrap();
-        assert!(terminal.instruction.contains("command"));
-        let code = style(AppCategory::Code).hint().unwrap();
-        assert!(code.instruction.contains("code editor"));
+        assert!(
+            terminal.instruction.contains("command") && terminal.instruction.contains("--verbose")
+        );
+        let code_only = Style {
+            tone: false,
+            ..style(AppCategory::Code)
+        };
+        assert!(
+            code_only
+                .hint()
+                .unwrap()
+                .instruction
+                .starts_with("Write file names")
+        );
         assert_eq!(style(AppCategory::Other).hint(), None);
+    }
+
+    #[test]
+    fn code_formatting_only_in_code_apps() {
+        assert_eq!(
+            style(AppCategory::Code).format("open main dot rs"),
+            "open main.rs"
+        );
+        assert_eq!(
+            style(AppCategory::Chat).format("main dot rs"),
+            "main dot rs"
+        );
+        let off = Style {
+            format_code: false,
+            ..style(AppCategory::Code)
+        };
+        assert_eq!(off.format("main dot rs"), "main dot rs");
     }
 
     #[test]

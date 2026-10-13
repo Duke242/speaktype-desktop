@@ -1,5 +1,6 @@
 mod audio;
 mod cleanup;
+mod coding;
 mod commands;
 mod device;
 mod dictation;

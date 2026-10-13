@@ -1,4 +1,4 @@
-import { AppWindow, MessageSquareText, Plus, Trash2 } from "lucide-react";
+import { AppWindow, Braces, MessageSquareText, Plus, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Button, IconButton, Section, Select, SettingRow, Switch, TextField, useToast } from "@/components/ui";
 import { api, errorMessage, type AppCategory, type AppRule, type AppTone, type ToneSettings } from "@/lib/api";
@@ -25,7 +25,7 @@ function builtInNames(builtIn: AppTone["builtIn"], category: AppCategory) {
     .join(", ");
 }
 
-/** Matching dictation to the app it goes into. */
+/** Matching dictation to the app it goes into, and writing code as code. */
 export function AppToneSection() {
   const { settings, updateSettings } = useStore();
   const toast = useToast();
@@ -56,7 +56,14 @@ export function AppToneSection() {
       >
         <Switch label="Match the app's tone" checked={tone.enabled} onChange={(enabled) => save({ enabled })} />
       </SettingRow>
-      {tone.enabled && <AppRules rules={tone.apps} info={info} onChange={(apps) => save({ apps })} />}
+      <SettingRow
+        icon={Braces}
+        label="Write code as code"
+        description="In code editors and terminals, “main dot rs” becomes main.rs, “camel case get user” becomes getUser, and “dash dash verbose” becomes --verbose."
+      >
+        <Switch label="Write code as code" checked={tone.formatCode} onChange={(formatCode) => save({ formatCode })} />
+      </SettingRow>
+      {(tone.enabled || tone.formatCode) && <AppRules rules={tone.apps} info={info} onChange={(apps) => save({ apps })} />}
     </Section>
   );
 }
