@@ -581,6 +581,82 @@ pub fn is_local(url: &str) -> bool {
             .is_ok_and(|ip| ip.is_loopback())
 }
 
+/// Ollama's own API sits beside its OpenAI-compatible one, at the root.
+fn ollama_root(url: &str) -> Result<String, String> {
+    let base = api_base(url)?;
+    Ok(base.strip_suffix("/v1").unwrap_or(&base).to_string())
+}
+
+/// Asks Ollama to load `model` now and keep it for `keep_alive_minutes`
+/// (negative: until Ollama quits, zero: unload it now). The OpenAI-compatible
+/// API can't set this, but its requests keep what this sets. Other servers
+/// don't have this endpoint, which is fine: they load the model on first use.
+fn ollama_load(url: &str, model: &str, keep_alive_minutes: i32) -> Result<(), String> {
+    #[derive(Serialize)]
+    struct LoadRequest<'a> {
+        model: &'a str,
+        /// Seconds, or negative for no limit.
+        keep_alive: i64,
+    }
+    let keep_alive = if keep_alive_minutes < 0 {
+        -1
+    } else {
+        i64::from(keep_alive_minutes) * 60
+    };
+    SERVER_CLIENT
+        .post(format!("{}/api/generate", ollama_root(url)?))
+        .timeout(LOAD_TIMEOUT)
+        .json(&LoadRequest { model, keep_alive })
+        .send()
+        .and_then(|r| r.error_for_status())
+        .map(|_| ())
+        .map_err(|e| e.to_string())
+}
+
+/// The server model cleanup uses, if server cleanup is on with one chosen.
+fn server_model(settings: &CleanupSettings) -> Option<&str> {
+    let model = settings.server_model.trim();
+    (settings.enabled && settings.backend == CleanupBackend::Server && !model.is_empty())
+        .then_some(model)
+}
+
+/// Has the server load the chosen model in the background, so it's ready when
+/// the dictation ends. Frees the `previous` model if it's no longer in use.
+pub fn warm_up_server(settings: &CleanupSettings, previous: Option<&CleanupSettings>) {
+    let load = server_model(settings).map(|model| {
+        (
+            settings.server_url.clone(),
+            model.to_string(),
+            settings.server_keep_alive_minutes,
+        )
+    });
+    let unload = previous
+        .and_then(|p| server_model(p).map(|model| (p, model)))
+        .filter(|(p, model)| {
+            load.as_ref()
+                .is_none_or(|(url, m, _)| m != model || *url != p.server_url)
+        })
+        .map(|(p, model)| (p.server_url.clone(), model.to_string()));
+    if load.is_none() && unload.is_none() {
+        return;
+    }
+    let spawned = thread::Builder::new()
+        .name("cleanup-server-warm-up".into())
+        .spawn(move || {
+            if let Some((url, model)) = unload {
+                let _ = ollama_load(&url, &model, 0);
+            }
+            if let Some((url, model, minutes)) = load
+                && let Err(e) = ollama_load(&url, &model, minutes)
+            {
+                eprintln!("[cleanup] server warm-up skipped: {e}");
+            }
+        });
+    if let Err(e) = spawned {
+        eprintln!("[cleanup] couldn't start server warm-up: {e}");
+    }
+}
+
 /// Shared, so dictations reuse its connections.
 static SERVER_CLIENT: LazyLock<reqwest::blocking::Client> =
     LazyLock::new(reqwest::blocking::Client::new);
@@ -822,6 +898,18 @@ mod tests {
             "https://box.lan/api/v1"
         );
         assert!(api_base("localhost:11434").is_err());
+    }
+
+    #[test]
+    fn ollama_root_drops_the_openai_path() {
+        assert_eq!(
+            ollama_root("http://localhost:11434/v1").unwrap(),
+            "http://localhost:11434"
+        );
+        assert_eq!(
+            ollama_root("http://localhost:11434").unwrap(),
+            "http://localhost:11434"
+        );
         assert!(api_base("http://").is_err());
 
         assert!(is_local("http://localhost:11434/v1"));

@@ -30,6 +30,7 @@ export function installBrowserPreview() {
       builtinModel: "qwen2.5-1.5b",
       serverUrl: "http://localhost:11434/v1",
       serverModel: "llama3.2",
+      serverKeepAliveMinutes: 60,
     },
     restoreClipboard: true,
     saveRecordings: true,

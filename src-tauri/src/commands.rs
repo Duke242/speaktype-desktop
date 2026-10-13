@@ -103,6 +103,7 @@ pub async fn save_settings(
         let builtin =
             settings.cleanup.enabled && settings.cleanup.backend == CleanupBackend::Builtin;
         let restart = !builtin || settings.cleanup.builtin_model != previous.cleanup.builtin_model;
+        cleanup::warm_up_server(&settings.cleanup, Some(&previous.cleanup));
         let (app, cleanup) = (app.clone(), settings.cleanup.clone());
         // Stopping waits for a cleanup in progress, so it runs off this thread.
         tauri::async_runtime::spawn_blocking(move || {

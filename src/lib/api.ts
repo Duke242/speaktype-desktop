@@ -38,6 +38,8 @@ export interface CleanupSettings {
   serverUrl: string;
   /** Model name as the server knows it. */
   serverModel: string;
+  /** Minutes Ollama keeps the model loaded after a dictation; negative keeps it until Ollama quits. */
+  serverKeepAliveMinutes: number;
 }
 
 export interface Settings {

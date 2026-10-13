@@ -1,4 +1,4 @@
-import { Brain, Check, Cpu, PlugZap, Server, TriangleAlert } from "lucide-react";
+import { Brain, Check, Cpu, PlugZap, Server, Timer, TriangleAlert } from "lucide-react";
 import { type ReactNode, useCallback, useEffect, useState } from "react";
 import { Badge, Button, Section, SegmentedControl, Select, SettingRow, Switch, TextField, useToast } from "@/components/ui";
 import { DeleteButton, DownloadAction } from "@/screens/models/ModelsScreen";
@@ -244,6 +244,19 @@ function ServerSettings({ cleanup, save }: { cleanup: CleanupSettings; save: Sav
           className="w-[240px]"
         />
       </SettingRow>
+      <SettingRow
+        icon={Timer}
+        label="Keep model loaded"
+        description="How long Ollama holds the model in memory after a dictation. It loads again while you speak, so shorter frees memory sooner."
+      >
+        <Select
+          value={String(cleanup.serverKeepAliveMinutes)}
+          options={KEEP_ALIVE_OPTIONS}
+          onChange={(minutes) => save({ serverKeepAliveMinutes: Number(minutes) })}
+          aria-label="Keep model loaded"
+          className="w-[240px]"
+        />
+      </SettingRow>
       {error && <Notice tone="danger">{error}</Notice>}
       {server && !server.isLocal && (
         <Notice tone="warning">
@@ -253,6 +266,14 @@ function ServerSettings({ cleanup, save }: { cleanup: CleanupSettings; save: Sav
     </>
   );
 }
+
+const KEEP_ALIVE_OPTIONS = [
+  { value: "1", label: "1 minute" },
+  { value: "5", label: "5 minutes" },
+  { value: "15", label: "15 minutes" },
+  { value: "60", label: "1 hour" },
+  { value: "-1", label: "Until Ollama quits" },
+];
 
 function Notice({ tone, children }: { tone: "warning" | "danger"; children: ReactNode }) {
   return (

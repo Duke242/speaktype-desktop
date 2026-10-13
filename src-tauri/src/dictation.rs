@@ -28,6 +28,7 @@ use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 use crate::{
     AppState, LockExt,
     audio::{Captured, Recording},
+    cleanup,
     history::now_ms,
     learn, live,
     paste::Paster,
@@ -421,6 +422,7 @@ impl Session {
                 self.state().warm_up(&self.app, &settings.selected_model);
                 let state = self.state();
                 state.cleaner.warm_up(&settings.cleanup, &state.models);
+                cleanup::warm_up_server(&settings.cleanup, None);
             }
             Err(e) => {
                 eprintln!("[dictation] {e}");
