@@ -1,6 +1,6 @@
-# SpeakType 2
+# Wordfall
 
-The cross-platform SpeakType app for macOS, Windows and Linux. It's developed alongside SpeakType 1, the macOS-only Swift app, and replaces it once everything in [ROADMAP.md](ROADMAP.md) is done.
+Wordfall (formerly SpeakType 2) is the cross-platform dictation app for macOS, Windows and Linux. It's developed alongside SpeakType 1 (`speaktype/`) and replaces it once everything in [ROADMAP.md](ROADMAP.md) is done.
 
 ## Develop
 

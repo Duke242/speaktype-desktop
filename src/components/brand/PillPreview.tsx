@@ -8,7 +8,7 @@ export function PillPreview({ className }: { className?: string }) {
     <div
       aria-hidden
       className={cn(
-        "flex h-12 items-center gap-3 rounded-full bg-pill px-4 shadow-elevated ring-1 ring-white/10",
+        "flex h-12 items-center gap-3 rounded-full bg-pill bg-linear-to-b from-white/[0.06] to-transparent px-4 shadow-elevated ring-1 ring-pill-wave/15",
         className,
       )}
     >
@@ -20,8 +20,13 @@ export function PillPreview({ className }: { className?: string }) {
         {BARS.map((height, i) => (
           <span
             key={i}
-            className="w-[3px] origin-center animate-wave rounded-full bg-white/90"
-            style={{ height: `${height * 100}%`, animationDelay: `${(i % 7) * -0.13}s` }}
+            className="w-[3px] origin-center animate-wave rounded-full bg-linear-to-b from-pill-wave to-pill-wave-deep"
+            style={{
+              height: `${height * 100}%`,
+              animationDelay: `${(i % 7) * -0.13}s`,
+              // Older bars fade toward the left, like a trail of water.
+              opacity: 0.45 + 0.55 * (i / (BARS.length - 1)),
+            }}
           />
         ))}
       </div>

@@ -101,6 +101,8 @@ pub struct Settings {
     pub restore_clipboard: bool,
     /// Keep each dictation's audio next to its transcript, so it can be replayed.
     pub save_recordings: bool,
+    /// Add misheard words to the dictionary when the user corrects a transcript.
+    pub learn_corrections: bool,
     pub always_show_pill: bool,
     pub pill_position: PillPosition,
     pub show_tray_icon: bool,
@@ -129,6 +131,7 @@ impl Default for Settings {
             cleanup: CleanupSettings::default(),
             restore_clipboard: true,
             save_recordings: true,
+            learn_corrections: true,
             always_show_pill: false,
             pill_position: PillPosition::BottomCenter,
             show_tray_icon: true,
@@ -295,6 +298,7 @@ mod tests {
             "cleanup",
             "restoreClipboard",
             "saveRecordings",
+            "learnCorrections",
             "alwaysShowPill",
             "pillPosition",
             "showTrayIcon",

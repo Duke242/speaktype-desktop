@@ -4,8 +4,11 @@
 //! - Wayland blocks both. We shell out to `wtype` or `ydotool` to paste, and
 //!   global shortcuts only fire while an X11 (XWayland) app has focus.
 
+mod focus;
 mod wayland;
 mod x11;
+
+pub use focus::FocusedField;
 
 use std::path::Path;
 
@@ -54,7 +57,7 @@ pub fn setup_notes() -> Vec<String> {
     ];
     if !wayland::has_paste_tool() {
         notes.push(
-            "Install `wtype` (Sway, Hyprland, KDE) or `ydotool` (GNOME) so SpeakType can \
+            "Install `wtype` (Sway, Hyprland, KDE) or `ydotool` (GNOME) so Wordfall can \
              paste into Wayland apps. Without one, the text is left on the clipboard."
                 .to_string(),
         );

@@ -3,7 +3,7 @@ import { cn } from "@/lib/cn";
 import type { Tone } from "./Badge";
 
 const tones: Record<Tone, string> = {
-  brand: "bg-primary text-accent dark:bg-surface-sunken dark:ring-1 dark:ring-line",
+  brand: "bg-sidebar-flow text-sidebar-accent dark:ring-1 dark:ring-line",
   neutral: "bg-hover text-ink-secondary",
   accent: "bg-accent-soft text-accent-ink",
   success: "bg-success-soft text-success",
@@ -18,7 +18,7 @@ const sizes = {
   lg: { box: "size-12 rounded-card", icon: 22 },
 };
 
-/** The one tinted icon square used beside titles, stats and settings. `brand` is neon on black, for hero moments. */
+/** The one tinted icon square used beside titles, stats and settings. `brand` is pale blue on navy, for hero moments. */
 export function IconTile({
   icon: Icon,
   tone = "neutral",

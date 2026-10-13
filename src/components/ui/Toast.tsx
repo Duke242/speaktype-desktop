@@ -4,13 +4,19 @@ import { createPortal } from "react-dom";
 import { cn } from "@/lib/cn";
 
 type ToastTone = "success" | "error";
+/** A button in the toast, such as Undo. Clicking it also dismisses the toast. */
+interface ToastAction {
+  label: string;
+  onClick: () => void;
+}
 interface ToastItem {
   id: number;
   tone: ToastTone;
   message: string;
+  action?: ToastAction;
 }
 
-const ToastContext = createContext<(message: string, tone?: ToastTone) => void>(() => {});
+const ToastContext = createContext<(message: string, tone?: ToastTone, action?: ToastAction) => void>(() => {});
 
 export function useToast() {
   return useContext(ToastContext);
@@ -21,10 +27,11 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 
   const dismiss = useCallback((id: number) => setToasts((t) => t.filter((x) => x.id !== id)), []);
   const show = useCallback(
-    (message: string, tone: ToastTone = "success") => {
+    (message: string, tone: ToastTone = "success", action?: ToastAction) => {
       const id = Date.now() + Math.random();
-      setToasts((t) => [...t.slice(-2), { id, tone, message }]);
-      setTimeout(() => dismiss(id), tone === "error" ? 6000 : 2500);
+      setToasts((t) => [...t.slice(-2), { id, tone, message, action }]);
+      // Long enough to read and reach the button.
+      setTimeout(() => dismiss(id), tone === "error" || action ? 6000 : 2500);
     },
     [dismiss],
   );
@@ -47,6 +54,17 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                   className={cn("mt-0.5 shrink-0", toast.tone === "error" ? "text-danger" : "text-success")}
                 />
                 <p className="flex-1 type-small text-ink">{toast.message}</p>
+                {toast.action && (
+                  <button
+                    onClick={() => {
+                      toast.action?.onClick();
+                      dismiss(toast.id);
+                    }}
+                    className="type-small font-medium text-accent-ink hover:underline"
+                  >
+                    {toast.action.label}
+                  </button>
+                )}
                 <button
                   onClick={() => dismiss(toast.id)}
                   aria-label="Dismiss"

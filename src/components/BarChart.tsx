@@ -49,7 +49,7 @@ export function BarChart({
         {ticks.map((tick) => (
           <span
             key={tick}
-            className="absolute right-0 -translate-y-1/2 type-caption text-ink-muted tabular-nums"
+            className="absolute right-0 translate-y-1/2 type-caption text-ink-muted tabular-nums"
             style={{ bottom: `${(tick / top) * 100}%` }}
           >
             {formatNumber(tick)}
