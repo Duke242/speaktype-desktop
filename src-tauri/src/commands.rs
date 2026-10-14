@@ -36,6 +36,8 @@ type CommandResult<T> = Result<T, String>;
 pub struct Status {
     os: &'static str,
     version: String,
+    /// The git tag and commit this was built from, e.g. "v2.0.0-alpha.8".
+    build: &'static str,
     setup_notes: Vec<String>,
     hotkey_error: Option<String>,
     /// The hotkey is a single modifier key, but the OS won't let us listen for it.
@@ -49,6 +51,7 @@ pub async fn get_status(app: AppHandle, state: State<'_, AppState>) -> CommandRe
     Ok(Status {
         os: std::env::consts::OS,
         version: app.package_info().version.to_string(),
+        build: env!("WORDFALL_BUILD"),
         setup_notes: platform::setup_notes(),
         hotkey_error: state.hotkey_error.lock_unpoisoned().clone(),
         hotkey_blocked: platform::modifier_hotkey_blocked(),

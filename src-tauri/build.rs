@@ -8,5 +8,28 @@ fn main() {
     if !(os == "macos" && arch == "x86_64") {
         println!("cargo::rustc-cfg=parakeet");
     }
+    stamp_build();
     tauri_build::build()
+}
+
+/// Sets WORDFALL_BUILD to the release tag this build came from, e.g.
+/// "v2.0.0-alpha.8", or "v2.0.0-alpha.8-3-g86cd117" for 3 commits past it, so
+/// Settings shows exactly which build is installed. Empty without git.
+fn stamp_build() {
+    let git = |args: &[&str]| {
+        std::process::Command::new("git")
+            .args(args)
+            .output()
+            .ok()
+            .filter(|out| out.status.success())
+            .map(|out| String::from_utf8_lossy(&out.stdout).trim().to_string())
+    };
+    let build = git(&["describe", "--tags", "--always", "--match", "v2.*"]).unwrap_or_default();
+    println!("cargo::rustc-env=WORDFALL_BUILD={build}");
+    // Re-stamp after a commit, checkout or new tag.
+    for path in ["HEAD", "refs", "packed-refs"] {
+        if let Some(path) = git(&["rev-parse", "--git-path", path]) {
+            println!("cargo::rerun-if-changed={path}");
+        }
+    }
 }

@@ -397,7 +397,7 @@ function UpdatesSection() {
       <SettingRow
         icon={RefreshCw}
         label="Check for updates automatically"
-        description={`Once a day, in the background. You have Wordfall ${status.version}.`}
+        description={`Once a day, in the background. You have Wordfall ${status.build || status.version}.`}
       >
         <Switch checked={settings.autoUpdate} onChange={(autoUpdate) => save({ autoUpdate })} />
       </SettingRow>

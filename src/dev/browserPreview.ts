@@ -211,6 +211,7 @@ export function installBrowserPreview() {
           return {
             os,
             version: "2.0.0",
+            build: "v2.0.0-alpha.8",
             setupNotes: [],
             // Add ?hotkeyError=1 to preview a hotkey the system wouldn't register.
             hotkeyError: params.get("hotkeyError") ? "Ctrl+Shift+Space is already used by another app" : null,
