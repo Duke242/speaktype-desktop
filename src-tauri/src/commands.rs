@@ -22,7 +22,7 @@ use crate::{
     legacy::{self, ImportSummary, V1Data},
     models::{self, ModelStatus},
     platform::{self, Permission, PermissionKind},
-    settings::{CleanupBackend, Settings},
+    settings::{CleanupBackend, CleanupSettings, Settings},
     sync,
     text::DictionaryEntry,
     tone::{self, AppCategory},
@@ -399,6 +399,15 @@ pub async fn list_server_models(url: String) -> CommandResult<ServerModels> {
         models: cleanup::server_models(&url).await?,
         is_local: cleanup::is_local(&url),
     })
+}
+
+/// Checks hosted API settings by cleaning up a sample sentence. Returns the
+/// model's reply.
+#[tauri::command]
+pub async fn test_cleanup_api(cleanup: CleanupSettings) -> CommandResult<String> {
+    tauri::async_runtime::spawn_blocking(move || cleanup::test_api(&cleanup))
+        .await
+        .map_err(|e| e.to_string())?
 }
 
 // ---- History ----

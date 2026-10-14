@@ -60,9 +60,12 @@ pub enum CleanupBackend {
     Builtin,
     /// A local server with an OpenAI-compatible API, such as Ollama or LM Studio.
     Server,
+    /// A hosted model the user pays for, through an OpenAI-compatible API and
+    /// their own key, such as OpenAI, Anthropic, Groq or OpenRouter.
+    Api,
 }
 
-/// Optional tidying of each transcript by a local language model.
+/// Optional tidying of each transcript by a language model.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 pub struct CleanupSettings {
@@ -77,6 +80,12 @@ pub struct CleanupSettings {
     /// How long Ollama keeps the model in memory after a dictation, in
     /// minutes. Negative keeps it until Ollama quits.
     pub server_keep_alive_minutes: i32,
+    /// Base URL of a hosted OpenAI-compatible API, e.g. "https://api.openai.com/v1".
+    pub api_url: String,
+    /// The user's key for `api_url`, sent as a bearer token.
+    pub api_key: String,
+    /// Model name as the provider knows it, e.g. "gpt-4.1-mini".
+    pub api_model: String,
 }
 
 impl Default for CleanupSettings {
@@ -88,6 +97,9 @@ impl Default for CleanupSettings {
             server_url: "http://localhost:11434/v1".to_string(),
             server_model: String::new(),
             server_keep_alive_minutes: 60,
+            api_url: "https://api.openai.com/v1".to_string(),
+            api_key: String::new(),
+            api_model: String::new(),
         }
     }
 }
@@ -409,6 +421,7 @@ mod tests {
         assert_eq!(value["cleanup"]["backend"], "builtin");
         assert_eq!(value["cleanup"]["enabled"], false);
         assert!(value["cleanup"].get("serverUrl").is_some());
+        assert!(value["cleanup"].get("apiKey").is_some());
         assert_eq!(value["tone"]["formatCode"], true);
         assert!(value["tone"]["apps"].is_array());
     }
