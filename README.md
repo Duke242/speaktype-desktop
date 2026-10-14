@@ -24,7 +24,7 @@ npm run app        # run with live reload
 npm run app:build  # build installers into src-tauri/target/release/bundle
 ```
 
-AI cleanup's built-in models run in a separate helper, [`cleanup-worker/`](cleanup-worker/README.md). Run `cargo build --release` there once and `npm run app` picks it up; without it, cleanup only works through a local server.
+AI cleanup's built-in models run in a separate helper, [`cleanup-worker/`](cleanup-worker/README.md). Run `cargo build --release` there once and `npm run app` picks it up; without it, cleanup only works through a local server or a cloud API.
 
 ### Preview in the browser
 

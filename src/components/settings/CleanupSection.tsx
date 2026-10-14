@@ -1,4 +1,4 @@
-import { Brain, Check, Cpu, PlugZap, Server, Timer, TriangleAlert } from "lucide-react";
+import { Brain, Check, Cloud, Cpu, KeyRound, PlugZap, Server, Timer, TriangleAlert } from "lucide-react";
 import { type ReactNode, useCallback, useEffect, useState } from "react";
 import { Badge, Button, Section, SegmentedControl, Select, SettingRow, Switch, TextField, useToast } from "@/components/ui";
 import { DeleteButton, DownloadAction } from "@/screens/models/ModelsScreen";
@@ -22,11 +22,11 @@ export function CleanupSection() {
   return (
     <Section
       title="AI cleanup"
-      description="A language model on this computer tidies each dictation. If it's slow or fails, your transcript is pasted as it was."
+      description="A language model tidies each dictation. If it's slow or fails, your transcript is pasted as it was."
     >
       <SettingRow
         icon={Brain}
-        label="Clean up with a local AI model"
+        label="Clean up with an AI model"
         description="Fixes misheard words and grammar, keeps only your correction when you change your mind, and turns spoken lists into lists."
       >
         <Switch checked={cleanup.enabled} onChange={(enabled) => save({ enabled })} />
@@ -34,13 +34,9 @@ export function CleanupSection() {
       {cleanup.enabled && (
         <>
           <SettingRow
-            icon={cleanup.backend === "builtin" ? Cpu : Server}
+            icon={BACKENDS[cleanup.backend].icon}
             label="Model runs in"
-            description={
-              cleanup.backend === "builtin"
-                ? "Wordfall downloads a small model and runs it itself."
-                : "A model server you already run, such as Ollama or LM Studio."
-            }
+            description={BACKENDS[cleanup.backend].description}
           >
             <SegmentedControl
               value={cleanup.backend}
@@ -48,20 +44,25 @@ export function CleanupSection() {
               options={[
                 { value: "builtin", label: "Wordfall" },
                 { value: "server", label: "Local server" },
+                { value: "api", label: "Cloud API" },
               ]}
-              className="w-[220px]"
+              className="w-[300px]"
             />
           </SettingRow>
-          {cleanup.backend === "builtin" ? (
-            <BuiltinModels cleanup={cleanup} save={save} />
-          ) : (
-            <ServerSettings cleanup={cleanup} save={save} />
-          )}
+          {cleanup.backend === "builtin" && <BuiltinModels cleanup={cleanup} save={save} />}
+          {cleanup.backend === "server" && <ServerSettings cleanup={cleanup} save={save} />}
+          {cleanup.backend === "api" && <ApiSettings cleanup={cleanup} save={save} />}
         </>
       )}
     </Section>
   );
 }
+
+const BACKENDS = {
+  builtin: { icon: Cpu, description: "Wordfall downloads a small model and runs it itself." },
+  server: { icon: Server, description: "A model server you already run, such as Ollama or LM Studio." },
+  api: { icon: Cloud, description: "A hosted model you choose, with your own API key." },
+} as const;
 
 type Save = (patch: Partial<CleanupSettings>) => void;
 
@@ -267,6 +268,117 @@ function ServerSettings({ cleanup, save }: { cleanup: CleanupSettings; save: Sav
   );
 }
 
+/** Hosted APIs that speak OpenAI's chat format, with a quick model to suggest. */
+const PROVIDERS = [
+  { value: "https://api.openai.com/v1", label: "OpenAI", model: "gpt-4.1-mini" },
+  { value: "https://api.anthropic.com/v1", label: "Anthropic", model: "claude-haiku-5-5" },
+  { value: "https://generativelanguage.googleapis.com/v1beta/openai", label: "Google Gemini", model: "gemini-2.5-flash" },
+  { value: "https://api.groq.com/openai/v1", label: "Groq", model: "llama-3.1-8b-instant" },
+  { value: "https://api.mistral.ai/v1", label: "Mistral", model: "mistral-small-latest" },
+  { value: "https://openrouter.ai/api/v1", label: "OpenRouter", model: "openai/gpt-4.1-mini" },
+];
+const CUSTOM = "custom";
+
+function ApiSettings({ cleanup, save }: { cleanup: CleanupSettings; save: Save }) {
+  const preset = PROVIDERS.find((p) => p.value === cleanup.apiUrl);
+  const [custom, setCustom] = useState(!preset);
+  const [url, setUrl] = useState(cleanup.apiUrl);
+  const [key, setKey] = useState(cleanup.apiKey);
+  const [model, setModel] = useState(cleanup.apiModel);
+  const [testing, setTesting] = useState(false);
+  const [result, setResult] = useState<{ ok: boolean; text: string }>();
+
+  // Text fields save when left, so a half-typed key is never used.
+  const commit = (patch: Partial<CleanupSettings>) => {
+    setResult(undefined);
+    save(patch);
+  };
+
+  const chooseProvider = (value: string) => {
+    setResult(undefined);
+    if (value === CUSTOM) {
+      setCustom(true);
+      return;
+    }
+    setCustom(false);
+    setUrl(value);
+    save({ apiUrl: value });
+  };
+
+  const test = async () => {
+    const draft = { ...cleanup, apiUrl: url.trim(), apiKey: key.trim(), apiModel: model.trim() };
+    setTesting(true);
+    setResult(undefined);
+    try {
+      const reply = await api.testCleanupApi(draft);
+      setResult({ ok: true, text: `It works. The model replied: “${reply.trim()}”` });
+    } catch (e) {
+      setResult({ ok: false, text: errorMessage(e) });
+    } finally {
+      setTesting(false);
+    }
+  };
+
+  return (
+    <>
+      <SettingRow icon={Cloud} label="Provider" description="Any service with an OpenAI-compatible API works.">
+        <Select
+          value={custom ? CUSTOM : cleanup.apiUrl}
+          options={[...PROVIDERS, { value: CUSTOM, label: "Other" }]}
+          onChange={chooseProvider}
+          aria-label="Provider"
+          className="w-[240px]"
+        />
+      </SettingRow>
+      {custom && (
+        <SettingRow icon={PlugZap} label="API address" description="The base URL, ending before /chat/completions.">
+          <TextField
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            onBlur={() => url.trim() !== cleanup.apiUrl && commit({ apiUrl: url.trim() })}
+            placeholder="https://api.example.com/v1"
+            spellCheck={false}
+            aria-label="API address"
+            className="w-[240px]"
+          />
+        </SettingRow>
+      )}
+      <SettingRow icon={KeyRound} label="API key" description="Kept in Wordfall's settings file on this computer.">
+        <TextField
+          type="password"
+          value={key}
+          onChange={(e) => setKey(e.target.value)}
+          onBlur={() => key.trim() !== cleanup.apiKey && commit({ apiKey: key.trim() })}
+          placeholder="Paste your key"
+          spellCheck={false}
+          autoComplete="off"
+          aria-label="API key"
+          className="w-[240px]"
+        />
+      </SettingRow>
+      <SettingRow icon={Brain} label="Model" description="Small, fast models are best for dictation.">
+        <div className="flex items-center gap-2">
+          <TextField
+            value={model}
+            onChange={(e) => setModel(e.target.value)}
+            onBlur={() => model.trim() !== cleanup.apiModel && commit({ apiModel: model.trim() })}
+            onKeyDown={(e) => e.key === "Enter" && test()}
+            placeholder={preset?.model ?? "Model name"}
+            spellCheck={false}
+            aria-label="API model"
+            className="w-[176px]"
+          />
+          <Button size="sm" loading={testing} disabled={!key.trim() || !model.trim()} onClick={test}>
+            Test
+          </Button>
+        </div>
+      </SettingRow>
+      {result && <Notice tone={result.ok ? "success" : "danger"}>{result.text}</Notice>}
+      <Notice tone="warning">Your transcripts are sent to this provider to be cleaned up, and it may charge for each one.</Notice>
+    </>
+  );
+}
+
 const KEEP_ALIVE_OPTIONS = [
   { value: "1", label: "1 minute" },
   { value: "5", label: "5 minutes" },
@@ -275,15 +387,16 @@ const KEEP_ALIVE_OPTIONS = [
   { value: "-1", label: "Until Ollama quits" },
 ];
 
-function Notice({ tone, children }: { tone: "warning" | "danger"; children: ReactNode }) {
+function Notice({ tone, children }: { tone: "warning" | "danger" | "success"; children: ReactNode }) {
+  const Icon = tone === "success" ? Check : TriangleAlert;
   return (
     <p
       className={cn(
         "flex items-start gap-2 px-5 py-3.5 type-small",
-        tone === "danger" ? "text-danger" : "text-warning",
+        tone === "danger" ? "text-danger" : tone === "success" ? "text-success" : "text-warning",
       )}
     >
-      <TriangleAlert size={14} className="mt-0.5 shrink-0" />
+      <Icon size={14} className="mt-0.5 shrink-0" />
       <span>{children}</span>
     </p>
   );

@@ -32,11 +32,17 @@ export function installBrowserPreview() {
     plainPunctuation: true,
     cleanup: {
       enabled: params.get("cleanup") !== null,
-      backend: (params.get("cleanup") === "server" ? "server" : "builtin") as "builtin" | "server",
+      backend: (["server", "api"].includes(params.get("cleanup") ?? "") ? params.get("cleanup") : "builtin") as
+        | "builtin"
+        | "server"
+        | "api",
       builtinModel: "qwen2.5-1.5b",
       serverUrl: "http://localhost:11434/v1",
       serverModel: "llama3.2",
       serverKeepAliveMinutes: 60,
+      apiUrl: "https://api.openai.com/v1",
+      apiKey: "",
+      apiModel: "",
     },
     tone: {
       enabled: true,
@@ -237,6 +243,9 @@ export function installBrowserPreview() {
             ].map(([name, category]) => ({ name, category })),
             lastApp: { id: "com.tinyspeck.slackmacgap", name: "Slack", title: "general - Acme", category: "chat" },
           };
+        case "test_cleanup_api":
+          if (!(a.cleanup as { apiKey: string }).apiKey) throw "Cleanup API: Incorrect API key provided";
+          return "So, this is a test of the cleanup model.";
         case "list_server_models":
           return { models: ["gemma3:4b", "llama3.2", "qwen2.5:1.5b"], isLocal: String(a.url).includes("localhost") };
         case "get_engine_status":

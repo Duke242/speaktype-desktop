@@ -1,7 +1,7 @@
-//! Optional cleanup of transcripts by a local language model.
+//! Optional cleanup of transcripts by a language model.
 //!
 //! The model fixes misheard words, grammar and punctuation, drops self-corrections
-//! and formats spoken lists. It runs on this computer, in one of two ways:
+//! and formats spoken lists. It runs in one of three ways:
 //!
 //! - Built in: a GGUF model from `models::CLEANUP_CATALOG`, run by the
 //!   `speaktype-cleanup` helper (cleanup-worker/). It's a separate
@@ -9,6 +9,9 @@
 //!   of ggml, and only one copy survives linking into one binary. It also keeps
 //!   a crash or hang in the model away from dictation.
 //! - A local server with an OpenAI-compatible API, such as Ollama or LM Studio.
+//! - A hosted model through an OpenAI-compatible API and the user's own key,
+//!   such as OpenAI, Anthropic, Groq or OpenRouter. Transcripts leave the
+//!   computer, which the UI says.
 //!
 //! Cleanup never loses a dictation: if the model is missing, slow, or replies
 //! with something that doesn't look like an edit of the transcript, the
@@ -360,13 +363,7 @@ impl Cleaner {
 
     /// Whether cleanup is on with a model ready to use. Command mode needs this too.
     pub fn is_set_up(settings: &CleanupSettings, models: &ModelStore) -> bool {
-        settings.enabled
-            && match settings.backend {
-                CleanupBackend::Builtin => {
-                    builtin_model_path(settings, models).is_ok() && worker_path().is_some()
-                }
-                CleanupBackend::Server => !settings.server_model.trim().is_empty(),
-            }
+        settings.enabled && is_set_up(settings, models)
     }
 
     /// The model's reply for `text`, before any checks.
@@ -389,6 +386,7 @@ impl Cleaner {
         match settings.backend {
             CleanupBackend::Builtin => self.builtin(settings, models, prompt),
             CleanupBackend::Server => server_chat(settings, prompt),
+            CleanupBackend::Api => api_chat(settings, prompt),
         }
     }
 
@@ -903,6 +901,69 @@ fn openai_chat(settings: &CleanupSettings, prompt: &Prompt) -> Result<String, St
         /// Thinking first would make cleanup take many seconds, so turn it off.
         reasoning_effort: &'static str,
     }
+
+    let base = api_base(&settings.server_url)?;
+    let request = SERVER_CLIENT
+        .post(format!("{base}/chat/completions"))
+        .timeout(prompt.timeout)
+        .json(&ChatRequest {
+            model: settings.server_model.trim(),
+            messages: prompt.messages.clone(),
+            temperature: 0.0,
+            max_tokens: prompt.max_tokens,
+            stream: false,
+            reasoning_effort: "none",
+        });
+    chat_reply(request, "Cleanup server")
+}
+
+// ---- Hosted API ----
+
+/// Cleans up through a hosted OpenAI-compatible API with the user's key.
+/// Only what every provider accepts is sent: newer OpenAI models refuse
+/// `max_tokens` and a temperature other than 1, and older ones refuse
+/// `reasoning_effort`. The reply timeout still bounds a long answer.
+fn api_chat(settings: &CleanupSettings, prompt: &Prompt) -> Result<String, String> {
+    #[derive(Serialize)]
+    struct ChatRequest<'a> {
+        model: &'a str,
+        messages: Vec<Message>,
+        stream: bool,
+    }
+
+    let model = settings.api_model.trim();
+    if model.is_empty() {
+        return Err("No API model chosen".into());
+    }
+    let key = settings.api_key.trim();
+    if key.is_empty() {
+        return Err("No API key entered".into());
+    }
+    let base = api_base(&settings.api_url)?;
+    let request = SERVER_CLIENT
+        .post(format!("{base}/chat/completions"))
+        .bearer_auth(key)
+        .timeout(prompt.timeout)
+        .json(&ChatRequest {
+            model,
+            messages: prompt.messages.clone(),
+            stream: false,
+        });
+    chat_reply(request, "Cleanup API")
+}
+
+/// Checks hosted API settings by cleaning up a sample sentence, which tests
+/// the address, key and model at once (not every provider lists its models).
+pub fn test_api(settings: &CleanupSettings) -> Result<String, String> {
+    api_chat(
+        settings,
+        &Prompt::cleanup("um so this is uh a test of the the cleanup model", None),
+    )
+}
+
+/// The first choice of an OpenAI-style chat reply. Error replies carry the
+/// provider's message, which says what's wrong better than the status alone.
+fn chat_reply(request: reqwest::blocking::RequestBuilder, source: &str) -> Result<String, String> {
     #[derive(Deserialize)]
     struct ChatResponse {
         choices: Vec<Choice>,
@@ -915,30 +976,33 @@ fn openai_chat(settings: &CleanupSettings, prompt: &Prompt) -> Result<String, St
     struct ChoiceMessage {
         content: Option<String>,
     }
+    #[derive(Deserialize)]
+    struct ErrorReply {
+        error: ErrorDetail,
+    }
+    #[derive(Deserialize)]
+    struct ErrorDetail {
+        message: String,
+    }
 
-    let base = api_base(&settings.server_url)?;
-    let response: ChatResponse = SERVER_CLIENT
-        .post(format!("{base}/chat/completions"))
-        .timeout(prompt.timeout)
-        .json(&ChatRequest {
-            model: settings.server_model.trim(),
-            messages: prompt.messages.clone(),
-            temperature: 0.0,
-            max_tokens: prompt.max_tokens,
-            stream: false,
-            reasoning_effort: "none",
-        })
-        .send()
-        .and_then(|r| r.error_for_status())
-        .map_err(|e| format!("Cleanup server: {e}"))?
+    let response = request.send().map_err(|e| format!("{source}: {e}"))?;
+    let status = response.status();
+    if !status.is_success() {
+        let body = response.text().unwrap_or_default();
+        let detail = serde_json::from_str::<ErrorReply>(&body)
+            .map(|e| e.error.message)
+            .unwrap_or_else(|_| status.to_string());
+        return Err(format!("{source}: {detail}"));
+    }
+    let response: ChatResponse = response
         .json()
-        .map_err(|e| format!("Cleanup server sent an unreadable reply: {e}"))?;
+        .map_err(|e| format!("{source} sent an unreadable reply: {e}"))?;
     response
         .choices
         .into_iter()
         .next()
         .and_then(|c| c.message.content)
-        .ok_or_else(|| "Cleanup server sent an empty reply".into())
+        .ok_or_else(|| format!("{source} sent an empty reply"))
 }
 
 /// The models a server offers, to check the address and choose one.
@@ -984,6 +1048,9 @@ pub fn is_set_up(settings: &CleanupSettings, models: &ModelStore) -> bool {
             builtin_model_path(settings, models).is_ok() && worker_path().is_some()
         }
         CleanupBackend::Server => !settings.server_model.trim().is_empty(),
+        CleanupBackend::Api => {
+            !settings.api_model.trim().is_empty() && !settings.api_key.trim().is_empty()
+        }
     }
 }
 
@@ -1190,6 +1257,19 @@ mod tests {
         settings.server_model = "llama3.2".into();
         assert!(Cleaner::will_run(&settings, &models, "um hi"));
         assert!(!Cleaner::will_run(&settings, &models, &long));
+
+        settings.backend = CleanupBackend::Api;
+        assert!(
+            !Cleaner::will_run(&settings, &models, "um hi"),
+            "no API model"
+        );
+        settings.api_model = "gpt-4.1-mini".into();
+        assert!(
+            !Cleaner::will_run(&settings, &models, "um hi"),
+            "no API key"
+        );
+        settings.api_key = "sk-test".into();
+        assert!(Cleaner::will_run(&settings, &models, "um hi"));
     }
 
     #[test]
@@ -1265,5 +1345,17 @@ mod tests {
             ..CleanupSettings::default()
         };
         assert!(server_chat(&settings, &Prompt::cleanup("hi", None)).is_err());
+    }
+
+    #[test]
+    fn api_settings_without_a_model_or_key_fall_back() {
+        let mut settings = CleanupSettings {
+            enabled: true,
+            backend: CleanupBackend::Api,
+            ..CleanupSettings::default()
+        };
+        assert_eq!(test_api(&settings).unwrap_err(), "No API model chosen");
+        settings.api_model = "gpt-4.1-mini".into();
+        assert_eq!(test_api(&settings).unwrap_err(), "No API key entered");
     }
 }

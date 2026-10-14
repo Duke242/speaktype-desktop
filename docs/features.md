@@ -34,7 +34,7 @@ To share the dictionary and snippets between computers or with a team, pick a fo
 
 ## Meetings
 
-The Meetings screen records a call and shows its transcript as people talk. It records the microphone and, where the system allows, what the computer plays, as two tracks: the transcript labels them "You" and "Others" (a cheap speaker split, not voice recognition). Each track is written to a WAV file as it's recorded and transcribed in 15–30 second windows cut at pauses, so memory stays flat in long meetings. When a meeting ends, the tracks are mixed into one recording beside the transcript, in `meetings/<id>/` next to History. If AI cleanup is set up (built-in model or local server), it writes a summary, action items and open questions, in parts for long meetings. Notes and transcript copy or save as Markdown.
+The Meetings screen records a call and shows its transcript as people talk. It records the microphone and, where the system allows, what the computer plays, as two tracks: the transcript labels them "You" and "Others" (a cheap speaker split, not voice recognition). Each track is written to a WAV file as it's recorded and transcribed in 15–30 second windows cut at pauses, so memory stays flat in long meetings. When a meeting ends, the tracks are mixed into one recording beside the transcript, in `meetings/<id>/` next to History. If AI cleanup is set up (built-in model, local server or cloud API), it writes a summary, action items and open questions, in parts for long meetings. Notes and transcript copy or save as Markdown.
 
 Recording what the computer plays depends on the system:
 

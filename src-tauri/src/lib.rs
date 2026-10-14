@@ -457,6 +457,7 @@ pub fn run() {
             commands::delete_model,
             commands::get_cleanup_status,
             commands::list_server_models,
+            commands::test_cleanup_api,
             commands::get_app_tone,
             commands::get_history,
             commands::get_stats,

@@ -34,9 +34,9 @@ export interface Snippet {
   isEnabled: boolean;
 }
 
-export type CleanupBackend = "builtin" | "server";
+export type CleanupBackend = "builtin" | "server" | "api";
 
-/** Optional tidying of each transcript by a local language model. */
+/** Optional tidying of each transcript by a language model. */
 export interface CleanupSettings {
   enabled: boolean;
   backend: CleanupBackend;
@@ -48,6 +48,12 @@ export interface CleanupSettings {
   serverModel: string;
   /** Minutes Ollama keeps the model loaded after a dictation; negative keeps it until Ollama quits. */
   serverKeepAliveMinutes: number;
+  /** Base URL of a hosted OpenAI-compatible API, e.g. "https://api.openai.com/v1". */
+  apiUrl: string;
+  /** The user's key for the hosted API. */
+  apiKey: string;
+  /** Model name as the provider knows it. */
+  apiModel: string;
 }
 
 /** How dictation into an app should read. "other" changes nothing. */
@@ -395,6 +401,8 @@ export const api = {
 
   getCleanupStatus: () => invoke<CleanupStatus>("get_cleanup_status"),
   listServerModels: (url: string) => invoke<ServerModels>("list_server_models", { url }),
+  /** Cleans up a sample sentence with hosted API settings; resolves to the model's reply. */
+  testCleanupApi: (cleanup: CleanupSettings) => invoke<string>("test_cleanup_api", { cleanup }),
   getAppTone: () => invoke<AppTone>("get_app_tone"),
 
   getHistory: () => invoke<HistoryItem[]>("get_history"),
