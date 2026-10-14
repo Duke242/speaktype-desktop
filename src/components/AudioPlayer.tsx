@@ -7,8 +7,11 @@ import { formatClock } from "@/lib/format";
 
 const BAR_COUNT = 96;
 
-/** Plays a history item's recording, with a clickable waveform drawn from the real audio. */
-export function AudioPlayer({ itemId }: { itemId: string }) {
+/**
+ * Plays a history item's recording, or a WAV clip already in memory, with a
+ * clickable waveform drawn from the real audio.
+ */
+export function AudioPlayer({ itemId, audio: clip }: { itemId: string; audio?: never } | { itemId?: never; audio: ArrayBuffer }) {
   const audio = useRef<HTMLAudioElement | null>(null);
   const [peaks, setPeaks] = useState<number[]>();
   const [error, setError] = useState<string>();
@@ -19,8 +22,7 @@ export function AudioPlayer({ itemId }: { itemId: string }) {
   useEffect(() => {
     let url: string | undefined;
     let cancelled = false;
-    api
-      .readHistoryAudio(itemId)
+    (clip ? Promise.resolve(clip) : api.readHistoryAudio(itemId!))
       .then(async (buffer) => {
         if (cancelled) return;
         url = URL.createObjectURL(new Blob([buffer], { type: "audio/wav" }));
@@ -44,7 +46,7 @@ export function AudioPlayer({ itemId }: { itemId: string }) {
       audio.current = null;
       if (url) URL.revokeObjectURL(url);
     };
-  }, [itemId]);
+  }, [itemId, clip]);
 
   // Smooth progress while playing; `timeupdate` only fires a few times a second.
   useEffect(() => {
@@ -57,7 +59,11 @@ export function AudioPlayer({ itemId }: { itemId: string }) {
   }, [playing]);
 
   if (error) {
-    return <p className="type-small text-ink-muted">The recording for this transcript is missing.</p>;
+    return (
+      <p className="type-small text-ink-muted">
+        {clip ? "This recording couldn't be played." : "The recording for this transcript is missing."}
+      </p>
+    );
   }
 
   const progress = duration ? time / duration : 0;

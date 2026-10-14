@@ -31,6 +31,7 @@ import { AppToneSection } from "@/components/settings/AppToneSection";
 import { CleanupSection } from "@/components/settings/CleanupSection";
 import { CommandHotkeyPicker } from "@/components/settings/CommandHotkeyPicker";
 import { HotkeyPicker } from "@/components/settings/HotkeyPicker";
+import { MicTestSection } from "@/components/settings/MicTestSection";
 import { PillPositionPicker } from "@/components/settings/PillPositionPicker";
 import { SharingSection } from "@/components/settings/SharingSection";
 import { SpokenSection } from "@/components/settings/SpokenSection";
@@ -80,6 +81,7 @@ export function SettingsScreen() {
       {tab === "audio" && (
         <>
           <AudioTab />
+          <MicTestSection />
           <RecordingSection />
         </>
       )}

@@ -408,6 +408,14 @@ export const api = {
   readHistoryAudio: (id: string) => invoke<ArrayBuffer>("read_history_audio", { id }),
   revealHistoryAudio: (id: string) => invoke<void>("reveal_history_audio", { id }),
 
+  /** Records from the selected microphone. Levels arrive as `mic-test-level` events. */
+  startMicTest: () => invoke<void>("start_mic_test"),
+  /** Stops and returns the clip as WAV, as the speech model hears it. */
+  stopMicTest: () => invoke<ArrayBuffer>("stop_mic_test"),
+  cancelMicTest: () => invoke<void>("cancel_mic_test"),
+  /** What the selected model hears in the last clip. */
+  transcribeMicTest: () => invoke<string>("transcribe_mic_test"),
+
   toggleDictation: () => invoke<void>("toggle_dictation"),
   getDictationState: () => invoke<DictationState>("get_dictation_state"),
 

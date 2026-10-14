@@ -13,6 +13,7 @@ mod legacy;
 mod live;
 mod media;
 mod meeting;
+mod mic_test;
 mod models;
 mod paste;
 mod pill;
@@ -377,6 +378,7 @@ pub fn run() {
                 device: OnceLock::new(),
             });
             app.manage(meeting::Meetings::new(data_dir.join("meetings")));
+            app.manage(mic_test::MicTest::default());
 
             if let Some(main) = app.get_webview_window("main") {
                 platform::style_main_window(&main);
@@ -464,6 +466,10 @@ pub fn run() {
             commands::clear_history,
             commands::read_history_audio,
             commands::reveal_history_audio,
+            mic_test::start_mic_test,
+            mic_test::stop_mic_test,
+            mic_test::cancel_mic_test,
+            mic_test::transcribe_mic_test,
             commands::get_legacy_status,
             commands::import_legacy,
             commands::toggle_dictation,
