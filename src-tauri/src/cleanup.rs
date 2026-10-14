@@ -154,7 +154,9 @@ pub fn messages(text: &str) -> Vec<Message> {
 }
 
 /// Like `messages`, styled for the app the text is going to: the hint's
-/// examples, and its instruction right before each transcript.
+/// examples, and its instruction right before the transcript. The examples
+/// already show the style, so they don't repeat the line, which would make
+/// every prompt longer to process.
 pub fn messages_for(text: &str, hint: Option<&Hint>) -> Vec<Message> {
     let default = Hint::default();
     let hint = hint.unwrap_or(&default);
@@ -164,16 +166,31 @@ pub fn messages_for(text: &str, hint: Option<&Hint>) -> Vec<Message> {
     } else {
         hint.examples
     };
-    let ask = |text: &str| match hint.instruction.as_str() {
-        "" => wrap(text),
-        instruction => format!("Style: {instruction}\n{}", wrap(text)),
-    };
     for (dictated, cleaned) in examples {
-        messages.push(Message::new("user", ask(dictated)));
+        messages.push(Message::new("user", wrap(dictated)));
         messages.push(Message::new("assistant", *cleaned));
     }
-    messages.push(Message::new("user", ask(text)));
+    let ask = match hint.instruction.as_str() {
+        "" => wrap(text),
+        instruction => format!("{}\n{}", style_line(instruction), wrap(text)),
+    };
+    messages.push(Message::new("user", ask));
     messages
+}
+
+fn style_line(instruction: &str) -> String {
+    format!("Style: {instruction}")
+}
+
+/// `reply` without the style line, in case a small model repeated it.
+fn without_style<'a>(reply: &'a str, hint: Option<&Hint>) -> &'a str {
+    hint.filter(|hint| !hint.instruction.is_empty())
+        .and_then(|hint| {
+            reply
+                .trim_start()
+                .strip_prefix(&style_line(&hint.instruction))
+        })
+        .unwrap_or(reply)
 }
 
 /// A request for the model: the conversation, and how long and how much it
@@ -223,10 +240,6 @@ pub fn accept(original: &str, reply: &str) -> Option<String> {
         let end = text[start..].find("</think>")? + start + "</think>".len();
         let rest = format!("{}{}", &text[..start], &text[end..]);
         return accept(original, &rest);
-    }
-    // A small model may repeat the style line it was given.
-    if text.starts_with("Style:") && !original.trim_start().starts_with("Style:") {
-        text = text.split_once('\n').map_or("", |(_, rest)| rest).trim();
     }
     text = text
         .trim_start_matches("<transcript>")
@@ -316,7 +329,7 @@ impl Cleaner {
         let started = Instant::now();
         match self
             .complete(settings, models, &Prompt::cleanup(text, hint))
-            .map(|reply| accept(text, &reply))
+            .map(|reply| accept(text, without_style(&reply, hint)))
         {
             Ok(Some(cleaned)) => {
                 eprintln!("[cleanup] done in {:.2?}", started.elapsed());
@@ -1002,7 +1015,7 @@ mod tests {
         assert_eq!(messages.len(), 4, "the usual examples are replaced");
         assert_eq!(
             messages[1].content,
-            "Style: It's a chat message.\n<transcript>\nsounds good\n</transcript>"
+            "<transcript>\nsounds good\n</transcript>"
         );
         assert_eq!(messages[2].content, "Sounds good");
         assert_eq!(
@@ -1017,7 +1030,9 @@ mod tests {
         let messages = messages_for("ok", Some(&plain_punctuation(None)));
         assert_eq!(messages[0].content, system_prompt(true));
         assert_eq!(messages.len(), 2 + EXAMPLES.len() * 2);
-        assert!(messages[1].content.starts_with("Style: Use periods"));
+        assert!(messages[1].content.starts_with("<transcript>"));
+        let last = messages.last().unwrap();
+        assert!(last.content.starts_with("Style: Use periods"));
     }
 
     #[test]
@@ -1038,10 +1053,24 @@ mod tests {
 
     #[test]
     fn drops_a_repeated_style_line() {
+        let hint = Hint {
+            instruction: "It's a chat message.".into(),
+            ..Hint::default()
+        };
+        let hint = Some(&hint);
         assert_eq!(
-            accept("see you at 3", "Style: It's a chat message.\nSee you at 3").as_deref(),
-            Some("See you at 3")
+            without_style("Style: It's a chat message.\nSee you at 3", hint).trim(),
+            "See you at 3"
         );
+        assert_eq!(
+            without_style("Style: It's a chat message. See you at 3", hint).trim(),
+            "See you at 3"
+        );
+        assert_eq!(
+            without_style("Style: casual is fine", hint),
+            "Style: casual is fine"
+        );
+        assert_eq!(without_style("See you", None), "See you");
     }
 
     #[test]

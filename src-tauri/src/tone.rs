@@ -458,13 +458,25 @@ const TERMINAL_EXAMPLES: &[(&str, &str)] = &[
     ),
 ];
 
-/// "See you then." → "See you then". Ellipses, and text with no period, stay.
+/// "See you then." → "See you then". Ellipses, abbreviations ("3 p.m.",
+/// "etc.") and text with no period stay.
 fn drop_final_period(text: &str) -> String {
     let trimmed = text.trim_end();
     match trimmed.strip_suffix('.') {
-        Some(rest) if !rest.ends_with('.') && !rest.is_empty() => rest.to_string(),
+        Some(rest) if !rest.ends_with('.') && !rest.is_empty() && !is_abbreviation(rest) => {
+            rest.to_string()
+        }
         _ => text.to_string(),
     }
+}
+
+/// Whether the period after `text`'s last word belongs to it, as in "p.m."
+/// or "etc.".
+fn is_abbreviation(text: &str) -> bool {
+    let word = text.rsplit(char::is_whitespace).next().unwrap_or_default();
+    word.contains('.')
+        || ["etc", "vs", "approx", "inc", "ltd", "co", "jr", "sr"]
+            .contains(&word.to_lowercase().as_str())
 }
 
 /// "Git status." → "git status": no capital letter or trailing punctuation.
@@ -643,6 +655,8 @@ mod tests {
         assert_eq!(chat.adjust("Are you there?"), "Are you there?");
         assert_eq!(chat.adjust("First. Second."), "First. Second");
         assert_eq!(chat.adjust("."), ".");
+        assert_eq!(chat.adjust("See you at 3 p.m."), "See you at 3 p.m.");
+        assert_eq!(chat.adjust("Snacks, drinks, etc."), "Snacks, drinks, etc.");
     }
 
     #[test]
