@@ -2,7 +2,7 @@
 
 use std::{
     fs::{self, File},
-    io::{BufWriter, ErrorKind},
+    io::{BufWriter, Cursor, ErrorKind, Seek, Write},
     path::{Path, PathBuf},
 };
 
@@ -109,22 +109,32 @@ pub fn write_wav(path: &Path, samples: &[f32]) -> Result<(), String> {
 }
 
 fn write_wav_file(path: &Path, samples: &[f32]) -> Result<(), String> {
+    let file = File::create(path).map_err(|e| e.to_string())?;
+    encode_wav(BufWriter::new(&file), samples)?;
+    file.sync_all().map_err(|e| e.to_string())
+}
+
+/// Encodes 16 kHz mono audio as 16-bit WAV in memory, for playback in the UI.
+pub fn wav_bytes(samples: &[f32]) -> Result<Vec<u8>, String> {
+    let mut bytes = Cursor::new(Vec::with_capacity(44 + samples.len() * 2));
+    encode_wav(&mut bytes, samples)?;
+    Ok(bytes.into_inner())
+}
+
+fn encode_wav<W: Write + Seek>(writer: W, samples: &[f32]) -> Result<(), String> {
     let spec = hound::WavSpec {
         channels: 1,
         sample_rate: WHISPER_SAMPLE_RATE,
         bits_per_sample: 16,
         sample_format: hound::SampleFormat::Int,
     };
-    let file = File::create(path).map_err(|e| e.to_string())?;
-    let mut writer =
-        hound::WavWriter::new(BufWriter::new(&file), spec).map_err(|e| e.to_string())?;
+    let mut writer = hound::WavWriter::new(writer, spec).map_err(|e| e.to_string())?;
     for sample in samples {
         // NaN clamps to NaN, which the cast turns into silence.
         let value = (sample.clamp(-1.0, 1.0) * f32::from(i16::MAX)) as i16;
         writer.write_sample(value).map_err(|e| e.to_string())?;
     }
-    writer.finalize().map_err(|e| e.to_string())?;
-    file.sync_all().map_err(|e| e.to_string())
+    writer.finalize().map_err(|e| e.to_string())
 }
 
 fn temp_path(path: &Path) -> PathBuf {
@@ -156,6 +166,7 @@ mod tests {
             .fold(0.0, f32::max);
         assert!(max_error < 1e-3, "max error {max_error}");
         assert!(!temp_path(&path).exists());
+        assert_eq!(wav_bytes(&samples).unwrap(), fs::read(&path).unwrap());
         fs::remove_dir_all(dir).unwrap();
     }
 

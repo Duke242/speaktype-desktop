@@ -244,6 +244,20 @@ export function installBrowserPreview() {
           return params.get("warming") ? { loaded: null, loading: "small-en" } : { loaded: "small-en", loading: null };
         case "read_history_audio":
           return sampleRecording(history.find((h) => h.id === a.id)?.durationSecs ?? 3);
+        case "start_mic_test":
+          micTestStartedAt = Date.now();
+          clearInterval(micTestLevels);
+          micTestLevels = setInterval(() => emit("mic-test-level", 0.2 + Math.random() * 0.6), 50);
+          return;
+        case "stop_mic_test":
+          clearInterval(micTestLevels);
+          return sampleRecording(Math.max(1, (Date.now() - micTestStartedAt) / 1000));
+        case "cancel_mic_test":
+          clearInterval(micTestLevels);
+          return;
+        case "transcribe_mic_test":
+          await new Promise((resolve) => setTimeout(resolve, 900));
+          return "Testing one two three, can you hear me clearly?";
         case "get_device_info":
           return {
             device: { chip: "Apple M3 Pro", ramGb: 18, cores: 11, gpu: true, summary: "Apple M3 Pro · 18 GB · Metal", performanceTier: 0.95 },
@@ -437,6 +451,9 @@ function sampleMeetings(now: number, day: number) {
     meeting("m2", "Standup", now - day - 5 * 3_600_000, standup, null, false),
   ];
 }
+
+let micTestStartedAt = 0;
+let micTestLevels: ReturnType<typeof setInterval> | undefined;
 
 /** A WAV of a soft tone that swells and pauses like speech, so playback can be previewed. */
 function sampleRecording(seconds: number): ArrayBuffer {
