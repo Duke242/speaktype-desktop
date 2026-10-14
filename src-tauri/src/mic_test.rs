@@ -8,14 +8,14 @@ use std::sync::Mutex;
 
 use tauri::{AppHandle, Emitter, Manager, State, ipc::Response};
 
-use crate::{AppState, LockExt, audio::Recording, gain, media, pipeline};
+use crate::{AppState, LockExt, audio::Recording, dictation::DictationState, media, pipeline};
 
 type CommandResult<T> = Result<T, String>;
 
 #[derive(Default)]
 pub struct MicTest {
     recording: Mutex<Option<Recording>>,
-    /// The last clip, as captured, until the next test.
+    /// The last clip as the model hears it, until it's transcribed.
     clip: Mutex<Vec<f32>>,
 }
 
@@ -34,10 +34,18 @@ async fn blocking<T: Send + 'static>(
 #[tauri::command]
 pub async fn start_mic_test(app: AppHandle) -> CommandResult<()> {
     blocking(move || {
-        let device = app.state::<AppState>().settings().input_device;
+        let state = app.state::<AppState>();
+        // One microphone user at a time, so the test hears what dictation would.
+        if !matches!(
+            *state.dictation_state.lock_unpoisoned(),
+            DictationState::Idle
+        ) {
+            return Err("Finish dictating first".into());
+        }
+        let device = state.settings().input_device;
         let emitter = app.clone();
         let recording = Recording::start(&device, move |level| {
-            let _ = emitter.emit("mic-test-level", level);
+            let _ = emitter.emit_to("main", "mic-test-level", level);
         })?;
         // Replacing an earlier test stops its microphone.
         *app.state::<MicTest>().recording.lock_unpoisoned() = Some(recording);
@@ -58,13 +66,9 @@ pub async fn stop_mic_test(app: AppHandle) -> CommandResult<Response> {
             .take()
             .ok_or("The microphone test isn't recording")?;
         let samples = recording.finish()?.samples;
-        let heard = if app.state::<AppState>().settings().boost_quiet_speech {
-            gain::boost(&samples)
-        } else {
-            samples.as_slice().into()
-        };
+        let heard = pipeline::heard(&app.state::<AppState>().settings(), &samples).into_owned();
         let wav = media::wav_bytes(&heard)?;
-        *test.clip.lock_unpoisoned() = samples;
+        *test.clip.lock_unpoisoned() = heard;
         Ok(Response::new(wav))
     })
     .await
@@ -74,19 +78,19 @@ pub async fn stop_mic_test(app: AppHandle) -> CommandResult<Response> {
 #[tauri::command]
 pub async fn cancel_mic_test(state: State<'_, MicTest>) -> CommandResult<()> {
     let recording = state.recording.lock_unpoisoned().take();
+    state.clip.lock_unpoisoned().clear();
     // Closing the microphone can take a moment.
     tauri::async_runtime::spawn_blocking(move || drop(recording));
     Ok(())
 }
 
-/// Transcribes the last clip with the selected model, without cleanup.
+/// Transcribes the last clip with the selected model, as dictation would
+/// before cleanup.
 #[tauri::command]
 pub async fn transcribe_mic_test(app: AppHandle) -> CommandResult<String> {
     blocking(move || {
-        let clip = app.state::<MicTest>().clip.lock_unpoisoned().clone();
-        pipeline::transcribe_only(&app, &clip, |_| {})
-            .map(|(text, _)| text)
-            .map_err(|e| e.message().to_string())
+        let clip = std::mem::take(&mut *app.state::<MicTest>().clip.lock_unpoisoned());
+        pipeline::transcribe_heard(&app, &clip).map_err(|e| e.message().to_string())
     })
     .await
 }

@@ -25,6 +25,8 @@ export function MicTestSection() {
   const [error, setError] = useState<string>();
   const [level, setLevel] = useState(0);
   const mounted = useRef(true);
+  // The time limit and a click can both stop the same recording.
+  const stopping = useRef(false);
   const recording = test.phase === "recording";
   const now = useNow(250, recording);
   const elapsed = recording ? (now - test.startedAt) / 1000 : 0;
@@ -54,21 +56,28 @@ export function MicTestSection() {
   };
 
   const stop = async () => {
+    if (stopping.current) return;
+    stopping.current = true;
     setTest({ phase: "stopping" });
+    let audio: ArrayBuffer;
     try {
-      const audio = await api.stopMicTest();
-      if (!mounted.current) return;
-      setTest({ phase: "done", audio });
-      const result = await api.transcribeMicTest().then(
-        (transcript) => ({ transcript }),
-        (e) => ({ transcriptError: errorMessage(e) }),
-      );
-      if (mounted.current) setTest((t) => (t.phase === "done" && t.audio === audio ? { ...t, ...result } : t));
+      audio = await api.stopMicTest();
     } catch (e) {
-      if (!mounted.current) return;
-      setError(errorMessage(e));
-      setTest({ phase: "idle" });
+      if (mounted.current) {
+        setError(errorMessage(e));
+        setTest({ phase: "idle" });
+      }
+      return;
+    } finally {
+      stopping.current = false;
     }
+    if (!mounted.current) return;
+    setTest({ phase: "done", audio });
+    const result = await api.transcribeMicTest().then(
+      (transcript) => ({ transcript }),
+      (e) => ({ transcriptError: errorMessage(e) }),
+    );
+    if (mounted.current) setTest((t) => (t.phase === "done" && t.audio === audio ? { ...t, ...result } : t));
   };
 
   // Stops on its own, so a forgotten test doesn't keep the microphone open.

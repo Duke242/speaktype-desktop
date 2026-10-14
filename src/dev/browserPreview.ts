@@ -452,10 +452,10 @@ function sampleMeetings(now: number, day: number) {
   ];
 }
 
-/** A WAV of a soft tone that swells and pauses like speech, so playback can be previewed. */
 let micTestStartedAt = 0;
 let micTestLevels: ReturnType<typeof setInterval> | undefined;
 
+/** A WAV of a soft tone that swells and pauses like speech, so playback can be previewed. */
 function sampleRecording(seconds: number): ArrayBuffer {
   const rate = 8000;
   const samples = Math.round(seconds * rate);

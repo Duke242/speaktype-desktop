@@ -1,6 +1,7 @@
 //! Audio in, cleaned-up text out: shared by dictation and file transcription.
 
 use std::{
+    borrow::Cow,
     fmt,
     path::{Path, PathBuf},
     sync::MutexGuard,
@@ -16,6 +17,7 @@ use crate::{
     history::{self, HistoryItem},
     live, media, models,
     platform::FrontApp,
+    settings::Settings,
     text, tone,
 };
 
@@ -105,12 +107,8 @@ pub fn run(
         on_stage(Stage::Transcribing);
         loaded.map_err(Error::ModelLoad)?;
     }
-    // Whisper mode. The recording is saved as it was captured.
-    let heard = if settings.boost_quiet_speech {
-        gain::boost(samples)
-    } else {
-        samples.into()
-    };
+    // The recording is saved as it was captured.
+    let heard = heard(&settings, samples);
     // Given words to expect and only silence, Whisper may write those words.
     let prompt = if live::has_speech(&heard) {
         text::prompt(&settings.dictionary, "")
@@ -179,12 +177,7 @@ pub fn transcribe_only(
 ) -> Result<(String, &'static str), Error> {
     let state = app.state::<AppState>();
     let settings = state.settings();
-    // Whisper mode, as for dictation.
-    let samples = &*if settings.boost_quiet_speech {
-        gain::boost(samples)
-    } else {
-        samples.into()
-    };
+    let samples = &*heard(&settings, samples);
     // Whisper may hear words in silence, which mustn't become an edit.
     if !live::has_speech(samples) {
         return Err(Error::NoSpeech);
@@ -209,6 +202,46 @@ pub fn transcribe_only(
         return Err(Error::NoSpeech);
     }
     Ok((text.trim().to_string(), model.name))
+}
+
+/// The audio as the speech model hears it: with Whisper mode's boost when
+/// that's on.
+pub fn heard<'a>(settings: &Settings, samples: &'a [f32]) -> Cow<'a, [f32]> {
+    if settings.boost_quiet_speech {
+        gain::boost(samples)
+    } else {
+        samples.into()
+    }
+}
+
+/// Transcribes audio already passed through `heard` the way dictation does,
+/// with the dictionary as a hint, but without tone, cleanup, voice commands
+/// or replacements: for the microphone test, to show what the model hears.
+pub fn transcribe_heard(app: &AppHandle, heard: &[f32]) -> Result<String, Error> {
+    let state = app.state::<AppState>();
+    let settings = state.settings();
+    if !live::has_speech(heard) {
+        return Err(Error::NoSpeech);
+    }
+    let model = models::find(&settings.selected_model)
+        .filter(|m| state.models.is_downloaded(m.id))
+        .ok_or(Error::NoModel)?;
+    let mut engine = state.engine.lock_unpoisoned();
+    if engine.loaded_model() != Some(model.id) {
+        state
+            .load_model(app, &mut engine, model)
+            .map_err(Error::ModelLoad)?;
+    }
+    let prompt = text::prompt(&settings.dictionary, "");
+    let raw = engine
+        .transcribe(heard, &settings.language, &prompt)
+        .map_err(Error::Transcribe)?;
+    drop(engine);
+    let text = text::normalize_transcription(&raw, settings.auto_edit, settings.plain_punctuation);
+    match text.trim() {
+        "" => Err(Error::NoSpeech),
+        text => Ok(text.to_string()),
+    }
 }
 
 /// Save one history entry for the entire live session, rather than one per phrase.
