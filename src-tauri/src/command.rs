@@ -29,6 +29,7 @@ const NO_SAFE_COPY: &str = "Commands can't run on Wayland yet";
 const NO_SELECTION: &str = "Select some text first";
 const TOO_LONG: &str = "Selection is too long";
 const FAILED: &str = "Couldn't edit the text";
+const UNCHANGED: &str = "The model left the text as it was. Try rewording.";
 
 const SYSTEM_PROMPT: &str = "\
 You are a text editor. You receive some text between <selection> tags and an instruction \
@@ -37,6 +38,9 @@ someone dictated between <instruction> tags. Rewrite the text following the inst
 formatting and language, unless the instruction says otherwise.
 - If the instruction asks to write something new from the text, like a reply or a summary, \
 write that instead.
+- If the instruction is vague or unusual, like \"make it sound like a pirate\" or \"more \
+punchy\", go with its most likely meaning. Don't return the text as it was because you're \
+unsure what was meant.
 Reply with the resulting text only: no explanations, quotes, tags or comments around it.";
 
 /// (selection, instruction, result)
@@ -45,6 +49,11 @@ const EXAMPLES: &[(&str, &str, &str)] = &[
         "hey can u send me the report by tmrw",
         "make this more formal",
         "Could you please send me the report by tomorrow?",
+    ),
+    (
+        "I am writing to inform you that I will be unable to attend the meeting.",
+        "make it casual",
+        "Hey, just a heads up, I can't make the meeting.",
     ),
     (
         "The meeting is on Monday.\nBring your laptop.",
@@ -201,16 +210,32 @@ pub fn run(
         return Err(Error::Command(NOT_SET_UP, None));
     }
     on_stage(Stage::Editing);
-    let reply = state
-        .cleaner
-        .complete(
-            &settings.cleanup,
-            &state.models,
-            &prompt(&selection, &instruction),
-        )
-        .map_err(|e| Error::Command(FAILED, Some(e)))?;
-    let edited = sanitize(&selection, &reply)
-        .ok_or_else(|| Error::Command(FAILED, Some("The model's reply was empty".into())))?;
+    let complete = |prompt: &Prompt| {
+        let reply = state
+            .cleaner
+            .complete(&settings.cleanup, &state.models, prompt)
+            .map_err(|e| Error::Command(FAILED, Some(e)))?;
+        Ok::<_, Error>((
+            reply.clone(),
+            sanitize(&selection, &reply).ok_or_else(|| {
+                Error::Command(FAILED, Some("The model's reply was empty".into()))
+            })?,
+        ))
+    };
+    let mut prompt = prompt(&selection, &instruction);
+    let (reply, mut edited) = complete(&prompt)?;
+    // Small models sometimes hand back the selection when they don't know
+    // what to do. Ask once more, then say so rather than pasting it unchanged.
+    if is_unchanged(&selection, &edited) {
+        prompt.messages.push(Message::new("assistant", reply));
+        prompt
+            .messages
+            .push(Message::new("user", retry_message(&instruction)));
+        edited = complete(&prompt)?.1;
+        if is_unchanged(&selection, &edited) {
+            return Err(Error::Command(UNCHANGED, None));
+        }
+    }
     pipeline::save(
         app,
         samples,
@@ -219,6 +244,18 @@ pub fn run(
         model_name,
     );
     Ok(edited)
+}
+
+/// Whether `edited` is the selection again, give or take spacing.
+fn is_unchanged(selection: &str, edited: &str) -> bool {
+    selection.split_whitespace().eq(edited.split_whitespace())
+}
+
+fn retry_message(instruction: &str) -> String {
+    format!(
+        "That's the same text as before. Rewrite it so it follows the instruction \
+         \"{instruction}\", taking the most likely meaning. Reply with the resulting text only."
+    )
 }
 
 /// What History shows for a command: what was said, then the result.
@@ -322,6 +359,12 @@ mod tests {
         assert!(!is_whole_line_copy(AppCategory::Code, "a\nb"));
         assert!(!is_whole_line_copy(AppCategory::Other, "Dear Sam,\n"));
         assert!(!is_whole_line_copy(AppCategory::Terminal, "ls -la\n"));
+    }
+
+    #[test]
+    fn unchanged_text_is_noticed_through_spacing() {
+        assert!(is_unchanged("hey there", "  hey\nthere "));
+        assert!(!is_unchanged("hey there", "Hello there."));
     }
 
     #[test]
