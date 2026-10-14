@@ -125,12 +125,16 @@ impl FocusedField {
         }
         // SAFETY: system.0 is a live AXUIElement.
         unsafe { AXUIElementSetMessagingTimeout(system.0, MESSAGING_TIMEOUT) };
-        // Chrome and Electron apps (Slack, VS Code, Discord…) only expose their
-        // text fields once asked to. Other apps ignore this.
-        if let Some(app) = system.attribute("AXFocusedApplication") {
-            Element::retained(app).set_true("AXManualAccessibility");
-        }
-        let field = Element::focused(&system)?;
+        let field = Element::focused(&system).filter(|field| field.string("AXValue").is_some());
+        let Some(field) = field else {
+            // Chrome and Electron apps (Slack, VS Code, Discord…) only expose
+            // their text fields once asked to, so they're asked for next time.
+            // Other apps ignore this.
+            if let Some(app) = system.attribute("AXFocusedApplication") {
+                Element::retained(app).set_true("AXManualAccessibility");
+            }
+            return None;
+        };
         if field.string("AXSubrole").as_deref() == Some("AXSecureTextField")
             || field.string("AXRole").as_deref() == Some("AXSecureTextField")
         {

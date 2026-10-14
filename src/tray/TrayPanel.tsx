@@ -15,19 +15,8 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { LogoMark } from "@/components/brand/LogoMark";
-import {
-  Button,
-  IconButton,
-  Spinner,
-  TextArea,
-  useToast,
-} from "@/components/ui";
-import {
-  api,
-  errorMessage,
-  type HistoryItem,
-  type InputDevice,
-} from "@/lib/api";
+import { Button, IconButton, Spinner, TextArea, useToast } from "@/components/ui";
+import { api, errorMessage, type HistoryItem, type InputDevice } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import {
   TYPING_WORDS_PER_MINUTE,
@@ -37,20 +26,9 @@ import {
   hotkeyParts,
   startOfDay,
 } from "@/lib/format";
-import {
-  useCopy,
-  useDictationState,
-  useEngineStatus,
-  useHistory,
-  useNow,
-} from "@/lib/hooks";
+import { useCopy, useDictationState, useEngineStatus, useHistory, useNow } from "@/lib/hooks";
 import { languageName } from "@/lib/languages";
-import {
-  showLanguageMenu,
-  showMicrophoneMenu,
-  showModeMenu,
-  showModelMenu,
-} from "@/lib/menus";
+import { showLanguageMenu, showMicrophoneMenu, showModeMenu, showModelMenu } from "@/lib/menus";
 import { useStore } from "@/lib/store";
 import { useApplyTheme } from "@/lib/theme";
 import { useLearnedToast } from "@/lib/useLearnedToast";
@@ -68,17 +46,14 @@ export function TrayPanel() {
     const element = container.current;
     if (!element) return;
     const observer = new ResizeObserver(() => {
-      getCurrentWindow().setSize(
-        new LogicalSize(PANEL_WIDTH, Math.ceil(element.offsetHeight)),
-      );
+      getCurrentWindow().setSize(new LogicalSize(PANEL_WIDTH, Math.ceil(element.offsetHeight)));
     });
     observer.observe(element);
     return () => observer.disconnect();
   }, []);
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) =>
-      e.key === "Escape" && api.hideTrayPanel();
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && api.hideTrayPanel();
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
@@ -103,21 +78,13 @@ function Header() {
   const recording = dictation.phase === "recording";
   const transcribing = dictation.phase === "transcribing";
   const now = useNow(500, recording);
-  const model = models.find(
-    (m) => m.id === settings.selectedModel && m.downloaded,
-  );
+  const model = models.find((m) => m.id === settings.selectedModel && m.downloaded);
 
   let status: { dot: string; label: string };
-  if (recording)
-    status = {
-      dot: "bg-recording animate-pulse",
-      label: `Recording ${formatClock((now - dictation.startedAtMs) / 1000)}`,
-    };
-  else if (transcribing)
-    status = { dot: "bg-ink-muted", label: "Transcribing…" };
+  if (recording) status = { dot: "bg-recording animate-pulse", label: `Recording ${formatClock((now - dictation.startedAtMs) / 1000)}` };
+  else if (transcribing) status = { dot: "bg-ink-muted", label: "Transcribing…" };
   else if (!model) status = { dot: "bg-warning", label: "No model" };
-  else if (engine.loading === model.id)
-    status = { dot: "bg-ink-muted", label: "Loading model…" };
+  else if (engine.loading === model.id) status = { dot: "bg-ink-muted", label: "Loading model…" };
   else status = { dot: "bg-success", label: "Ready" };
 
   const hotkey = hotkeyParts(settings.hotkey).join(" ");
@@ -129,9 +96,7 @@ function Header() {
         <LogoMark className="size-7" />
         <div className="min-w-0 flex-1">
           <div className="type-label">Wordfall</div>
-          <div className="truncate type-caption text-ink-muted">
-            {model ? model.name : "Download a model to start"}
-          </div>
+          <div className="truncate type-caption text-ink-muted">{model ? model.name : "Download a model to start"}</div>
         </div>
         <span className="flex h-6 items-center gap-1.5 rounded-full border border-line bg-surface/70 px-2.5 type-caption font-medium text-ink-secondary tabular-nums">
           <span className={cn("size-1.5 rounded-full", status.dot)} />
@@ -153,8 +118,7 @@ function Header() {
           onClick={() => api.toggleDictation()}
           className="mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-card bg-primary type-label text-on-primary transition-colors hover:bg-primary-hover"
         >
-          <Square size={14} fill="currentColor" className="text-recording" />{" "}
-          Stop and paste
+          <Square size={14} fill="currentColor" className="text-recording" /> Stop and paste
         </button>
       ) : transcribing ? (
         <div className="mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-card bg-hover type-label text-ink-secondary">
@@ -185,21 +149,15 @@ function Today() {
   const words = today.reduce((sum, s) => sum + s.wordCount, 0);
   const minutesSaved = Math.round(words / TYPING_WORDS_PER_MINUTE);
 
-  const saved =
-    minutesSaved < 60
-      ? `${minutesSaved} min`
-      : `${Math.floor(minutesSaved / 60)}h ${minutesSaved % 60}m`;
+  const saved = minutesSaved < 60 ? `${minutesSaved} min` : `${Math.floor(minutesSaved / 60)}h ${minutesSaved % 60}m`;
   // One quiet line, like the dashboard's.
   return (
     <p className="flex justify-center gap-4 border-y border-line-subtle px-4 py-2.5 type-caption text-ink-muted">
       <span>
-        <b className="font-bold text-ink tabular-nums">{formatNumber(words)}</b>{" "}
-        words today
+        <b className="font-bold text-ink tabular-nums">{formatNumber(words)}</b> words today
       </span>
       <span>
-        <b className="font-bold text-ink tabular-nums">
-          {formatNumber(today.length)}
-        </b>{" "}
+        <b className="font-bold text-ink tabular-nums">{formatNumber(today.length)}</b>{" "}
         {today.length === 1 ? "dictation" : "dictations"}
       </span>
       <span>
@@ -219,39 +177,14 @@ function QuickSettings() {
   const model = models.find((m) => m.id === settings.selectedModel);
   const device = devices.find((d) => d.id === settings.inputDevice);
 
-  const rows: {
-    icon: LucideIcon;
-    label: string;
-    value: string;
-    onClick: () => void;
-  }[] = [
-    {
-      icon: Cpu,
-      label: "Model",
-      value: model?.name ?? "None",
-      onClick: () => showModelMenu(settings),
-    },
-    {
-      icon: Globe,
-      label: "Language",
-      value:
-        settings.language === "auto"
-          ? "Auto-detect"
-          : languageName(settings.language),
-      onClick: () => showLanguageMenu(settings),
-    },
-    {
-      icon: Mic,
-      label: "Microphone",
-      value: device?.name ?? "System default",
-      onClick: () => showMicrophoneMenu(settings),
-    },
+  const rows: { icon: LucideIcon; label: string; value: string; onClick: () => void }[] = [
+    { icon: Cpu, label: "Model", value: model?.name ?? "None", onClick: () => showModelMenu(settings) },
+    { icon: Globe, label: "Language", value: settings.language === "auto" ? "Auto-detect" : languageName(settings.language), onClick: () => showLanguageMenu(settings) },
+    { icon: Mic, label: "Microphone", value: device?.name ?? "System default", onClick: () => showMicrophoneMenu(settings) },
     {
       icon: Hand,
       label: "Mode",
-      value: { hold: "Hold to talk", toggle: "Toggle", hybrid: "Hold or tap" }[
-        settings.recordingMode
-      ],
+      value: { hold: "Hold to talk", toggle: "Toggle", hybrid: "Hold or tap" }[settings.recordingMode],
       onClick: () => showModeMenu(settings),
     },
   ];
@@ -266,12 +199,8 @@ function QuickSettings() {
           className="flex h-9 w-full items-center gap-3 px-4 text-left transition-colors hover:bg-hover"
         >
           <Icon size={15} className="shrink-0 text-ink-muted" />
-          <span className="w-24 shrink-0 type-small text-ink-secondary">
-            {label}
-          </span>
-          <span className="min-w-0 flex-1 truncate text-right type-small font-medium">
-            {value}
-          </span>
+          <span className="w-24 shrink-0 type-small text-ink-secondary">{label}</span>
+          <span className="min-w-0 flex-1 truncate text-right type-small font-medium">{value}</span>
           <ChevronsUpDown size={13} className="shrink-0 text-ink-muted" />
         </button>
       ))}
@@ -284,14 +213,15 @@ function Recent() {
   const now = useNow(60_000);
   const { copy, copiedKey } = useCopy();
   const [editing, setEditing] = useState<string | null>(null);
-  const recent = (items ?? []).slice(0, 3);
+  const top = (items ?? []).slice(0, 3);
+  // A dictation arriving mid-edit doesn't push the transcript being fixed out of view.
+  const held = editing && !top.some((item) => item.id === editing) ? items?.find((item) => item.id === editing) : undefined;
+  const recent = held ? [...top.slice(0, 2), held] : top;
 
   return (
     <div className="border-b border-line-subtle pb-1.5">
       <div className="flex items-center px-4 pt-3 pb-1">
-        <span className="flex-1 type-overline text-ink-muted">
-          Recently said
-        </span>
+        <span className="flex-1 type-overline text-ink-muted">Recently said</span>
         {recent.length > 0 && (
           <button
             type="button"
@@ -303,17 +233,11 @@ function Recent() {
         )}
       </div>
       {recent.length === 0 ? (
-        <p className="px-4 pt-1 pb-3 type-small text-ink-muted">
-          Your latest dictations will show up here.
-        </p>
+        <p className="px-4 pt-1 pb-3 type-small text-ink-muted">Your latest dictations will show up here.</p>
       ) : (
         recent.map((item) =>
           editing === item.id ? (
-            <RecentEditor
-              key={item.id}
-              item={item}
-              onDone={() => setEditing(null)}
-            />
+            <RecentEditor key={item.id} item={item} onDone={() => setEditing(null)} />
           ) : (
             <RecentItem
               key={item.id}
@@ -352,19 +276,13 @@ function RecentItem({
         className="flex w-full items-start gap-3 py-2 pr-11 pl-4 text-left transition-colors hover:bg-hover"
       >
         <span className="min-w-0 flex-1">
-          <span className="line-clamp-2 type-small text-ink">
-            {item.transcript}
-          </span>
-          <span className="type-caption text-ink-muted">
-            {formatRelative(item.createdAt, now)}
-          </span>
+          <span className="line-clamp-2 type-small text-ink">{item.transcript}</span>
+          <span className="type-caption text-ink-muted">{formatRelative(item.createdAt, now)}</span>
         </span>
         <span
           className={cn(
             "mt-0.5 flex h-5 shrink-0 items-center gap-1 type-caption font-medium transition-opacity",
-            copied
-              ? "text-success"
-              : "text-ink-secondary opacity-0 group-hover:opacity-100",
+            copied ? "text-success" : "text-ink-secondary opacity-0 group-hover:opacity-100",
           )}
         >
           {copied ? (
@@ -388,13 +306,7 @@ function RecentItem({
 }
 
 /** Fixes a misheard word in place. Saving teaches Wordfall the names and terms corrected, as in History. */
-function RecentEditor({
-  item,
-  onDone,
-}: {
-  item: HistoryItem;
-  onDone: () => void;
-}) {
+function RecentEditor({ item, onDone }: { item: HistoryItem; onDone: () => void }) {
   const { settings } = useStore();
   const toast = useToast();
   const showLearned = useLearnedToast();
@@ -403,7 +315,7 @@ function RecentEditor({
   const changed = draft.trim() !== "" && draft.trim() !== item.transcript;
 
   const save = async () => {
-    if (!changed) return;
+    if (!changed || saving) return;
     setSaving(true);
     try {
       const learned = await api.editHistoryItem(item.id, draft.trim());
@@ -440,14 +352,7 @@ function RecentEditor({
           : "Fix any misheard words. Learning from corrections is off in Settings."}
       </p>
       <div className="mt-2 flex items-center gap-2">
-        <Button
-          size="sm"
-          variant="accent"
-          icon={Check}
-          loading={saving}
-          disabled={!changed}
-          onClick={save}
-        >
+        <Button size="sm" variant="accent" icon={Check} loading={saving} disabled={!changed} onClick={save}>
           Save
         </Button>
         <Button size="sm" variant="ghost" onClick={onDone} disabled={saving}>
@@ -469,18 +374,8 @@ function Footer() {
         Open Wordfall <ArrowUpRight size={14} />
       </button>
       <span className="flex-1" />
-      <IconButton
-        icon={Settings}
-        label="Settings"
-        size="sm"
-        onClick={() => api.openMainWindow("settings")}
-      />
-      <IconButton
-        icon={Power}
-        label="Quit Wordfall"
-        size="sm"
-        onClick={() => api.quitApp()}
-      />
+      <IconButton icon={Settings} label="Settings" size="sm" onClick={() => api.openMainWindow("settings")} />
+      <IconButton icon={Power} label="Quit Wordfall" size="sm" onClick={() => api.quitApp()} />
     </div>
   );
 }

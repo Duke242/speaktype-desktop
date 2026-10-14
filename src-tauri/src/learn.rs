@@ -203,24 +203,22 @@ fn correction(typed: &[&str], run: &Replaced) -> Option<Correction> {
     if !single_common && similarity(&sound(&heard), &sound(&meant)) >= MIN_SIMILARITY {
         return Some(Correction { heard, meant });
     }
-    // A name is still worth knowing, learned as itself.
-    let sentence_start = if run.start == 0 {
-        // A dictation of a few words, like a name on its own, isn't a sentence.
-        typed.len() > MAX_WORDS
-    } else {
-        ends_sentence(typed[run.start - 1])
-    };
-    is_name(&meant, sentence_start).then(|| Correction {
+    // A name is still worth knowing, learned as itself. At the start of a
+    // sentence, a capital the heard word already had says nothing.
+    let sentence_start = run.start == 0 || ends_sentence(typed[run.start - 1]);
+    let capital_given = sentence_start && heard.chars().next().is_some_and(char::is_uppercase);
+    is_name(&meant, capital_given).then(|| Correction {
         heard: meant.clone(),
         meant,
     })
 }
 
-/// Whether `text` has capitals beyond the one a sentence starts with.
-fn is_name(text: &str, sentence_start: bool) -> bool {
+/// Whether `text` has capitals of its own, beyond its first one when that
+/// was given by grammar.
+fn is_name(text: &str, first_given: bool) -> bool {
     let capitals = text.chars().filter(|c| c.is_uppercase()).count();
     let first = text.chars().next().is_some_and(char::is_uppercase);
-    capitals > usize::from(sentence_start && first)
+    capitals > usize::from(first_given && first)
 }
 
 /// Whether a sentence ends with this word.
@@ -359,17 +357,23 @@ pub fn add_to_dictionary(
             added.push(entry.clone());
             continue;
         }
-        // A name learned as itself is already known if anything writes it.
+        // A name learned as itself is already known if anything writes it,
+        // and gives way to a later fix of that name.
         let hint = correction.heard == correction.meant;
+        let learned_hint = |entry: &DictionaryEntry| {
+            entry.learned
+                && entry.trigger.trim() == entry.replacement.trim()
+                && same(&entry.trigger, &correction.heard)
+        };
         let known = dictionary.iter().any(|entry| {
-            same(&entry.trigger, &correction.heard)
+            (same(&entry.trigger, &correction.heard) && (hint || !learned_hint(entry)))
                 || (hint && same(&entry.replacement, &correction.meant))
                 || (!entry.learned && reverses(entry))
         });
         if known {
             continue;
         }
-        dictionary.retain(|entry| !(entry.learned && reverses(entry)));
+        dictionary.retain(|entry| !(entry.learned && reverses(entry)) && !learned_hint(entry));
         let entry = DictionaryEntry {
             id: uuid::Uuid::new_v4().to_string(),
             trigger: correction.heard.clone(),
@@ -466,15 +470,16 @@ pub fn watch_for_corrections(app: &AppHandle, typed: &str) {
 }
 
 /// The typed text as last seen settled: unchanged across two reads, so a word
-/// half retyped isn't learned. Watching ends when a newer dictation starts,
-/// the field can no longer be read, or time runs out. It goes on when the field
-/// loses focus, as clicking around a web page moves focus without leaving it,
-/// and a fix sent with a message is kept after the field empties.
+/// half retyped isn't learned. Watching goes on when the field loses focus, as
+/// clicking around a web page moves focus without leaving it. It ends when a
+/// newer dictation starts, time runs out, or the typed text is gone, as when a
+/// message is sent; then the last version seen counts, as it was sent as meant,
+/// and nothing typed in the field afterwards is compared.
 fn watch(typed: &str, generation: u64) -> Option<String> {
     thread::sleep(SETTLE);
     let (field, text) = read_field()?;
     let span = Span::find(&text, typed)?;
-    let mut previous = span.edited(&text).map(str::to_string);
+    let mut previous = span.edited(&text)?.to_string();
     let mut settled = None;
     let started = Instant::now();
     while started.elapsed() < WATCH_FOR && WATCH.load(Ordering::SeqCst) == generation {
@@ -482,11 +487,14 @@ fn watch(typed: &str, generation: u64) -> Option<String> {
         let Some(text) = field.text().filter(|t| t.len() <= MAX_FIELD_BYTES) else {
             break;
         };
-        let edited = span.edited(&text).map(str::to_string);
-        if edited.is_some() && edited == previous {
-            settled.clone_from(&edited);
+        match span
+            .edited(&text)
+            .filter(|edited| !edited.trim().is_empty())
+        {
+            Some(edited) if edited == previous => settled = Some(previous.clone()),
+            Some(edited) => previous = edited.to_string(),
+            None => return Some(previous),
         }
-        previous = edited;
     }
     settled
 }
@@ -735,6 +743,7 @@ mod tests {
             [("Siobhan".into(), "Siobhan".into())]
         );
         // A capital that only starts a sentence doesn't make a name.
+        assert_eq!(found("Thanks!", "Cheers!"), none);
         assert_eq!(
             found(
                 "it went well. More is coming soon",
@@ -759,6 +768,16 @@ mod tests {
         add_to_dictionary(&mut dictionary, &[fix("mower", "Moa")]);
         assert!(add_to_dictionary(&mut dictionary, &[fix("Moa", "Moa")]).is_empty());
         assert_eq!(dictionary.len(), 1);
+
+        // A later fix of a name learned as itself replaces it.
+        let mut dictionary = Vec::new();
+        add_to_dictionary(&mut dictionary, &[fix("Karen", "Karen")]);
+        assert_eq!(
+            add_to_dictionary(&mut dictionary, &[fix("Karen", "Karan")]).len(),
+            1
+        );
+        assert_eq!(dictionary.len(), 1);
+        assert_eq!(dictionary[0].replacement, "Karan");
     }
 
     #[test]
