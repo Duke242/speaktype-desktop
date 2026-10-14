@@ -148,6 +148,7 @@ pub fn run(
         text = state
             .cleaner
             .clean_for(&settings.cleanup, &state.models, &text, hint.as_ref());
+        text = style.adjust_cleaned(&text);
     } else {
         text = style.adjust(&text);
     }

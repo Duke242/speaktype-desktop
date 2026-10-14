@@ -337,39 +337,43 @@ impl Style {
         }
     }
 
-    /// The line added to AI cleanup's instructions for this app.
+    /// How AI cleanup should write for this app: an instruction, examples in
+    /// that style, and whether spoken lists become one item per line.
     pub fn hint(&self) -> Option<Hint> {
         let code = (self.format_code && self.is_code()).then_some(
             "Write file names, paths, identifiers and command-line flags exactly as code, \
              like main.rs, user_id, getUserName or --verbose.",
         );
-        let (instruction, example) = match (self.tone, self.category) {
-            (true, AppCategory::Chat) => (
-                "The text is a chat message. Keep it casual and short: lowercase is fine, \
-                 and leave out the period at the end.",
-                Some((
-                    "ok sounds good see you at 3",
-                    "ok sounds good, see you at 3",
-                )),
-            ),
-            (true, AppCategory::Email) => (
-                "The text is for an email. Write complete, properly punctuated sentences, \
-                 and split separate points into paragraphs. Put a dictated greeting or \
-                 sign-off on its own line.",
-                None,
-            ),
-            (true, AppCategory::Terminal) => (
-                "The text is typed into a terminal. When it's a command, write only the \
-                 command exactly as it would be typed, with no capital letter, quotes or \
-                 period added around it.",
-                Some(("git status", "git status")),
-            ),
-            (true, AppCategory::Code) => (
-                "The text is for a code editor, such as a comment or a commit message.",
-                None,
-            ),
-            _ => ("", None),
-        };
+        let (instruction, examples, lists): (_, &'static [(&str, &str)], _) =
+            match (self.tone, self.category) {
+                (true, AppCategory::Chat) => (
+                    "The text is a chat message. Keep it casual and short, and leave out \
+                     the period at the end.",
+                    CHAT_EXAMPLES,
+                    false,
+                ),
+                (true, AppCategory::Email) => (
+                    "The text is for an email. Write complete, properly punctuated sentences, \
+                     and split separate points into paragraphs. Put a dictated greeting or \
+                     sign-off on its own line.",
+                    EMAIL_EXAMPLES,
+                    true,
+                ),
+                (true, AppCategory::Terminal) => (
+                    "The text is typed into a terminal. When it's a command, write only the \
+                     command exactly as it would be typed, with no capital letter, quotes or \
+                     period added around it.",
+                    TERMINAL_EXAMPLES,
+                    false,
+                ),
+                (true, AppCategory::Code) => (
+                    "The text is for a code editor, such as a comment, a commit message or \
+                     a prompt to an AI assistant. Write it plainly.",
+                    &[],
+                    true,
+                ),
+                _ => ("", &[], true),
+            };
         let instruction = [instruction, code.unwrap_or_default()]
             .into_iter()
             .filter(|line| !line.is_empty())
@@ -377,8 +381,20 @@ impl Style {
             .join(" ");
         (!instruction.is_empty()).then_some(Hint {
             instruction,
-            example,
+            examples,
+            lists,
         })
+    }
+
+    /// Rules that hold after AI cleanup too, for what a small model misses:
+    /// a chat message never ends in a period. Terminal rules don't apply here,
+    /// as the model can tell a command from a sentence and they can't.
+    pub fn adjust_cleaned(&self, text: &str) -> String {
+        if self.tone && self.category == AppCategory::Chat {
+            drop_final_period(text)
+        } else {
+            text.to_string()
+        }
     }
 
     /// Light rules for when AI cleanup doesn't run.
@@ -394,13 +410,73 @@ impl Style {
     }
 }
 
-/// "See you then." → "See you then". Ellipses, and text with no period, stay.
+/// AI cleanup examples for chat: casual, no final period, lists kept in
+/// the sentence. Fillers and self-corrections still go.
+const CHAT_EXAMPLES: &[(&str, &str)] = &[
+    (
+        "um yeah that works for me uh see you at 3",
+        "Yeah that works for me, see you at 3",
+    ),
+    (
+        "did you get a chance to look at the the doc",
+        "Did you get a chance to look at the doc?",
+    ),
+    (
+        "lets get pizza tonight no wait sushi",
+        "Let's get sushi tonight",
+    ),
+    (
+        "can you grab eggs milk and bread on the way home",
+        "Can you grab eggs, milk and bread on the way home?",
+    ),
+];
+
+/// AI cleanup examples for email: greeting and sign-off on their own lines.
+const EMAIL_EXAMPLES: &[(&str, &str)] = &[
+    (
+        "hi sam um thanks for sending the report i'll go through it tomorrow and get back to you best alex",
+        "Hi Sam,\n\nThanks for sending the report. I'll go through it tomorrow and get back to you.\n\nBest,\nAlex",
+    ),
+    (
+        "can we move the call to tuesday no wait wednesday at 3",
+        "Can we move the call to Wednesday at 3?",
+    ),
+    (
+        "before the meeting please send the budget the timeline and the slides",
+        "Before the meeting, please send:\n- The budget\n- The timeline\n- The slides",
+    ),
+];
+
+/// AI cleanup examples for terminals: commands as typed, sentences (to a
+/// coding agent, say) as sentences.
+const TERMINAL_EXAMPLES: &[(&str, &str)] = &[
+    ("git status", "git status"),
+    ("um npm run dev", "npm run dev"),
+    (
+        "so the tests uh the tests fail when i run them twice",
+        "The tests fail when I run them twice.",
+    ),
+];
+
+/// "See you then." → "See you then". Ellipses, abbreviations ("3 p.m.",
+/// "etc.") and text with no period stay.
 fn drop_final_period(text: &str) -> String {
     let trimmed = text.trim_end();
     match trimmed.strip_suffix('.') {
-        Some(rest) if !rest.ends_with('.') && !rest.is_empty() => rest.to_string(),
+        Some(rest) if !rest.ends_with('.') && !rest.is_empty() && !is_abbreviation(rest) => {
+            rest.to_string()
+        }
         _ => text.to_string(),
     }
+}
+
+/// Whether the period after `text`'s last word belongs to it, as in "p.m."
+/// or "etc.".
+fn is_abbreviation(text: &str) -> bool {
+    let word = text.rsplit(char::is_whitespace).next().unwrap_or_default();
+    word.contains('.')
+        || ["etc", "vs", "approx", "inc", "ltd", "co", "jr", "sr"]
+            .contains(&word.to_lowercase().as_str())
 }
 
 /// "Git status." → "git status": no capital letter or trailing punctuation.
@@ -579,6 +655,8 @@ mod tests {
         assert_eq!(chat.adjust("Are you there?"), "Are you there?");
         assert_eq!(chat.adjust("First. Second."), "First. Second");
         assert_eq!(chat.adjust("."), ".");
+        assert_eq!(chat.adjust("See you at 3 p.m."), "See you at 3 p.m.");
+        assert_eq!(chat.adjust("Snacks, drinks, etc."), "Snacks, drinks, etc.");
     }
 
     #[test]
@@ -605,16 +683,47 @@ mod tests {
     }
 
     #[test]
+    fn chat_drops_the_final_period_after_cleanup_too() {
+        let chat = style(AppCategory::Chat);
+        assert_eq!(chat.adjust_cleaned("See you at 3."), "See you at 3");
+        let terminal = style(AppCategory::Terminal);
+        assert_eq!(
+            terminal.adjust_cleaned("Fix the login bug."),
+            "Fix the login bug."
+        );
+        let off = Style {
+            tone: false,
+            ..chat
+        };
+        assert_eq!(off.adjust_cleaned("See you."), "See you.");
+    }
+
+    #[test]
+    fn style_examples_follow_their_own_rules() {
+        let chat = style(AppCategory::Chat);
+        for (_, cleaned) in CHAT_EXAMPLES {
+            assert_eq!(chat.adjust_cleaned(cleaned), *cleaned);
+            assert!(!cleaned.contains('\n'));
+        }
+        for (_, cleaned) in TERMINAL_EXAMPLES {
+            assert!(!cleaned.contains('\n'));
+        }
+    }
+
+    #[test]
     fn hints_describe_the_app() {
         let chat = style(AppCategory::Chat).hint().unwrap();
         assert!(chat.instruction.contains("chat message"));
-        assert!(chat.example.is_some());
+        assert_eq!(chat.examples, CHAT_EXAMPLES);
+        assert!(!chat.lists);
         let email = style(AppCategory::Email).hint().unwrap();
         assert!(email.instruction.contains("email"));
+        assert!(email.lists);
         let terminal = style(AppCategory::Terminal).hint().unwrap();
         assert!(
             terminal.instruction.contains("command") && terminal.instruction.contains("--verbose")
         );
+        assert!(!terminal.lists);
         let code_only = Style {
             tone: false,
             ..style(AppCategory::Code)
