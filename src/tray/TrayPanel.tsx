@@ -7,6 +7,7 @@ import {
   Globe,
   Hand,
   Mic,
+  Pencil,
   Power,
   Settings,
   Square,
@@ -14,8 +15,8 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { LogoMark } from "@/components/brand/LogoMark";
-import { IconButton, Spinner } from "@/components/ui";
-import { api, type HistoryItem, type InputDevice } from "@/lib/api";
+import { Button, IconButton, Spinner, TextArea, useToast } from "@/components/ui";
+import { api, errorMessage, type HistoryItem, type InputDevice } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import {
   TYPING_WORDS_PER_MINUTE,
@@ -30,10 +31,11 @@ import { languageName } from "@/lib/languages";
 import { showLanguageMenu, showMicrophoneMenu, showModeMenu, showModelMenu } from "@/lib/menus";
 import { useStore } from "@/lib/store";
 import { useApplyTheme } from "@/lib/theme";
+import { useLearnedToast } from "@/lib/useLearnedToast";
 
 const PANEL_WIDTH = 356;
 
-/** The panel that opens from the menu bar icon: dictate, glance at today, switch quickly, grab a recent transcript. */
+/** The panel that opens from the menu bar icon: dictate, glance at today, switch quickly, grab or fix a recent transcript. */
 export function TrayPanel() {
   const { settings } = useStore();
   const container = useRef<HTMLDivElement>(null);
@@ -210,7 +212,11 @@ function Recent() {
   const { items } = useHistory();
   const now = useNow(60_000);
   const { copy, copiedKey } = useCopy();
-  const recent = (items ?? []).slice(0, 3);
+  const [editing, setEditing] = useState<string | null>(null);
+  const top = (items ?? []).slice(0, 3);
+  // A dictation arriving mid-edit doesn't push the transcript being fixed out of view.
+  const held = editing && !top.some((item) => item.id === editing) ? items?.find((item) => item.id === editing) : undefined;
+  const recent = held ? [...top.slice(0, 2), held] : top;
 
   return (
     <div className="border-b border-line-subtle pb-1.5">
@@ -229,15 +235,20 @@ function Recent() {
       {recent.length === 0 ? (
         <p className="px-4 pt-1 pb-3 type-small text-ink-muted">Your latest dictations will show up here.</p>
       ) : (
-        recent.map((item) => (
-          <RecentItem
-            key={item.id}
-            item={item}
-            now={now}
-            copied={copiedKey === item.id}
-            onCopy={() => copy(item.transcript, item.id)}
-          />
-        ))
+        recent.map((item) =>
+          editing === item.id ? (
+            <RecentEditor key={item.id} item={item} onDone={() => setEditing(null)} />
+          ) : (
+            <RecentItem
+              key={item.id}
+              item={item}
+              now={now}
+              copied={copiedKey === item.id}
+              onCopy={() => copy(item.transcript, item.id)}
+              onEdit={() => setEditing(item.id)}
+            />
+          ),
+        )
       )}
     </div>
   );
@@ -248,38 +259,107 @@ function RecentItem({
   now,
   copied,
   onCopy,
+  onEdit,
 }: {
   item: HistoryItem;
   now: number;
   copied: boolean;
   onCopy: () => void;
+  onEdit: () => void;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onCopy}
-      title="Copy"
-      className="group flex w-full items-start gap-3 px-4 py-2 text-left transition-colors hover:bg-hover"
-    >
-      <span className="min-w-0 flex-1">
-        <span className="line-clamp-2 type-small text-ink">{item.transcript}</span>
-        <span className="type-caption text-ink-muted">{formatRelative(item.createdAt, now)}</span>
-      </span>
-      <span
-        className={cn(
-          "mt-0.5 flex h-5 shrink-0 items-center gap-1 type-caption font-medium transition-opacity",
-          copied ? "text-success" : "text-ink-secondary opacity-0 group-hover:opacity-100",
-        )}
+    <div className="group relative">
+      <button
+        type="button"
+        onClick={onCopy}
+        title="Copy"
+        className="flex w-full items-start gap-3 py-2 pr-11 pl-4 text-left transition-colors hover:bg-hover"
       >
-        {copied ? (
-          <>
-            <Check size={12} /> Copied
-          </>
-        ) : (
-          "Copy"
-        )}
-      </span>
-    </button>
+        <span className="min-w-0 flex-1">
+          <span className="line-clamp-2 type-small text-ink">{item.transcript}</span>
+          <span className="type-caption text-ink-muted">{formatRelative(item.createdAt, now)}</span>
+        </span>
+        <span
+          className={cn(
+            "mt-0.5 flex h-5 shrink-0 items-center gap-1 type-caption font-medium transition-opacity",
+            copied ? "text-success" : "text-ink-secondary opacity-0 group-hover:opacity-100",
+          )}
+        >
+          {copied ? (
+            <>
+              <Check size={12} /> Copied
+            </>
+          ) : (
+            "Copy"
+          )}
+        </span>
+      </button>
+      <IconButton
+        icon={Pencil}
+        label="Fix transcript"
+        size="sm"
+        onClick={onEdit}
+        className="absolute top-1 right-2 opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+      />
+    </div>
+  );
+}
+
+/** Fixes a misheard word in place. Saving teaches Wordfall the names and terms corrected, as in History. */
+function RecentEditor({ item, onDone }: { item: HistoryItem; onDone: () => void }) {
+  const { settings } = useStore();
+  const toast = useToast();
+  const showLearned = useLearnedToast();
+  const [draft, setDraft] = useState(item.transcript);
+  const [saving, setSaving] = useState(false);
+  const changed = draft.trim() !== "" && draft.trim() !== item.transcript;
+
+  const save = async () => {
+    if (!changed || saving) return;
+    setSaving(true);
+    try {
+      const learned = await api.editHistoryItem(item.id, draft.trim());
+      if (learned.length > 0) showLearned(learned);
+      else toast("Transcript saved");
+      onDone();
+    } catch (e) {
+      toast(errorMessage(e), "error");
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="px-4 py-2">
+      <TextArea
+        aria-label="Transcript"
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) save();
+          // Escape closes the editor, not the panel.
+          if (e.key === "Escape") {
+            e.stopPropagation();
+            onDone();
+          }
+        }}
+        rows={Math.min(6, Math.max(2, Math.ceil(item.transcript.length / 40)))}
+        className="type-small"
+        autoFocus
+      />
+      <p className="mt-1.5 type-caption text-ink-muted">
+        {settings.learnCorrections
+          ? "Fix any misheard words. Names and terms you correct are spelled right next time."
+          : "Fix any misheard words. Learning from corrections is off in Settings."}
+      </p>
+      <div className="mt-2 flex items-center gap-2">
+        <Button size="sm" variant="accent" icon={Check} loading={saving} disabled={!changed} onClick={save}>
+          Save
+        </Button>
+        <Button size="sm" variant="ghost" onClick={onDone} disabled={saving}>
+          Cancel
+        </Button>
+      </div>
+    </div>
   );
 }
 

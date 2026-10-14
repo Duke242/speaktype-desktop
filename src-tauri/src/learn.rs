@@ -9,15 +9,19 @@
 //! three words replaced by something that sounds similar and isn't everyday
 //! vocabulary. Rewording a sentence, or fixing "their" to "there", teaches nothing.
 //!
+//! A name that can't safely replace what was heard, because that's an everyday
+//! word ("more" fixed to "Moa") or sounds nothing like it, is learned as itself:
+//! the entry writes it with the right capitals and hints it to Whisper.
+//!
 //! Capitals are learned too: "github" fixed to "GitHub", or "new york" to
 //! "New York", becomes an entry that writes it that way from then on. Only
 //! capitals added mid-sentence count; one added to the first word of a
 //! sentence is grammar, and so is changing the case of everyday words.
 //!
 //! On macOS and Windows, the field a dictation was typed into is watched for a
-//! short while afterwards (`watch_for_corrections`), so fixing a word right
-//! where it was typed teaches it too. Only that field is read, never a password
-//! field, and nothing from it is kept beyond the learned words.
+//! couple of minutes afterwards (`watch_for_corrections`), so fixing a word
+//! right where it was typed teaches it too. Only that field is read, never a
+//! password field, and nothing from it is kept beyond the learned words.
 
 use std::{
     sync::atomic::{AtomicU64, Ordering},
@@ -58,7 +62,7 @@ pub fn corrections(typed: &str, edited: &str) -> Vec<Correction> {
     let (changes, recased) = changed_runs(&before, &after);
     let changed_words: usize = changes
         .iter()
-        .map(|(heard, _)| heard.len())
+        .map(|run| run.heard.len())
         .chain(recased.iter().map(|run| run.heard.len()))
         .sum();
     // Changing more than half the words is rewriting, not correcting. A dictation
@@ -69,7 +73,7 @@ pub fn corrections(typed: &str, edited: &str) -> Vec<Correction> {
     }
     let found: Vec<Correction> = changes
         .into_iter()
-        .filter_map(|(heard, meant)| correction(&heard, &meant))
+        .filter_map(|run| correction(&before, &run))
         .chain(recased.iter().filter_map(|run| recasing(&before, run)))
         .collect();
     if found.len() > MAX_CORRECTIONS {
@@ -87,7 +91,16 @@ struct Recased<'a> {
     meant: Vec<&'a str>,
 }
 
-type Runs<'a> = (Vec<(Vec<&'a str>, Vec<&'a str>)>, Vec<Recased<'a>>);
+/// Typed words replaced by other words.
+#[derive(Debug)]
+struct Replaced<'a> {
+    /// Where the run starts in the typed words.
+    start: usize,
+    heard: Vec<&'a str>,
+    meant: Vec<&'a str>,
+}
+
+type Runs<'a> = (Vec<Replaced<'a>>, Vec<Recased<'a>>);
 
 /// Runs of words replaced by other words, found by aligning the two texts on
 /// the words they share, and runs of shared words whose capitals changed.
@@ -110,16 +123,20 @@ fn changed_runs<'a>(before: &[&'a str], after: &[&'a str]) -> Runs<'a> {
     let mut recased: Vec<Recased<'a>> = Vec::new();
     let (mut removed, mut added) = (Vec::new(), Vec::new());
     let (mut i, mut j) = (0, 0);
-    let mut flush = |removed: &mut Vec<&'a str>, added: &mut Vec<&'a str>| {
+    let mut flush = |removed: &mut Vec<&'a str>, added: &mut Vec<&'a str>, end: usize| {
         if !removed.is_empty() && !added.is_empty() {
-            runs.push((std::mem::take(removed), std::mem::take(added)));
+            runs.push(Replaced {
+                start: end - removed.len(),
+                heard: std::mem::take(removed),
+                meant: std::mem::take(added),
+            });
         }
         removed.clear();
         added.clear();
     };
     while i < a.len() || j < b.len() {
         if i < a.len() && j < b.len() && a[i] == b[j] {
-            flush(&mut removed, &mut added);
+            flush(&mut removed, &mut added, i);
             if phrase(&[before[i]]) != phrase(&[after[j]]) {
                 match recased.last_mut() {
                     Some(run) if run.start + run.heard.len() == i => {
@@ -143,7 +160,7 @@ fn changed_runs<'a>(before: &[&'a str], after: &[&'a str]) -> Runs<'a> {
             i += 1;
         }
     }
-    flush(&mut removed, &mut added);
+    flush(&mut removed, &mut added, i);
     // A run of recased words ends where a word kept its case or was changed.
     let mut joined: Vec<Recased<'a>> = Vec::new();
     for run in recased {
@@ -164,28 +181,50 @@ fn changed_runs<'a>(before: &[&'a str], after: &[&'a str]) -> Runs<'a> {
     (runs, joined)
 }
 
-fn correction(heard: &[&str], meant: &[&str]) -> Option<Correction> {
-    if heard.len() > MAX_WORDS || meant.len() > MAX_WORDS {
+fn correction(typed: &[&str], run: &Replaced) -> Option<Correction> {
+    if run.heard.len() > MAX_WORDS || run.meant.len() > MAX_WORDS {
         return None;
     }
-    let heard = phrase(heard);
-    let meant = phrase(meant);
+    let heard = phrase(&run.heard);
+    let meant = phrase(&run.meant);
     if heard.is_empty() || meant.is_empty() || key(&heard) == key(&meant) {
         return None;
     }
-    // Replacing an everyday word everywhere would do more harm than good, and
-    // a correction to everyday words is grammar, not a misheard name.
-    let single_common = !heard.contains(' ') && is_common(&heard);
-    let meant_common = meant.split_whitespace().all(is_common);
-    if single_common
-        || meant_common
+    // A correction to everyday words is grammar, not a misheard name.
+    if meant.split_whitespace().all(is_common)
         || is_inflection(&key(&heard), &key(&meant))
         || !meant.chars().any(char::is_alphabetic)
     {
         return None;
     }
-    (similarity(&sound(&heard), &sound(&meant)) >= MIN_SIMILARITY)
-        .then_some(Correction { heard, meant })
+    // Replacing an everyday word everywhere would do more harm than good, and
+    // so would replacing something that sounds nothing like the fix.
+    let single_common = !heard.contains(' ') && is_common(&heard);
+    if !single_common && similarity(&sound(&heard), &sound(&meant)) >= MIN_SIMILARITY {
+        return Some(Correction { heard, meant });
+    }
+    // A name is still worth knowing, learned as itself. At the start of a
+    // sentence, a capital the heard word already had says nothing.
+    let sentence_start = run.start == 0 || ends_sentence(typed[run.start - 1]);
+    let capital_given = sentence_start && heard.chars().next().is_some_and(char::is_uppercase);
+    is_name(&meant, capital_given).then(|| Correction {
+        heard: meant.clone(),
+        meant,
+    })
+}
+
+/// Whether `text` has capitals of its own, beyond its first one when that
+/// was given by grammar.
+fn is_name(text: &str, first_given: bool) -> bool {
+    let capitals = text.chars().filter(|c| c.is_uppercase()).count();
+    let first = text.chars().next().is_some_and(char::is_uppercase);
+    capitals > usize::from(first_given && first)
+}
+
+/// Whether a sentence ends with this word.
+fn ends_sentence(word: &str) -> bool {
+    word.trim_end_matches(['"', '\'', ')', '”', '’'])
+        .ends_with(['.', '!', '?', ':'])
 }
 
 /// A run of words written with new capitals, if it's worth learning: capitals
@@ -203,10 +242,7 @@ fn recasing(typed: &[&str], run: &Recased) -> Option<Correction> {
     if meant.split_whitespace().all(is_common) {
         return None;
     }
-    let sentence_start = run.start == 0
-        || typed[run.start - 1]
-            .trim_end_matches(['"', '\'', ')', '”', '’'])
-            .ends_with(['.', '!', '?', ':']);
+    let sentence_start = run.start == 0 || ends_sentence(typed[run.start - 1]);
     if sentence_start && meant == capitalize(&heard) {
         return None;
     }
@@ -241,10 +277,12 @@ fn phrase(words: &[&str]) -> String {
         .to_string()
 }
 
-/// A word as compared when aligning: lowercase, without surrounding punctuation.
+/// A word as compared when aligning: lowercase, without surrounding
+/// punctuation, and with curly apostrophes straightened, as editors curl them.
 fn key(word: &str) -> String {
     word.trim_matches(|c: char| !c.is_alphanumeric())
         .to_lowercase()
+        .replace(['‘', '’'], "'")
 }
 
 /// A rough spelling of how text sounds, so "Cooper netties" can match
@@ -319,13 +357,23 @@ pub fn add_to_dictionary(
             added.push(entry.clone());
             continue;
         }
+        // A name learned as itself is already known if anything writes it,
+        // and gives way to a later fix of that name.
+        let hint = correction.heard == correction.meant;
+        let learned_hint = |entry: &DictionaryEntry| {
+            entry.learned
+                && entry.trigger.trim() == entry.replacement.trim()
+                && same(&entry.trigger, &correction.heard)
+        };
         let known = dictionary.iter().any(|entry| {
-            same(&entry.trigger, &correction.heard) || (!entry.learned && reverses(entry))
+            (same(&entry.trigger, &correction.heard) && (hint || !learned_hint(entry)))
+                || (hint && same(&entry.replacement, &correction.meant))
+                || (!entry.learned && reverses(entry))
         });
         if known {
             continue;
         }
-        dictionary.retain(|entry| !(entry.learned && reverses(entry)));
+        dictionary.retain(|entry| !(entry.learned && reverses(entry)) && !learned_hint(entry));
         let entry = DictionaryEntry {
             id: uuid::Uuid::new_v4().to_string(),
             trigger: correction.heard.clone(),
@@ -382,10 +430,14 @@ pub fn learn_from_app(app: &AppHandle, typed: &str, edited: &str) {
 }
 
 /// How long after typing the field is watched, and how often it's read.
-const WATCH_FOR: Duration = Duration::from_secs(45);
+const WATCH_FOR: Duration = Duration::from_secs(120);
 const WATCH_EVERY: Duration = Duration::from_millis(800);
 /// Time for pasted text to land before the field is first read.
 const SETTLE: Duration = Duration::from_millis(900);
+/// Chrome and Electron apps build their accessibility tree when first asked,
+/// so the field is read a few more times, this far apart, before giving up.
+const FIELD_RETRIES: u32 = 4;
+const FIELD_RETRY_EVERY: Duration = Duration::from_millis(300);
 /// Fields holding more text than this, like long documents, aren't watched.
 const MAX_FIELD_BYTES: usize = 200_000;
 /// How much of the text around the typed text is used to find it again.
@@ -417,25 +469,49 @@ pub fn watch_for_corrections(app: &AppHandle, typed: &str) {
     }
 }
 
-/// The typed text as it reads when the user moves on: when the field loses
-/// focus, a newer dictation starts, or the watch times out.
+/// The typed text as last seen settled: unchanged across two reads, so a word
+/// half retyped isn't learned. Watching goes on when the field loses focus, as
+/// clicking around a web page moves focus without leaving it. It ends when a
+/// newer dictation starts, time runs out, or the typed text is gone, as when a
+/// message is sent; then the last version seen counts, as it was sent as meant,
+/// and nothing typed in the field afterwards is compared.
 fn watch(typed: &str, generation: u64) -> Option<String> {
     thread::sleep(SETTLE);
-    let field = platform::FocusedField::current()?;
-    let mut latest = field.text().filter(|t| t.len() <= MAX_FIELD_BYTES)?;
-    let span = Span::find(&latest, typed)?;
+    let (field, text) = read_field()?;
+    let span = Span::find(&text, typed)?;
+    let mut previous = span.edited(&text)?.to_string();
+    let mut settled = None;
     let started = Instant::now();
     while started.elapsed() < WATCH_FOR && WATCH.load(Ordering::SeqCst) == generation {
         thread::sleep(WATCH_EVERY);
-        if !field.is_focused() {
+        let Some(text) = field.text().filter(|t| t.len() <= MAX_FIELD_BYTES) else {
             break;
-        }
-        match field.text() {
-            Some(text) if text.len() <= MAX_FIELD_BYTES => latest = text,
-            _ => break,
+        };
+        match span
+            .edited(&text)
+            .filter(|edited| !edited.trim().is_empty())
+        {
+            Some(edited) if edited == previous => settled = Some(previous.clone()),
+            Some(edited) => previous = edited.to_string(),
+            None => return Some(previous),
         }
     }
-    span.edited(&latest).map(str::to_string)
+    settled
+}
+
+/// The focused field and its text, given a moment to become readable.
+fn read_field() -> Option<(platform::FocusedField, String)> {
+    for attempt in 0..FIELD_RETRIES {
+        if attempt > 0 {
+            thread::sleep(FIELD_RETRY_EVERY);
+        }
+        if let Some(field) = platform::FocusedField::current()
+            && let Some(text) = field.text()
+        {
+            return (text.len() <= MAX_FIELD_BYTES).then_some((field, text));
+        }
+    }
+    None
 }
 
 /// Where typed text sits in a field, remembered by the text either side so it
@@ -450,15 +526,26 @@ struct Span {
 }
 
 impl Span {
-    /// The last place `typed` appears in `text`, the likeliest to be the one just typed.
+    /// The last place `typed` appears in `text`, the likeliest to be the one
+    /// just typed. Spaces, line breaks and quotes may differ, as editors change
+    /// them when text is pasted.
     fn find(text: &str, typed: &str) -> Option<Self> {
-        let start = text.rfind(typed)?;
-        let end = start + typed.len();
+        let (loose_text, offsets) = loosened(text);
+        let (loose_typed, _) = loosened(typed.trim());
+        if loose_typed.is_empty() {
+            return None;
+        }
+        let at = loose_text.rfind(&loose_typed)?;
+        let start = offsets[at];
+        let end = offsets
+            .get(at + loose_typed.len())
+            .copied()
+            .unwrap_or(text.len());
         Some(Self {
             before: last_chars(&text[..start], ANCHOR_CHARS).to_string(),
             after: first_chars(&text[end..], ANCHOR_CHARS).to_string(),
             start,
-            len: typed.len(),
+            len: end - start,
         })
     }
 
@@ -482,6 +569,29 @@ impl Span {
         let edited = &text[start..end];
         (edited.len() <= self.len * 3 + 200).then_some(edited)
     }
+}
+
+/// `text` with each run of whitespace as one space and curly quotes as
+/// straight ones, and for each of its bytes, where it came from in `text`.
+fn loosened(text: &str) -> (String, Vec<usize>) {
+    let mut out = String::with_capacity(text.len());
+    let mut offsets = Vec::with_capacity(text.len());
+    let mut in_space = false;
+    for (at, c) in text.char_indices() {
+        let c = match c {
+            c if c.is_whitespace() => ' ',
+            '‘' | '’' => '\'',
+            '“' | '”' => '"',
+            c => c,
+        };
+        if c == ' ' && in_space {
+            continue;
+        }
+        in_space = c == ' ';
+        out.push(c);
+        offsets.extend(std::iter::repeat_n(at, c.len_utf8()));
+    }
+    (out, offsets)
 }
 
 fn last_chars(text: &str, count: usize) -> &str {
@@ -619,6 +729,58 @@ mod tests {
     }
 
     #[test]
+    fn names_that_cant_replace_what_was_heard_are_learned_as_themselves() {
+        let none = Vec::<(String, String)>::new();
+        // "more" is everyday, so it isn't replaced; "Moa" is still learned.
+        assert_eq!(
+            found("I told more about it", "I told Moa about it"),
+            [("Moa".into(), "Moa".into())]
+        );
+        assert_eq!(found("more", "Moa"), [("Moa".into(), "Moa".into())]);
+        // A name that sounds nothing like what was heard.
+        assert_eq!(
+            found("ask Jim about the launch", "ask Siobhan about the launch"),
+            [("Siobhan".into(), "Siobhan".into())]
+        );
+        // A capital that only starts a sentence doesn't make a name.
+        assert_eq!(found("Thanks!", "Cheers!"), none);
+        assert_eq!(
+            found(
+                "it went well. More is coming soon",
+                "it went well. Lots is coming soon"
+            ),
+            none
+        );
+    }
+
+    #[test]
+    fn curly_apostrophes_are_not_corrections() {
+        assert!(found("don't ping Karen", "don’t ping Karen").is_empty());
+    }
+
+    #[test]
+    fn names_learned_as_themselves_are_added_once() {
+        let fix = |heard: &str, meant: &str| Correction {
+            heard: heard.into(),
+            meant: meant.into(),
+        };
+        let mut dictionary = Vec::new();
+        add_to_dictionary(&mut dictionary, &[fix("mower", "Moa")]);
+        assert!(add_to_dictionary(&mut dictionary, &[fix("Moa", "Moa")]).is_empty());
+        assert_eq!(dictionary.len(), 1);
+
+        // A later fix of a name learned as itself replaces it.
+        let mut dictionary = Vec::new();
+        add_to_dictionary(&mut dictionary, &[fix("Karen", "Karen")]);
+        assert_eq!(
+            add_to_dictionary(&mut dictionary, &[fix("Karen", "Karan")]).len(),
+            1
+        );
+        assert_eq!(dictionary.len(), 1);
+        assert_eq!(dictionary[0].replacement, "Karan");
+    }
+
+    #[test]
     fn new_capitals_replace_learned_ones() {
         let fix = |heard: &str, meant: &str| Correction {
             heard: heard.into(),
@@ -722,6 +884,12 @@ mod tests {
             Some("Karan said hi, and more")
         );
         assert!(Span::find("something else", "Karen said hi").is_none());
+        // Editors turn spaces into non-breaking ones and straighten or curl quotes.
+        let span = Span::find("Hi\u{a0}there,\n\nKaren said “hi”", "Karen said \"hi\"").unwrap();
+        assert_eq!(
+            span.edited("Hi\u{a0}there,\n\nKaran said “hi”"),
+            Some("Karan said “hi”")
+        );
         assert_eq!(last_chars("héllo", 3), "llo");
         assert_eq!(first_chars("héllo", 2), "hé");
         assert_eq!(first_chars("hi", 5), "hi");

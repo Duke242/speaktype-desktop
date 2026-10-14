@@ -12,8 +12,4 @@ impl FocusedField {
     pub fn text(&self) -> Option<String> {
         None
     }
-
-    pub fn is_focused(&self) -> bool {
-        false
-    }
 }
