@@ -5,6 +5,7 @@ use std::ffi::c_void;
 
 use core_foundation::{
     base::{CFType, CFTypeRef, TCFType},
+    boolean::CFBoolean,
     string::{CFString, CFStringRef},
 };
 
@@ -23,12 +24,16 @@ unsafe extern "C" {
         attribute: CFStringRef,
         value: *mut CFTypeRef,
     ) -> AXError;
+    fn AXUIElementSetAttributeValue(
+        element: AXUIElementRef,
+        attribute: CFStringRef,
+        value: CFTypeRef,
+    ) -> AXError;
     fn AXUIElementSetMessagingTimeout(element: AXUIElementRef, seconds: f32) -> AXError;
 }
 
 #[link(name = "CoreFoundation", kind = "framework")]
 unsafe extern "C" {
-    fn CFEqual(a: CFTypeRef, b: CFTypeRef) -> u8;
     fn CFRetain(value: CFTypeRef) -> CFTypeRef;
     fn CFRelease(value: CFTypeRef);
 }
@@ -56,6 +61,18 @@ impl Element {
         self.attribute(name)?
             .downcast_into::<CFString>()
             .map(|s| s.to_string())
+    }
+
+    fn set_true(&self, name: &'static str) {
+        let name = CFString::from_static_string(name);
+        // SAFETY: self.0 is a live AXUIElement; both values are valid CF objects.
+        unsafe {
+            AXUIElementSetAttributeValue(
+                self.0,
+                name.as_concrete_TypeRef(),
+                CFBoolean::true_value().as_CFTypeRef(),
+            )
+        };
     }
 
     fn focused(system: &Element) -> Option<Element> {
@@ -94,7 +111,6 @@ pub fn focused_window_title() -> Option<String> {
 
 /// The text field that had keyboard focus when this was created.
 pub struct FocusedField {
-    system: Element,
     field: Element,
 }
 
@@ -109,6 +125,11 @@ impl FocusedField {
         }
         // SAFETY: system.0 is a live AXUIElement.
         unsafe { AXUIElementSetMessagingTimeout(system.0, MESSAGING_TIMEOUT) };
+        // Chrome and Electron apps (Slack, VS Code, Discord…) only expose their
+        // text fields once asked to. Other apps ignore this.
+        if let Some(app) = system.attribute("AXFocusedApplication") {
+            Element::retained(app).set_true("AXManualAccessibility");
+        }
         let field = Element::focused(&system)?;
         if field.string("AXSubrole").as_deref() == Some("AXSecureTextField")
             || field.string("AXRole").as_deref() == Some("AXSecureTextField")
@@ -117,19 +138,11 @@ impl FocusedField {
         }
         // SAFETY: field.0 is a live AXUIElement.
         unsafe { AXUIElementSetMessagingTimeout(field.0, MESSAGING_TIMEOUT) };
-        Some(Self { system, field })
+        Some(Self { field })
     }
 
     /// The field's whole text, or `None` if it can't be read now.
     pub fn text(&self) -> Option<String> {
         self.field.string("AXValue")
-    }
-
-    /// Whether the field still has keyboard focus.
-    pub fn is_focused(&self) -> bool {
-        Element::focused(&self.system).is_some_and(|now| {
-            // SAFETY: both are live AXUIElements.
-            unsafe { CFEqual(now.0, self.field.0) != 0 }
-        })
     }
 }

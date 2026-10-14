@@ -7,6 +7,7 @@ import {
   Globe,
   Hand,
   Mic,
+  Pencil,
   Power,
   Settings,
   Square,
@@ -14,8 +15,19 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { LogoMark } from "@/components/brand/LogoMark";
-import { IconButton, Spinner } from "@/components/ui";
-import { api, type HistoryItem, type InputDevice } from "@/lib/api";
+import {
+  Button,
+  IconButton,
+  Spinner,
+  TextArea,
+  useToast,
+} from "@/components/ui";
+import {
+  api,
+  errorMessage,
+  type HistoryItem,
+  type InputDevice,
+} from "@/lib/api";
 import { cn } from "@/lib/cn";
 import {
   TYPING_WORDS_PER_MINUTE,
@@ -25,15 +37,27 @@ import {
   hotkeyParts,
   startOfDay,
 } from "@/lib/format";
-import { useCopy, useDictationState, useEngineStatus, useHistory, useNow } from "@/lib/hooks";
+import {
+  useCopy,
+  useDictationState,
+  useEngineStatus,
+  useHistory,
+  useNow,
+} from "@/lib/hooks";
 import { languageName } from "@/lib/languages";
-import { showLanguageMenu, showMicrophoneMenu, showModeMenu, showModelMenu } from "@/lib/menus";
+import {
+  showLanguageMenu,
+  showMicrophoneMenu,
+  showModeMenu,
+  showModelMenu,
+} from "@/lib/menus";
 import { useStore } from "@/lib/store";
 import { useApplyTheme } from "@/lib/theme";
+import { useLearnedToast } from "@/lib/useLearnedToast";
 
 const PANEL_WIDTH = 356;
 
-/** The panel that opens from the menu bar icon: dictate, glance at today, switch quickly, grab a recent transcript. */
+/** The panel that opens from the menu bar icon: dictate, glance at today, switch quickly, grab or fix a recent transcript. */
 export function TrayPanel() {
   const { settings } = useStore();
   const container = useRef<HTMLDivElement>(null);
@@ -44,14 +68,17 @@ export function TrayPanel() {
     const element = container.current;
     if (!element) return;
     const observer = new ResizeObserver(() => {
-      getCurrentWindow().setSize(new LogicalSize(PANEL_WIDTH, Math.ceil(element.offsetHeight)));
+      getCurrentWindow().setSize(
+        new LogicalSize(PANEL_WIDTH, Math.ceil(element.offsetHeight)),
+      );
     });
     observer.observe(element);
     return () => observer.disconnect();
   }, []);
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && api.hideTrayPanel();
+    const onKey = (e: KeyboardEvent) =>
+      e.key === "Escape" && api.hideTrayPanel();
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
@@ -76,13 +103,21 @@ function Header() {
   const recording = dictation.phase === "recording";
   const transcribing = dictation.phase === "transcribing";
   const now = useNow(500, recording);
-  const model = models.find((m) => m.id === settings.selectedModel && m.downloaded);
+  const model = models.find(
+    (m) => m.id === settings.selectedModel && m.downloaded,
+  );
 
   let status: { dot: string; label: string };
-  if (recording) status = { dot: "bg-recording animate-pulse", label: `Recording ${formatClock((now - dictation.startedAtMs) / 1000)}` };
-  else if (transcribing) status = { dot: "bg-ink-muted", label: "Transcribing…" };
+  if (recording)
+    status = {
+      dot: "bg-recording animate-pulse",
+      label: `Recording ${formatClock((now - dictation.startedAtMs) / 1000)}`,
+    };
+  else if (transcribing)
+    status = { dot: "bg-ink-muted", label: "Transcribing…" };
   else if (!model) status = { dot: "bg-warning", label: "No model" };
-  else if (engine.loading === model.id) status = { dot: "bg-ink-muted", label: "Loading model…" };
+  else if (engine.loading === model.id)
+    status = { dot: "bg-ink-muted", label: "Loading model…" };
   else status = { dot: "bg-success", label: "Ready" };
 
   const hotkey = hotkeyParts(settings.hotkey).join(" ");
@@ -94,7 +129,9 @@ function Header() {
         <LogoMark className="size-7" />
         <div className="min-w-0 flex-1">
           <div className="type-label">Wordfall</div>
-          <div className="truncate type-caption text-ink-muted">{model ? model.name : "Download a model to start"}</div>
+          <div className="truncate type-caption text-ink-muted">
+            {model ? model.name : "Download a model to start"}
+          </div>
         </div>
         <span className="flex h-6 items-center gap-1.5 rounded-full border border-line bg-surface/70 px-2.5 type-caption font-medium text-ink-secondary tabular-nums">
           <span className={cn("size-1.5 rounded-full", status.dot)} />
@@ -116,7 +153,8 @@ function Header() {
           onClick={() => api.toggleDictation()}
           className="mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-card bg-primary type-label text-on-primary transition-colors hover:bg-primary-hover"
         >
-          <Square size={14} fill="currentColor" className="text-recording" /> Stop and paste
+          <Square size={14} fill="currentColor" className="text-recording" />{" "}
+          Stop and paste
         </button>
       ) : transcribing ? (
         <div className="mt-4 flex h-11 w-full items-center justify-center gap-2 rounded-card bg-hover type-label text-ink-secondary">
@@ -147,15 +185,21 @@ function Today() {
   const words = today.reduce((sum, s) => sum + s.wordCount, 0);
   const minutesSaved = Math.round(words / TYPING_WORDS_PER_MINUTE);
 
-  const saved = minutesSaved < 60 ? `${minutesSaved} min` : `${Math.floor(minutesSaved / 60)}h ${minutesSaved % 60}m`;
+  const saved =
+    minutesSaved < 60
+      ? `${minutesSaved} min`
+      : `${Math.floor(minutesSaved / 60)}h ${minutesSaved % 60}m`;
   // One quiet line, like the dashboard's.
   return (
     <p className="flex justify-center gap-4 border-y border-line-subtle px-4 py-2.5 type-caption text-ink-muted">
       <span>
-        <b className="font-bold text-ink tabular-nums">{formatNumber(words)}</b> words today
+        <b className="font-bold text-ink tabular-nums">{formatNumber(words)}</b>{" "}
+        words today
       </span>
       <span>
-        <b className="font-bold text-ink tabular-nums">{formatNumber(today.length)}</b>{" "}
+        <b className="font-bold text-ink tabular-nums">
+          {formatNumber(today.length)}
+        </b>{" "}
         {today.length === 1 ? "dictation" : "dictations"}
       </span>
       <span>
@@ -175,14 +219,39 @@ function QuickSettings() {
   const model = models.find((m) => m.id === settings.selectedModel);
   const device = devices.find((d) => d.id === settings.inputDevice);
 
-  const rows: { icon: LucideIcon; label: string; value: string; onClick: () => void }[] = [
-    { icon: Cpu, label: "Model", value: model?.name ?? "None", onClick: () => showModelMenu(settings) },
-    { icon: Globe, label: "Language", value: settings.language === "auto" ? "Auto-detect" : languageName(settings.language), onClick: () => showLanguageMenu(settings) },
-    { icon: Mic, label: "Microphone", value: device?.name ?? "System default", onClick: () => showMicrophoneMenu(settings) },
+  const rows: {
+    icon: LucideIcon;
+    label: string;
+    value: string;
+    onClick: () => void;
+  }[] = [
+    {
+      icon: Cpu,
+      label: "Model",
+      value: model?.name ?? "None",
+      onClick: () => showModelMenu(settings),
+    },
+    {
+      icon: Globe,
+      label: "Language",
+      value:
+        settings.language === "auto"
+          ? "Auto-detect"
+          : languageName(settings.language),
+      onClick: () => showLanguageMenu(settings),
+    },
+    {
+      icon: Mic,
+      label: "Microphone",
+      value: device?.name ?? "System default",
+      onClick: () => showMicrophoneMenu(settings),
+    },
     {
       icon: Hand,
       label: "Mode",
-      value: { hold: "Hold to talk", toggle: "Toggle", hybrid: "Hold or tap" }[settings.recordingMode],
+      value: { hold: "Hold to talk", toggle: "Toggle", hybrid: "Hold or tap" }[
+        settings.recordingMode
+      ],
       onClick: () => showModeMenu(settings),
     },
   ];
@@ -197,8 +266,12 @@ function QuickSettings() {
           className="flex h-9 w-full items-center gap-3 px-4 text-left transition-colors hover:bg-hover"
         >
           <Icon size={15} className="shrink-0 text-ink-muted" />
-          <span className="w-24 shrink-0 type-small text-ink-secondary">{label}</span>
-          <span className="min-w-0 flex-1 truncate text-right type-small font-medium">{value}</span>
+          <span className="w-24 shrink-0 type-small text-ink-secondary">
+            {label}
+          </span>
+          <span className="min-w-0 flex-1 truncate text-right type-small font-medium">
+            {value}
+          </span>
           <ChevronsUpDown size={13} className="shrink-0 text-ink-muted" />
         </button>
       ))}
@@ -210,12 +283,15 @@ function Recent() {
   const { items } = useHistory();
   const now = useNow(60_000);
   const { copy, copiedKey } = useCopy();
+  const [editing, setEditing] = useState<string | null>(null);
   const recent = (items ?? []).slice(0, 3);
 
   return (
     <div className="border-b border-line-subtle pb-1.5">
       <div className="flex items-center px-4 pt-3 pb-1">
-        <span className="flex-1 type-overline text-ink-muted">Recently said</span>
+        <span className="flex-1 type-overline text-ink-muted">
+          Recently said
+        </span>
         {recent.length > 0 && (
           <button
             type="button"
@@ -227,17 +303,28 @@ function Recent() {
         )}
       </div>
       {recent.length === 0 ? (
-        <p className="px-4 pt-1 pb-3 type-small text-ink-muted">Your latest dictations will show up here.</p>
+        <p className="px-4 pt-1 pb-3 type-small text-ink-muted">
+          Your latest dictations will show up here.
+        </p>
       ) : (
-        recent.map((item) => (
-          <RecentItem
-            key={item.id}
-            item={item}
-            now={now}
-            copied={copiedKey === item.id}
-            onCopy={() => copy(item.transcript, item.id)}
-          />
-        ))
+        recent.map((item) =>
+          editing === item.id ? (
+            <RecentEditor
+              key={item.id}
+              item={item}
+              onDone={() => setEditing(null)}
+            />
+          ) : (
+            <RecentItem
+              key={item.id}
+              item={item}
+              now={now}
+              copied={copiedKey === item.id}
+              onCopy={() => copy(item.transcript, item.id)}
+              onEdit={() => setEditing(item.id)}
+            />
+          ),
+        )
       )}
     </div>
   );
@@ -248,38 +335,126 @@ function RecentItem({
   now,
   copied,
   onCopy,
+  onEdit,
 }: {
   item: HistoryItem;
   now: number;
   copied: boolean;
   onCopy: () => void;
+  onEdit: () => void;
 }) {
   return (
-    <button
-      type="button"
-      onClick={onCopy}
-      title="Copy"
-      className="group flex w-full items-start gap-3 px-4 py-2 text-left transition-colors hover:bg-hover"
-    >
-      <span className="min-w-0 flex-1">
-        <span className="line-clamp-2 type-small text-ink">{item.transcript}</span>
-        <span className="type-caption text-ink-muted">{formatRelative(item.createdAt, now)}</span>
-      </span>
-      <span
-        className={cn(
-          "mt-0.5 flex h-5 shrink-0 items-center gap-1 type-caption font-medium transition-opacity",
-          copied ? "text-success" : "text-ink-secondary opacity-0 group-hover:opacity-100",
-        )}
+    <div className="group relative">
+      <button
+        type="button"
+        onClick={onCopy}
+        title="Copy"
+        className="flex w-full items-start gap-3 py-2 pr-11 pl-4 text-left transition-colors hover:bg-hover"
       >
-        {copied ? (
-          <>
-            <Check size={12} /> Copied
-          </>
-        ) : (
-          "Copy"
-        )}
-      </span>
-    </button>
+        <span className="min-w-0 flex-1">
+          <span className="line-clamp-2 type-small text-ink">
+            {item.transcript}
+          </span>
+          <span className="type-caption text-ink-muted">
+            {formatRelative(item.createdAt, now)}
+          </span>
+        </span>
+        <span
+          className={cn(
+            "mt-0.5 flex h-5 shrink-0 items-center gap-1 type-caption font-medium transition-opacity",
+            copied
+              ? "text-success"
+              : "text-ink-secondary opacity-0 group-hover:opacity-100",
+          )}
+        >
+          {copied ? (
+            <>
+              <Check size={12} /> Copied
+            </>
+          ) : (
+            "Copy"
+          )}
+        </span>
+      </button>
+      <IconButton
+        icon={Pencil}
+        label="Fix transcript"
+        size="sm"
+        onClick={onEdit}
+        className="absolute top-1 right-2 opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+      />
+    </div>
+  );
+}
+
+/** Fixes a misheard word in place. Saving teaches Wordfall the names and terms corrected, as in History. */
+function RecentEditor({
+  item,
+  onDone,
+}: {
+  item: HistoryItem;
+  onDone: () => void;
+}) {
+  const { settings } = useStore();
+  const toast = useToast();
+  const showLearned = useLearnedToast();
+  const [draft, setDraft] = useState(item.transcript);
+  const [saving, setSaving] = useState(false);
+  const changed = draft.trim() !== "" && draft.trim() !== item.transcript;
+
+  const save = async () => {
+    if (!changed) return;
+    setSaving(true);
+    try {
+      const learned = await api.editHistoryItem(item.id, draft.trim());
+      if (learned.length > 0) showLearned(learned);
+      else toast("Transcript saved");
+      onDone();
+    } catch (e) {
+      toast(errorMessage(e), "error");
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="px-4 py-2">
+      <TextArea
+        aria-label="Transcript"
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) save();
+          // Escape closes the editor, not the panel.
+          if (e.key === "Escape") {
+            e.stopPropagation();
+            onDone();
+          }
+        }}
+        rows={Math.min(6, Math.max(2, Math.ceil(item.transcript.length / 40)))}
+        className="type-small"
+        autoFocus
+      />
+      <p className="mt-1.5 type-caption text-ink-muted">
+        {settings.learnCorrections
+          ? "Fix any misheard words. Names and terms you correct are spelled right next time."
+          : "Fix any misheard words. Learning from corrections is off in Settings."}
+      </p>
+      <div className="mt-2 flex items-center gap-2">
+        <Button
+          size="sm"
+          variant="accent"
+          icon={Check}
+          loading={saving}
+          disabled={!changed}
+          onClick={save}
+        >
+          Save
+        </Button>
+        <Button size="sm" variant="ghost" onClick={onDone} disabled={saving}>
+          Cancel
+        </Button>
+      </div>
+    </div>
   );
 }
 
@@ -294,8 +469,18 @@ function Footer() {
         Open Wordfall <ArrowUpRight size={14} />
       </button>
       <span className="flex-1" />
-      <IconButton icon={Settings} label="Settings" size="sm" onClick={() => api.openMainWindow("settings")} />
-      <IconButton icon={Power} label="Quit Wordfall" size="sm" onClick={() => api.quitApp()} />
+      <IconButton
+        icon={Settings}
+        label="Settings"
+        size="sm"
+        onClick={() => api.openMainWindow("settings")}
+      />
+      <IconButton
+        icon={Power}
+        label="Quit Wordfall"
+        size="sm"
+        onClick={() => api.quitApp()}
+      />
     </div>
   );
 }

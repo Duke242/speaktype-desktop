@@ -30,7 +30,7 @@ impl Drop for Com {
 /// The text field that had keyboard focus when this was created. COM objects
 /// are dropped before COM is uninitialized, as fields drop in order.
 pub struct FocusedField {
-    automation: IUIAutomation,
+    _automation: IUIAutomation,
     field: IUIAutomationElement,
     _com: Com,
 }
@@ -52,7 +52,7 @@ impl FocusedField {
             return None;
         }
         Some(Self {
-            automation,
+            _automation: automation,
             field,
             _com: com,
         })
@@ -81,17 +81,6 @@ impl FocusedField {
                     .ok()?
                     .to_string(),
             )
-        }
-    }
-
-    /// Whether the field still has keyboard focus.
-    pub fn is_focused(&self) -> bool {
-        // SAFETY: plain UI Automation calls on live objects.
-        unsafe {
-            self.automation
-                .GetFocusedElement()
-                .and_then(|now| self.automation.CompareElements(&self.field, &now))
-                .is_ok_and(|same| same.as_bool())
         }
     }
 }
