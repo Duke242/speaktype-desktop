@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>WordFlow — Brand Kit</title>
+<style>
+  @font-face { font-family: "Inter"; src: url("../src/assets/fonts/InterVariable.woff2") format("woff2"); font-weight: 100 900; }
+  :root {
+    --navy: #0b1a30; --blue: #1f5fd6; --sky: #3a86ee; --deep: #0a1d47; --glow: #8fd0ff;
+    --mist: #eef3fa; --surface: #fcfdff; --line: #dae3ef; --ink2: #3d4f6b; --muted: #536581;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Inter, sans-serif; color: var(--navy); background: var(--surface); -webkit-font-smoothing: antialiased; font-optical-sizing: auto; }
+  section { padding: 88px 96px; border-bottom: 1px solid var(--line); }
+  .eyebrow { font-size: 12px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--blue); margin-bottom: 12px; }
+  h2 { font-size: 40px; font-weight: 600; letter-spacing: -0.03em; margin-bottom: 12px; }
+  .lede { font-size: 17px; line-height: 27px; color: var(--ink2); max-width: 640px; margin-bottom: 44px; }
+  h3 { font-size: 15px; font-weight: 600; margin-bottom: 14px; }
+  .note { font-size: 13px; color: var(--muted); line-height: 19px; margin-top: 10px; }
+  .grid { display: grid; gap: 20px; }
+  .tile { border: 1px solid var(--line); border-radius: 18px; display: grid; place-items: center; position: relative; overflow: hidden; }
+  code { font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
+
+  /* Waves */
+  .waves { position: absolute; left: 0; right: 0; height: 140px; overflow: hidden;
+    -webkit-mask-image: linear-gradient(90deg, transparent, #000 18%, #000 82%, transparent); }
+  .waves svg { width: 100%; height: 100%; }
+  .waves path { animation: drift linear infinite; }
+  @keyframes drift { to { transform: translateX(-1124px); } }
+  @keyframes ripple { 0%,100% { transform: scale(.97); opacity: .55; } 50% { transform: scale(1.04); opacity: 1; } }
+
+  /* Cover */
+  .cover { min-height: 640px; position: relative; overflow: hidden; color: #fff; text-align: center; display: grid; place-items: center;
+    background: radial-gradient(90% 70% at 50% -10%, rgb(124 182 255 / .35), transparent 70%), linear-gradient(180deg, #11305c, #0b2047 45%, #081833); }
+  .cover .waves { top: 50%; transform: translateY(-50%); color: var(--glow); }
+  .cover .logo { width: 132px; height: 132px; position: relative; z-index: 1; }
+  .cover h1 { font-size: 76px; font-weight: 600; letter-spacing: -0.045em; margin-top: 28px; position: relative; }
+  .cover p { font-size: 20px; color: #b9cbe6; margin-top: 10px; position: relative; }
+  .cover .kit { position: absolute; top: 32px; left: 40px; font-size: 13px; letter-spacing: .12em; text-transform: uppercase; color: #8fb3e3; }
+  .cover .ver { position: absolute; top: 32px; right: 40px; font-size: 13px; color: #8fb3e3; }
+
+  /* Logo */
+  .lockup { display: flex; align-items: center; gap: 18px; }
+  .lockup img { width: 64px; height: 64px; }
+  .lockup span { font-size: 46px; font-weight: 600; letter-spacing: -0.04em; }
+  .clear { position: relative; padding: 36px; outline: 1.5px dashed #9fb6d8; outline-offset: 0; border-radius: 4px; }
+  .dont { aspect-ratio: 1.3; }
+  .dont .x { position: absolute; top: 12px; left: 14px; color: #bf2535; font-size: 13px; font-weight: 600; }
+
+  /* Color */
+  .sw { border-radius: 16px; overflow: hidden; border: 1px solid var(--line); }
+  .sw .c { height: 130px; padding: 14px; display: flex; align-items: flex-end; font-size: 12px; font-weight: 600; }
+  .sw .m { padding: 14px; font-size: 13px; line-height: 20px; }
+  .sw .m b { display: block; font-size: 14px; }
+  .sw .m span { color: var(--muted); }
+  .bar { display: flex; height: 18px; border-radius: 9px; overflow: hidden; margin-top: 28px; border: 1px solid var(--line); }
+
+  /* Type */
+  .spec { display: grid; grid-template-columns: 180px 1fr; align-items: baseline; padding: 18px 0; border-top: 1px solid var(--line); }
+  .spec .k { font-size: 12px; color: var(--muted); line-height: 18px; }
+  .spec .k b { color: var(--navy); font-weight: 600; display: block; font-size: 13px; }
+
+  /* UI */
+  .keycap { width: 92px; height: 92px; border-radius: 18px; background: var(--surface); border: 1px solid #c2d0e2; display: grid; place-items: center;
+    font-size: 32px; font-weight: 500; box-shadow: 0 1px 0 #c2d0e2, 0 10px 30px -8px rgb(13 35 70 / .25); position: relative; }
+  .ring { position: absolute; border-radius: 50%; border: 1px solid rgb(31 95 214 / .2); animation: ripple 5.4s ease-in-out infinite; }
+  .btn { display: inline-flex; align-items: center; gap: 8px; height: 38px; padding: 0 18px; border-radius: 9px; font-size: 14px; font-weight: 600; }
+  .btn.p { background: linear-gradient(180deg, #2b6be0, #1c56c6); color: #fff; box-shadow: 0 1px 2px rgb(13 35 70 / .2); }
+  .btn.g { border: 1px solid var(--line); background: #fff; }
+  .status { display: inline-flex; gap: 18px; align-items: center; border: 1px solid var(--line); background: #fff; border-radius: 999px; padding: 8px 18px; font-size: 13px; font-weight: 500; color: var(--muted); box-shadow: 0 4px 14px -6px rgb(13 35 70 / .08); }
+  .status b { color: var(--navy); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; background: #0a7255; box-shadow: 0 0 0 4px rgb(16 160 120 / .12); display: inline-block; }
+
+  /* Voice */
+  .say { border-radius: 16px; padding: 22px; font-size: 15px; line-height: 23px; }
+  .say.do { background: #eaf6f1; } .say.no { background: #fbecee; }
+  .say small { display: block; font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; margin-bottom: 10px; }
+  .say.do small { color: #0a7255; } .say.no small { color: #bf2535; }
+  .say p + p { margin-top: 10px; }
+</style>
+</head>
+<body>
+
+<!-- Cover -->
+<header class="cover">
+  <div class="kit">Brand Kit</div><div class="ver">v2.0 · October 2026</div>
+  <div class="waves" data-waves></div>
+  <div>
+    <img class="logo" src="logo/wordflow-icon.svg" alt="WordFlow">
+    <h1>WordFlow</h1>
+    <p>Hold a key and talk.</p>
+  </div>
+</header>
+
+<!-- Essence -->
+<section>
+  <div class="eyebrow">01 · Essence</div>
+  <h2>Calm focus.</h2>
+  <p class="lede">WordFlow turns speech into text wherever your cursor is, privately, on your own machine. The brand should feel like that experience: quiet, fluid and trustworthy. Words flow like water. Nothing shouts.</p>
+  <div class="grid" style="grid-template-columns: repeat(3, 1fr)">
+    <div><h3>Fluid</h3><p class="note">Soft gradients, drifting waves, gentle motion. Speech becomes text without friction.</p></div>
+    <div><h3>Private</h3><p class="note">Deep, steady blues. Everything stays on your device, and the brand says so plainly.</p></div>
+    <div><h3>Quiet</h3><p class="note">Generous space, one accent color, light type. The work is the user's words, not our UI.</p></div>
+  </div>
+</section>
+
+<!-- Logo -->
+<section>
+  <div class="eyebrow">02 · Logo</div>
+  <h2>A W that flows.</h2>
+  <p class="lede">One unbroken ribbon, shaped like a "W", rides on teal-to-blue water: speech running smoothly into words. Use the app icon wherever possible; use the bare mark when the tile would clash. The name is always <b>WordFlow</b>, with a capital F.</p>
+
+  <div class="grid" style="grid-template-columns: 1fr 1fr; margin-bottom: 20px">
+    <div class="tile" style="height: 260px; background: var(--mist)">
+      <div class="lockup"><img src="logo/wordflow-icon.svg" alt=""><span>WordFlow</span></div>
+    </div>
+    <div class="tile" style="height: 260px; background: var(--navy); color: #fff">
+      <div class="lockup"><img src="logo/wordflow-icon.svg" alt=""><span>WordFlow</span></div>
+    </div>
+  </div>
+  <div class="grid" style="grid-template-columns: repeat(4, 1fr)">
+    <div class="tile" style="height: 180px; background: #fff"><img src="logo/wordflow-icon.svg" style="width: 120px" alt=""></div>
+    <div class="tile" style="height: 180px; background: #fff"><img src="logo/wordflow-mark-teal.svg" style="width: 96px" alt=""></div>
+    <div class="tile" style="height: 180px; background: linear-gradient(135deg, #86e2d8, #56b8de 50%, #3a7cbf)"><img src="logo/wordflow-mark-white.svg" style="width: 96px" alt=""></div>
+    <div class="tile" style="height: 180px; background: var(--mist)"><img src="logo/wordflow-mark-navy.svg" style="width: 96px" alt=""></div>
+  </div>
+  <p class="note">App icon · Mark in Lagoon Blue · Mark reversed · Mark in Navy. Files in <code>brand/logo/</code>.</p>
+
+  <div class="grid" style="grid-template-columns: 1fr 1fr; margin-top: 44px; align-items: start">
+    <div>
+      <h3>Clear space &amp; size</h3>
+      <div class="tile" style="height: 220px; background: #fff">
+        <div class="clear"><div class="lockup"><img src="logo/wordflow-icon.svg" style="width: 48px; height: 48px" alt=""><span style="font-size: 34px">WordFlow</span></div></div>
+      </div>
+      <p class="note">Keep clear space equal to half the icon's height on every side. Smallest sizes: icon 16 px, lockup 96 px wide. The wordmark is Inter SemiBold, −4% tracking, set at 0.7× the icon's height.</p>
+    </div>
+    <div>
+      <h3>Don't</h3>
+      <div class="grid" style="grid-template-columns: repeat(3, 1fr); gap: 10px">
+        <div class="tile dont" style="background:#fff"><span class="x">✕ Stretch</span><img src="logo/wordflow-icon.svg" style="width: 56px; transform: scaleX(1.7)" alt=""></div>
+        <div class="tile dont" style="background:#fff"><span class="x">✕ Recolor</span><img src="logo/wordflow-icon.svg" style="width: 60px; filter: hue-rotate(140deg)" alt=""></div>
+        <div class="tile dont" style="background:#fff"><span class="x">✕ Rotate</span><img src="logo/wordflow-icon.svg" style="width: 60px; transform: rotate(-18deg)" alt=""></div>
+        <div class="tile dont" style="background: linear-gradient(135deg, #ff9a5a, #e93d82)"><span class="x" style="color:#fff">✕ Busy bg</span><img src="logo/wordflow-mark-white.svg" style="width: 56px" alt=""></div>
+        <div class="tile dont" style="background:#fff"><span class="x">✕ Effects</span><img src="logo/wordflow-icon.svg" style="width: 60px; filter: drop-shadow(6px 6px 0 #f5b400)" alt=""></div>
+        <div class="tile dont" style="background:#fff"><span class="x">✕ Retype</span><span style="font: italic 700 22px Georgia; color: var(--blue)">Wordflow</span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Color -->
+<section>
+  <div class="eyebrow">03 · Color</div>
+  <h2>Deep water, pale sky.</h2>
+  <p class="lede">One strong blue does the work. Everything else is navy ink and blue-tinted neutrals. Status colors appear only to report status.</p>
+  <div class="grid" style="grid-template-columns: repeat(4, 1fr)">
+    <div class="sw"><div class="c" style="background:#1f5fd6;color:#fff">Primary</div><div class="m"><b>WordFlow Blue</b>#1F5FD6<br><span>Actions, links, data</span></div></div>
+    <div class="sw"><div class="c" style="background:#0b1a30;color:#fff">Ink</div><div class="m"><b>Deep Navy</b>#0B1A30<br><span>Text, dark surfaces</span></div></div>
+    <div class="sw"><div class="c" style="background:#eef3fa">Background</div><div class="m"><b>Mist</b>#EEF3FA<br><span>Page, light canvas</span></div></div>
+    <div class="sw"><div class="c" style="background:#fcfdff">Surface</div><div class="m"><b>Foam</b>#FCFDFF<br><span>Cards, keycaps, panels</span></div></div>
+    <div class="sw"><div class="c" style="background:linear-gradient(135deg,#86e2d8,#56b8de 50%,#3a7cbf);color:#fff">Brand gradient</div><div class="m"><b>Lagoon</b>#86E2D8 → #56B8DE → #3A7CBF<br><span>App icon, brand moments</span></div></div>
+    <div class="sw"><div class="c" style="background:#3a9fcf;color:#fff">Brand mark</div><div class="m"><b>Lagoon Blue</b>#3A9FCF<br><span>The bare mark on light</span></div></div>
+    <div class="sw"><div class="c" style="background:#8fd0ff">On navy</div><div class="m"><b>Glow</b>#8FD0FF<br><span>Accents on dark</span></div></div>
+    <div class="sw"><div class="c" style="background:#3d4f6b;color:#fff">Secondary ink</div><div class="m"><b>Slate</b>#3D4F6B<br><span>Supporting text</span></div></div>
+  </div>
+  <div class="bar"><div style="flex:6;background:#eef3fa"></div><div style="flex:2;background:#fcfdff"></div><div style="flex:1.2;background:#0b1a30"></div><div style="flex:.6;background:#1f5fd6"></div><div style="flex:.2;background:#8fd0ff"></div></div>
+  <p class="note">Rough proportions: mostly Mist and Foam, Navy for words, Blue used sparingly. Brand gradient: <code>#86E2D8 → #56B8DE → #3A7CBF</code>, top-left to bottom-right. It belongs to the icon and brand moments; the app UI stays in WordFlow Blue.</p>
+  <h3 style="margin-top: 36px">Status only</h3>
+  <div style="display:flex; gap:10px; font-size:13px; font-weight:600">
+    <span style="background:rgb(16 160 120/.12);color:#0a7255;padding:6px 12px;border-radius:8px">Success #0A7255</span>
+    <span style="background:rgb(245 158 11/.13);color:#9a4b08;padding:6px 12px;border-radius:8px">Warning #9A4B08</span>
+    <span style="background:rgb(220 50 70/.1);color:#bf2535;padding:6px 12px;border-radius:8px">Danger #BF2535</span>
+    <span style="background:#081429;color:#b4e1ff;padding:6px 12px;border-radius:8px">Recorder pill #081429</span>
+    <span style="background:rgb(255 90 95/.12);color:#d83a40;padding:6px 12px;border-radius:8px">Recording #FF5A5F</span>
+  </div>
+</section>
+
+<!-- Type -->
+<section>
+  <div class="eyebrow">04 · Typography</div>
+  <h2>Inter, and only Inter.</h2>
+  <p class="lede">One typeface everywhere: app, site, social. Large text is light and tightly tracked; small text is regular and open. Inter is free under the SIL Open Font License.</p>
+  <div style="font-size: 120px; font-weight: 600; letter-spacing: -0.05em; line-height: 1; margin-bottom: 20px">Aa</div>
+  <div class="spec"><div class="k"><b>Display</b>44 / 52 · Medium · −2.5%</div><div style="font-size:44px;line-height:52px;font-weight:500;letter-spacing:-.025em">Hold fn and talk.</div></div>
+  <div class="spec"><div class="k"><b>Title</b>32 / 40 · Medium · −2.2%</div><div style="font-size:32px;line-height:40px;font-weight:500;letter-spacing:-.022em">Recently said</div></div>
+  <div class="spec"><div class="k"><b>Metric</b>26 / 32 · Bold · tabular</div><div style="font-size:26px;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums">5,210 words</div></div>
+  <div class="spec"><div class="k"><b>Feed</b>16 / 25 · Regular · −1.1%</div><div style="font-size:16px;line-height:25px;letter-spacing:-.011em">Let's move the design review to Thursday afternoon so the whole team can make it.</div></div>
+  <div class="spec"><div class="k"><b>Body</b>14 / 21 · Regular</div><div style="font-size:14px;line-height:21px;color:var(--ink2)">Your words are typed wherever your cursor is. Nothing leaves this Mac.</div></div>
+  <div class="spec"><div class="k"><b>Overline</b>12 / 16 · Bold · +8% · caps</div><div style="font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)">Recently said</div></div>
+</section>
+
+<!-- Motif & motion -->
+<section>
+  <div class="eyebrow">05 · Motif &amp; motion</div>
+  <h2>Waves and ripples.</h2>
+  <p class="lede">Two brand motifs, both from water. Waves drift sideways behind hero moments; ripples swell around the hotkey. Motion is slow, constant and never bouncy, and it stops when the user asks for reduced motion.</p>
+  <div class="tile" style="height: 300px; background: radial-gradient(60% 55% at 50% 50%, rgb(124 182 255 / .22), transparent 70%), linear-gradient(180deg, #f7faff, #e7eef8)">
+    <div class="waves" data-waves style="top: 50%; transform: translateY(-50%); color: #2f6fdc"></div>
+    <div class="keycap">
+      <span class="ring" style="inset:-33px"></span><span class="ring" style="inset:-68px;animation-delay:-1.8s;border-color:rgb(31 95 214/.13)"></span><span class="ring" style="inset:-108px;animation-delay:-3.6s;border-color:rgb(31 95 214/.07)"></span>
+      fn
+    </div>
+  </div>
+  <div class="grid" style="grid-template-columns: repeat(3, 1fr); margin-top: 20px">
+    <div><h3>Drift</h3><p class="note">Three sine waves, 2 / 3 / 4 crests. Loops of 12 s, 16 s, 21 s, linear; the middle wave runs the other way. Opacity 30% / 18% / 11%. Edges fade out.</p></div>
+    <div><h3>Ripple</h3><p class="note">Three rings around the key, 5.4 s ease-in-out, scaling 0.97 → 1.04, staggered by 1.8 s.</p></div>
+    <div><h3>UI motion</h3><p class="note">150–200 ms, ease <code>cubic-bezier(.2,.9,.3,1)</code>. Things fade and rise 4 px into place.</p></div>
+  </div>
+</section>
+
+<!-- UI -->
+<section>
+  <div class="eyebrow">06 · Interface</div>
+  <h2>Soft, raised, quiet.</h2>
+  <p class="lede">Four radii, two shadows. Lists use hairlines, not boxes. Strong shadows only for things that float.</p>
+  <div style="display:flex; gap: 14px; align-items:center; flex-wrap: wrap; margin-bottom: 28px">
+    <span class="btn p">Choose a model</span><span class="btn g">Open Settings</span>
+    <span class="status"><span><span class="dot"></span>&nbsp; Ready · Whisper Small</span><span><b>9</b> today</span><span><b>5,210</b> words</span><span><b>130m</b> saved</span></span>
+  </div>
+  <div class="grid" style="grid-template-columns: repeat(4, 1fr)">
+    <div><div style="height:70px;border:1px solid var(--line);border-radius:6px;background:#fff"></div><p class="note"><b>Inner</b> · 6 px</p></div>
+    <div><div style="height:70px;border:1px solid var(--line);border-radius:9px;background:#fff"></div><p class="note"><b>Control</b> · 9 px</p></div>
+    <div><div style="height:70px;border:1px solid var(--line);border-radius:14px;background:#fff"></div><p class="note"><b>Card</b> · 14 px</p></div>
+    <div><div style="height:70px;border:1px solid var(--line);border-radius:18px;background:#fff"></div><p class="note"><b>Panel</b> · 18 px</p></div>
+  </div>
+</section>
+
+<!-- Voice -->
+<section>
+  <div class="eyebrow">07 · Voice</div>
+  <h2>Say less. Mean it.</h2>
+  <p class="lede">Short, plain sentences. Talk about what the user gets, not how it works. Be reassuring about privacy without making a big deal of it.</p>
+  <div class="grid" style="grid-template-columns: 1fr 1fr">
+    <div class="say do"><small>Do</small><p>Hold fn and talk.</p><p>Nothing leaves this Mac.</p><p>Learned "Kubernetes". It'll be spelled right from now on.</p></div>
+    <div class="say no"><small>Don't</small><p>Unleash the power of AI-driven voice productivity!</p><p>Our on-device neural engine leverages local inference.</p><p>Dictionary entry successfully created.</p></div>
+  </div>
+</section>
+
+<script>
+  // The drifting waves, as in the app's HeroWaves.
+  const W = 1124;
+  const waves = [[2, 11, 60, .3, 12, false], [3, 9, 67, .18, 16, true], [4, 7, 53, .11, 21, false]];
+  const path = (crests, h, y) => {
+    const p = W / crests;
+    let d = `M0 ${y} Q ${p / 4} ${y - h * 2} ${p / 2} ${y}`;
+    for (let x = p; x <= W * 2; x += p / 2) d += ` T ${x} ${y}`;
+    return d;
+  };
+  document.querySelectorAll("[data-waves]").forEach((el) => {
+    el.innerHTML = `<svg viewBox="0 0 ${W} 120" preserveAspectRatio="none" fill="none" stroke="currentColor" stroke-width="1.5">${waves
+      .map(([c, h, y, o, s, r]) => `<path d="${path(c, h, y)}" stroke-opacity="${el.closest(".cover") ? o * 1.8 : o}" vector-effect="non-scaling-stroke" style="animation-duration:${s}s;animation-direction:${r ? "reverse" : "normal"}"/>`)
+      .join("")}</svg>`;
+  });
+</script>
+</body>
+</html>
