@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import { cn } from "@/lib/cn";
 import { hotkeyParts } from "@/lib/format";
 
@@ -37,33 +38,64 @@ export function KeyRipple({ hotkey, className }: { hotkey: string; className?: s
   );
 }
 
-/** Three slow waves drawn across the hero, behind the keycap. */
+/** The hero's width in SVG units; every wave repeats a whole number of times across it. */
+const WAVE_WIDTH = 1124;
+
+/**
+ * The hero's waves, faintest last: how many crests fit across, how tall they
+ * are, how long one full drift takes, and which way it goes.
+ */
+const WAVES = [
+  { crests: 2, height: 11, y: 60, opacity: 0.3, seconds: 12, reverse: false },
+  { crests: 3, height: 9, y: 67, opacity: 0.18, seconds: 16, reverse: true },
+  { crests: 4, height: 7, y: 53, opacity: 0.11, seconds: 21, reverse: false },
+];
+
+/** A sine-like wave across two hero widths, so sliding it one width left loops without a seam. */
+function wavePath(crests: number, height: number, y: number) {
+  const half = WAVE_WIDTH / crests / 2;
+  let d = `M0 ${y} Q ${half / 2} ${y - height * 2} ${half} ${y}`;
+  // Count half-waves rather than adding up floats, so the path always ends exactly at two widths.
+  for (let i = 2; i <= crests * 4; i++) d += ` T ${i * half} ${y}`;
+  return d;
+}
+
+/**
+ * Three slow waves behind the keycap that drift sideways at different speeds,
+ * crossing as they go. Still if the user prefers reduced motion.
+ *
+ * Each wave is drawn twice as wide as the hero in its own layer, and the layer
+ * slides half its width. Moving an HTML layer rather than the SVG path lets the
+ * webview composite the motion instead of repainting every frame.
+ */
 export function HeroWaves({ className }: { className?: string }) {
   return (
-    <svg
-      aria-hidden
-      viewBox="0 0 1124 120"
-      preserveAspectRatio="none"
-      className={cn("pointer-events-none text-chart", className)}
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={1.5}
-    >
-      <path
-        d="M0 60 C 90 40, 180 80, 270 60 S 450 40, 540 60 S 720 82, 810 60 S 990 38, 1124 60"
-        strokeOpacity={0.28}
-        vectorEffect="non-scaling-stroke"
-      />
-      <path
-        d="M0 68 C 110 52, 200 86, 300 68 S 480 50, 580 68 S 760 88, 860 68 S 1020 50, 1124 66"
-        strokeOpacity={0.16}
-        vectorEffect="non-scaling-stroke"
-      />
-      <path
-        d="M0 52 C 120 36, 220 70, 330 52 S 520 34, 620 52 S 800 72, 900 52 S 1060 36, 1124 50"
-        strokeOpacity={0.1}
-        vectorEffect="non-scaling-stroke"
-      />
-    </svg>
+    <div aria-hidden className={cn("pointer-events-none overflow-hidden text-chart fade-out-sides", className)}>
+      {WAVES.map((wave) => (
+        <div
+          key={wave.y}
+          className="absolute inset-y-0 left-0 w-[200%] motion-safe:animate-drift"
+          style={{
+            "--drift-duration": `${wave.seconds}s`,
+            animationDirection: wave.reverse ? "reverse" : "normal",
+          } as CSSProperties}
+        >
+          <svg
+            viewBox={`0 0 ${WAVE_WIDTH * 2} 120`}
+            preserveAspectRatio="none"
+            className="size-full"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={1.5}
+          >
+            <path
+              d={wavePath(wave.crests, wave.height, wave.y)}
+              strokeOpacity={wave.opacity}
+              vectorEffect="non-scaling-stroke"
+            />
+          </svg>
+        </div>
+      ))}
+    </div>
   );
 }

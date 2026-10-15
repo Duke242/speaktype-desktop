@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- WordFlow: a single flowing ribbon shaped like a "W", on teal-to-blue water. -->
+  <defs>
+    <linearGradient id="sea" x1="0.15" y1="0" x2="0.85" y2="1">
+      <stop offset="0" stop-color="#86e2d8"/>
+      <stop offset="0.5" stop-color="#56b8de"/>
+      <stop offset="1" stop-color="#3a7cbf"/>
+    </linearGradient>
+    <radialGradient id="light" cx="0.5" cy="0" r="0.75">
+      <stop offset="0" stop-color="#bfe4ff" stop-opacity="0.35"/>
+      <stop offset="1" stop-color="#bfe4ff" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="125%">
+      <feDropShadow dx="0" dy="12" stdDeviation="16" flood-color="#06395e" flood-opacity="0.25"/>
+    </filter>
+  </defs>
+
+  <g filter="url(#shadow)">
+    <rect x="100" y="100" width="824" height="824" rx="186" fill="url(#sea)"/>
+    <rect x="100" y="100" width="824" height="824" rx="186" fill="url(#light)"/>
+    <rect x="101.5" y="101.5" width="821" height="821" rx="184.5" fill="none" stroke="#ffffff" stroke-opacity="0.12" stroke-width="3"/>
+  </g>
+
+  <path d="M230 330 C 280 330, 300 700, 380 700 S 470 420, 512 420 S 580 700, 644 700 S 744 330, 794 330"
+        fill="none" stroke="#ffffff" stroke-width="84" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
