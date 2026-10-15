@@ -541,13 +541,18 @@ impl ModelStore {
             .map_err(|e| format!("Download failed: {e}"))?;
         let mut sizes = Vec::with_capacity(missing.len());
         for asset in &missing {
-            let size = client
+            let response = client
                 .head(&asset.url)
                 .send()
                 .await
                 .and_then(|r| r.error_for_status())
-                .map_err(|e| format!("Download failed: {e}"))?
-                .content_length()
+                .map_err(|e| format!("Download failed: {e}"))?;
+            // Read the header itself: `content_length()` is the body's size, which is
+            // always 0 for a HEAD response.
+            let size = response
+                .headers()
+                .get(reqwest::header::CONTENT_LENGTH)
+                .and_then(|v| v.to_str().ok()?.parse().ok())
                 .unwrap_or(0);
             sizes.push(size);
         }
