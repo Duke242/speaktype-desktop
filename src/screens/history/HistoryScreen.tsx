@@ -1,4 +1,4 @@
-import { Check, ChevronDown, Copy, Cpu, FileText, FolderOpen, Pencil, Search, Trash2 } from "lucide-react";
+import { Check, ChevronDown, Copy, Cpu, FileText, FolderOpen, History, Pencil, Search, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { AudioPlayer } from "@/components/AudioPlayer";
 import {
@@ -167,6 +167,7 @@ function HistoryRow({
   const copied = copiedKey === item.id;
   const [draft, setDraft] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [showOriginal, setShowOriginal] = useState(false);
   const editing = expanded && draft !== null;
   const changed = draft !== null && draft.trim() !== "" && draft.trim() !== item.transcript;
 
@@ -251,6 +252,15 @@ function HistoryRow({
             </p>
           )}
 
+          {!editing && showOriginal && item.original && (
+            <div className="mt-4 border-l-2 border-line pl-3">
+              <p className="type-caption text-ink-muted">Before AI cleanup</p>
+              <p data-selectable className="mt-1 type-feed whitespace-pre-wrap text-ink-muted">
+                {item.original}
+              </p>
+            </div>
+          )}
+
           {!editing && item.audioPath && (
             <div className="mt-4">
               <AudioPlayer itemId={item.id} />
@@ -271,6 +281,17 @@ function HistoryRow({
               >
                 {copied ? "Copied" : "Copy"}
               </Button>
+              {item.original && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  icon={History}
+                  aria-pressed={showOriginal}
+                  onClick={() => setShowOriginal((shown) => !shown)}
+                >
+                  {showOriginal ? "Hide original" : "Show original"}
+                </Button>
+              )}
               {item.audioPath && (
                 <Button size="sm" variant="ghost" icon={FolderOpen} onClick={onReveal}>
                   {revealLabel}

@@ -264,6 +264,7 @@ impl V1HistoryItem {
                 .as_deref()
                 .and_then(file_url_path)
                 .filter(|path| Path::new(path).is_file()),
+            original: None,
         }
     }
 }

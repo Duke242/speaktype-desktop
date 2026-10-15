@@ -242,6 +242,7 @@ pub fn run(
         duration_secs,
         &history_text(&instruction, &edited),
         model_name,
+        None,
     );
     Ok(edited)
 }

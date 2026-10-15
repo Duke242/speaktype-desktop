@@ -137,8 +137,10 @@ pub fn run(
         options.auto_edit,
         options.plain_punctuation,
     ));
+    let mut original = None;
     if Cleaner::will_run(&settings.cleanup, &state.models, &text) {
         on_stage(Stage::CleaningUp);
+        original = Some(text.clone());
         let mut hint = style.hint();
         if options.plain_punctuation {
             hint = Some(cleanup::plain_punctuation(hint));
@@ -161,11 +163,18 @@ pub fn run(
         if heard.is_empty() {
             return Err(Error::NoSpeech);
         }
-        save(app, samples, duration_secs, heard, model.name);
+        save(app, samples, duration_secs, heard, model.name, None);
         return Err(Error::NothingLeft);
     }
 
-    Ok(save(app, samples, duration_secs, &text, model.name))
+    Ok(save(
+        app,
+        samples,
+        duration_secs,
+        &text,
+        model.name,
+        original.as_deref(),
+    ))
 }
 
 /// Transcribes audio as `run` does, without cleanup or saving it: for
@@ -252,6 +261,7 @@ pub fn save(
     duration_secs: f64,
     text: &str,
     model_name: &str,
+    original: Option<&str>,
 ) -> HistoryItem {
     let state = app.state::<AppState>();
 
@@ -267,10 +277,11 @@ pub fn save(
     } else {
         None
     };
-    let added = state
-        .history
-        .lock_unpoisoned()
-        .add(text, duration_secs, model_name, audio_path);
+    let added =
+        state
+            .history
+            .lock_unpoisoned()
+            .add(text, duration_secs, model_name, audio_path, original);
     let _ = app.emit("history-changed", ());
 
     // Saving is best effort: the text is still returned if the disk write failed.
@@ -289,6 +300,7 @@ pub fn save(
         duration_secs,
         model: model_name.into(),
         audio_path: None,
+        original: None,
     })
 }
 
