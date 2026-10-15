@@ -9,7 +9,6 @@ mod engine;
 mod gain;
 mod history;
 mod learn;
-mod legacy;
 mod live;
 mod media;
 mod meeting;
@@ -180,8 +179,6 @@ pub(crate) struct AppState {
     /// Set when the saved hotkey couldn't be registered at launch.
     pub hotkey_error: Mutex<Option<String>>,
     device: OnceLock<DeviceInfo>,
-    /// What was brought over from SpeakType 1 at first launch, until the UI has shown it.
-    pub legacy_import: Mutex<Option<legacy::ImportSummary>>,
 }
 
 impl AppState {
@@ -272,43 +269,6 @@ pub(crate) fn set_launch_at_login(app: &AppHandle, enabled: bool) -> Result<(), 
     result.map_err(|e| format!("Couldn't change launch at login: {e}"))
 }
 
-/// Brings over what SpeakType 1 saved on this computer, once.
-///
-/// Settings only come across on a fresh install: someone who already set
-/// Wordfall up keeps their own. Either way this is recorded in settings, so
-/// it never runs twice. Failures are logged and the app starts without the old data.
-fn import_speaktype1(
-    app: &AppHandle,
-    store: &SettingsStore,
-    settings: &mut Settings,
-    history: &mut History,
-    fresh_install: bool,
-) -> Option<legacy::ImportSummary> {
-    if settings.has_imported_v1 {
-        return None;
-    }
-    let path = legacy::preferences_path(&app.path().home_dir().ok()?)?;
-    let data = match legacy::V1Data::read(&path) {
-        Ok(data) => data?,
-        Err(e) => {
-            eprintln!("[legacy] {e}");
-            return None;
-        }
-    };
-    let summary = match legacy::import_all(&data, settings, history, fresh_install) {
-        Ok(summary) => summary,
-        Err(e) => {
-            eprintln!("[legacy] couldn't import history: {e}");
-            return None;
-        }
-    };
-    settings.has_imported_v1 = true;
-    if let Err(e) = store.save(settings) {
-        eprintln!("[legacy] couldn't save imported settings: {e}");
-    }
-    (!summary.is_empty()).then_some(summary)
-}
-
 /// Keeps the system's login item in step with the setting.
 fn sync_launch_at_login(app: &AppHandle, enabled: bool) -> Result<(), String> {
     let registered = app.autolaunch().is_enabled().unwrap_or(false);
@@ -338,28 +298,10 @@ pub fn run() {
         .manage(update::PendingUpdate::default())
         .setup(|app| {
             engine::silence_logs();
-            for dir in [app.path().app_config_dir()?, app.path().app_data_dir()?] {
-                match legacy::move_early_build_folder(&dir) {
-                    Ok(true) => eprintln!(
-                        "[legacy] moved data from an early build to {}",
-                        dir.display()
-                    ),
-                    Ok(false) => {}
-                    Err(e) => eprintln!("[legacy] couldn't move an early build's data: {e}"),
-                }
-            }
             let settings_store = SettingsStore::new(app.path().app_config_dir()?);
-            let fresh_install = !settings_store.exists();
-            let mut settings = settings_store.load();
+            let settings = settings_store.load();
             let data_dir = app.path().app_data_dir()?;
-            let mut history = History::load(&data_dir);
-            let legacy_import = import_speaktype1(
-                app.handle(),
-                &settings_store,
-                &mut settings,
-                &mut history,
-                fresh_install,
-            );
+            let history = History::load(&data_dir);
             let show_tray_icon = settings.show_tray_icon;
             // Started at login: stay in the menu bar or tray until needed.
             let in_background = std::env::args().any(|arg| arg == AT_LOGIN_ARG)
@@ -374,7 +316,6 @@ pub fn run() {
                 engine_loading: Mutex::new(None),
                 cleaner: Arc::default(),
                 history: Mutex::new(history),
-                legacy_import: Mutex::new(legacy_import),
                 controller: Controller::spawn(app.handle().clone())?,
                 dictation_state: Mutex::new(DictationState::Idle),
                 hotkey_error: Mutex::new(None),
@@ -474,8 +415,6 @@ pub fn run() {
             mic_test::stop_mic_test,
             mic_test::cancel_mic_test,
             mic_test::transcribe_mic_test,
-            commands::get_legacy_status,
-            commands::import_legacy,
             commands::toggle_dictation,
             commands::get_dictation_state,
             commands::get_permissions,

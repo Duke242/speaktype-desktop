@@ -6,7 +6,7 @@ edition = "2024"
 rust-version = "1.88"
 
 [lib]
-name = "speaktype_lib"
+name = "wordfall_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 # The Dock and task manager show this name while developing.
@@ -44,7 +44,6 @@ semver = "1"
 uuid = { version = "1", features = ["v4"] }
 hound = "3"
 symphonia = { version = "0.6", default-features = false, features = ["aac", "alac", "flac", "isomp4", "mp3", "ogg", "vorbis", "wav", "pcm", "adpcm", "aiff", "caf", "mkv"] }
-plist = "1"
 sysinfo = { version = "0.39", default-features = false, features = ["system", "disk"] }
 
 # Parakeet, through ONNX Runtime. It has no build for Intel Macs (see build.rs).

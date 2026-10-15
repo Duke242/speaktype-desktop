@@ -18,8 +18,8 @@ impl Parakeet {
     /// `dir` holds the encoder, decoder, preprocessor and vocabulary files.
     pub fn load(dir: &Path) -> Result<Self, String> {
         ACCELERATOR.call_once(|| {
-            // SPEAKTYPE_ORT_CPU=1 forces CPU, for comparing against the accelerated path.
-            let accelerator = if std::env::var_os("SPEAKTYPE_ORT_CPU").is_some() {
+            // WORDFALL_ORT_CPU=1 forces CPU, for comparing against the accelerated path.
+            let accelerator = if std::env::var_os("WORDFALL_ORT_CPU").is_some() {
                 transcribe_rs::OrtAccelerator::CpuOnly
             } else {
                 crate::platform::ORT_ACCELERATOR

@@ -7,7 +7,6 @@ import {
   Ear,
   Globe,
   Hand,
-  Import,
   Keyboard,
   Lightbulb,
   Mic,
@@ -51,9 +50,9 @@ import {
   useToast,
   type SelectOption,
 } from "@/components/ui";
-import { api, errorMessage, type InputDevice, type LegacyStatus, type Settings, type UpdateInfo } from "@/lib/api";
+import { api, errorMessage, type InputDevice, type Settings, type UpdateInfo } from "@/lib/api";
 import { cn } from "@/lib/cn";
-import { describeImport, hotkeyParts } from "@/lib/format";
+import { hotkeyParts } from "@/lib/format";
 import { hotkeyBlockedMessage, useWhileHotkeyBlocked } from "@/lib/hotkeyBlocked";
 
 import { LANGUAGES, languageName } from "@/lib/languages";
@@ -316,7 +315,6 @@ function GeneralTab() {
       <LanguageSection />
       <SharingSection />
       <UpdatesSection />
-      <ImportSection />
     </>
   );
 }
@@ -402,50 +400,6 @@ function UpdatesSection() {
         <Switch checked={settings.autoUpdate} onChange={(autoUpdate) => save({ autoUpdate })} />
       </SettingRow>
       <UpdateDialog update={update} onClose={() => setUpdate(null)} />
-    </Section>
-  );
-}
-
-/** Only shown when SpeakType 1's data is on this computer. */
-function ImportSection() {
-  const toast = useToast();
-  const [available, setAvailable] = useState<LegacyStatus["available"]>(null);
-  const [importing, setImporting] = useState(false);
-
-  useEffect(() => {
-    api
-      .getLegacyStatus()
-      .then((status) => setAvailable(status.available))
-      .catch(() => {});
-  }, []);
-
-  if (!available) return null;
-
-  const run = async () => {
-    setImporting(true);
-    try {
-      const result = await api.importLegacy();
-      const what = describeImport(result);
-      toast(what ? `Imported ${what} from SpeakType 1.` : "Everything from SpeakType 1 is already here.");
-    } catch (error) {
-      toast(errorMessage(error), "error");
-    } finally {
-      setImporting(false);
-    }
-  };
-
-  return (
-    <Section title="SpeakType 1">
-      <SettingRow
-        icon={Import}
-       
-        label="Import from SpeakType 1"
-        description={`Found ${describeImport(available)} on this computer. Anything already here is skipped.`}
-      >
-        <Button loading={importing} onClick={run}>
-          Import
-        </Button>
-      </SettingRow>
     </Section>
   );
 }
