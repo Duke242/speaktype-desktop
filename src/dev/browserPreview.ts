@@ -75,7 +75,6 @@ export function installBrowserPreview() {
     syncFolder: params.get("sync") ? "/Users/karan/Dropbox/Wordfall" : "",
     hasCompletedOnboarding: params.get("onboarding") !== "1",
     hasShownModelPrompt: true,
-    hasImportedV1: false,
     meetings: { captureSystemAudio: true, systemAudioSource: "", summarizeAutomatically: true },
   };
   const meetings = sampleMeetings(now, day);
@@ -323,14 +322,6 @@ export function installBrowserPreview() {
             { kind: "microphone", granted: true },
             { kind: "accessibility", granted: false },
           ];
-        case "get_legacy_status":
-          return {
-            available: { transcripts: 21, dictionary: 3 },
-            // Add ?imported=1 to preview onboarding after an upgrade from SpeakType 1.
-            imported: params.get("imported") ? { transcripts: 21, dictionary: 3, settings: true } : null,
-          };
-        case "import_legacy":
-          return { transcripts: 21, dictionary: 3, settings: false };
         case "get_meeting_setup":
           return {
             systemAudioNote:
