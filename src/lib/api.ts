@@ -138,6 +138,8 @@ export type OS = "macos" | "windows" | "linux";
 export interface Status {
   os: OS;
   version: string;
+  /** The git tag and commit this was built from, e.g. "v2.0.0-alpha.8". Empty without git. */
+  build: string;
   setupNotes: string[];
   hotkeyError: string | null;
   /** The hotkey is a single modifier key (like Fn), but macOS won't let us listen for it. */
