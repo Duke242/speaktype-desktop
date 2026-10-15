@@ -192,7 +192,7 @@ export interface ServerModels {
 }
 
 export interface AppTone {
-  /** Apps Wordflow already knows. */
+  /** Apps WordFlow already knows. */
   builtIn: { name: string; category: AppCategory }[];
   /** The app dictated into last, so users can see what to call it. */
   lastApp: { id: string; name: string; title: string; category: AppCategory } | null;

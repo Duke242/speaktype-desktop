@@ -8,7 +8,7 @@ Live typing is enabled in Settings → Behavior. It inserts short phrases during
 
 ## Finish and send
 
-Finish and send (Settings → Behavior) sends a message in one go: press Return while recording hands-free and Wordflow stops, inserts the transcript and presses Return about 150 ms later. Return is only claimed while recording, and not while the Hold-mode hotkey is held, where it's part of a shortcut and cancels as any other key does. A sent dictation isn't watched for corrections, as the field is cleared.
+Finish and send (Settings → Behavior) sends a message in one go: press Return while recording hands-free and WordFlow stops, inserts the transcript and presses Return about 150 ms later. Return is only claimed while recording, and not while the Hold-mode hotkey is held, where it's part of a shortcut and cancels as any other key does. A sent dictation isn't watched for corrections, as the field is cleared.
 
 ## Tone that fits the app
 
@@ -16,7 +16,7 @@ Dictation matches the app it goes into (Settings → Tone that fits the app). Th
 
 ## Command mode
 
-Command mode edits selected text by voice. Set a shortcut in Settings → Shortcuts, select text in any app, hold the shortcut and say what to change ("make this more formal", "translate to German"). Wordflow copies the selection, sends it with the instruction to the AI cleanup model, pastes the result over the selection and puts the clipboard back. If the model hands the text back unchanged, Wordflow asks once more, then says so in the pill instead of pasting the same text. It needs AI cleanup set up, and has its own shortcut rather than guessing from what was said, so a dictation that starts with "make" or "fix" never replaces the text around it. Single modifier keys aren't offered for it: the macOS listener for those holds one key, the dictation hotkey. Each shortcut only ends the recordings it started, so pressing one while the other is held never stops the other's recording (in Toggle mode either one stops a recording with a second press).
+Command mode edits selected text by voice. Set a shortcut in Settings → Shortcuts, select text in any app, hold the shortcut and say what to change ("make this more formal", "translate to German"). WordFlow copies the selection, sends it with the instruction to the AI cleanup model, pastes the result over the selection and puts the clipboard back. If the model hands the text back unchanged, WordFlow asks once more, then says so in the pill instead of pasting the same text. It needs AI cleanup set up, and has its own shortcut rather than guessing from what was said, so a dictation that starts with "make" or "fix" never replaces the text around it. Single modifier keys aren't offered for it: the macOS listener for those holds one key, the dictation hotkey. Each shortcut only ends the recordings it started, so pressing one while the other is held never stops the other's recording (in Toggle mode either one stops a recording with a second press).
 
 Copying the selection takes care with the app it goes to (`src-tauri/src/command.rs`, `src-tauri/src/paste.rs`):
 
@@ -30,7 +30,7 @@ Settings → Commands and formatting turns on rules for English dictation, all o
 
 ## Sharing
 
-To share the dictionary and snippets between computers or with a team, pick a folder in Settings → Sharing that Dropbox, iCloud Drive or a shared drive keeps in step. Wordflow keeps `wordfall-shared.json` there and merges it at launch, every minute and after each change, keeping the newest version of each rule or snippet. The same section exports and imports them as a file.
+To share the dictionary and snippets between computers or with a team, pick a folder in Settings → Sharing that Dropbox, iCloud Drive or a shared drive keeps in step. WordFlow keeps `wordfall-shared.json` there and merges it at launch, every minute and after each change, keeping the newest version of each rule or snippet. The same section exports and imports them as a file.
 
 ## Meetings
 

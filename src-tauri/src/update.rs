@@ -1,6 +1,6 @@
-//! Finds a newer Wordflow on GitHub and installs it in place.
+//! Finds a newer WordFlow on GitHub and installs it in place.
 //!
-//! Wordflow ships as pre-releases, which GitHub's "latest release" skips, so
+//! WordFlow ships as pre-releases, which GitHub's "latest release" skips, so
 //! this lists releases rather than asking for the latest one. Pre-release builds move to any newer release; stable builds only to
 //! stable ones. CI attaches a signed `latest.json` to each release once its
 //! installers are built, which the updater plugin uses to download, verify and
@@ -75,7 +75,7 @@ pub async fn check_for_update(
 ) -> Result<UpdateInfo, String> {
     let releases: Vec<Release> = reqwest::Client::new()
         .get(RELEASES_URL)
-        .header("User-Agent", "Wordflow")
+        .header("User-Agent", "WordFlow")
         .header("Accept", "application/vnd.github+json")
         .timeout(CHECK_TIMEOUT)
         .send()

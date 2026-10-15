@@ -430,7 +430,7 @@ pub struct LastApp {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AppTone {
-    /// Apps Wordflow already knows, by category.
+    /// Apps WordFlow already knows, by category.
     built_in: Vec<ToneApp>,
     /// The app dictated into last, so the user can see what it's called.
     last_app: Option<LastApp>,

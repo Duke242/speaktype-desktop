@@ -605,10 +605,10 @@ mod tests {
 
     #[test]
     fn dictionary_matches_whole_words_case_insensitively() {
-        let entries = [entry("word flow", "Wordflow", true)];
+        let entries = [entry("word flow", "WordFlow", true)];
         assert_eq!(
             apply_dictionary("I use Word   Flow daily", &entries),
-            "I use Wordflow daily"
+            "I use WordFlow daily"
         );
         let entries = [entry("cat", "dog", true)];
         assert_eq!(
@@ -738,7 +738,7 @@ mod tests {
 
     #[test]
     fn spoken_rules_run_in_order_before_dictionary_and_snippets() {
-        let dictionary = [entry("word flow", "Wordflow", true)];
+        let dictionary = [entry("word flow", "WordFlow", true)];
         let snippets = [Snippet {
             id: "1".into(),
             trigger: "my zoom room".into(),
@@ -758,7 +758,7 @@ mod tests {
                 "Try word flow. Scratch that. Use word flow new line thanks",
                 &options
             ),
-            "Use Wordflow\nThanks"
+            "Use WordFlow\nThanks"
         );
         assert_eq!(process("My zoom room.", &options), "https://zoom.us/j/1");
         assert_eq!(
