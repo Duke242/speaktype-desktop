@@ -70,7 +70,7 @@ export function App() {
   }
 
   return (
-    <div data-tauri-drag-region className="flex h-full bg-shell">
+    <div className="flex h-full bg-shell">
       <UpdateDialog update={update.info} onClose={update.dismiss} />
       <Rail route={route} onNavigate={setRoute} />
       {/* The screens sit on a panel that floats on the window's shell, beside the rail. */}

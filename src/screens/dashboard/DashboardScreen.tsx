@@ -169,7 +169,7 @@ function StatusLine({
   const summary = summarize(stats, now);
 
   return (
-    <div className="mt-7 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 rounded-full border border-line bg-surface/70 px-5 py-2 type-small font-medium text-ink-muted shadow-card backdrop-blur-md">
+    <div className="mt-7 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 rounded-panel border border-line bg-surface/70 px-5 py-2 type-small font-medium text-ink-muted shadow-card">
       <span className="flex items-center gap-2">
         {engine.loading === modelId ? (
           <>

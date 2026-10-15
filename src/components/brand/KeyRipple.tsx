@@ -1,3 +1,4 @@
+import type { CSSProperties } from "react";
 import { cn } from "@/lib/cn";
 import { hotkeyParts } from "@/lib/format";
 
@@ -52,40 +53,49 @@ const WAVES = [
 
 /** A sine-like wave across two hero widths, so sliding it one width left loops without a seam. */
 function wavePath(crests: number, height: number, y: number) {
-  const period = WAVE_WIDTH / crests;
-  let d = `M0 ${y} Q ${period / 4} ${y - height * 2} ${period / 2} ${y}`;
-  for (let x = period; x <= WAVE_WIDTH * 2; x += period / 2) d += ` T ${x} ${y}`;
+  const half = WAVE_WIDTH / crests / 2;
+  let d = `M0 ${y} Q ${half / 2} ${y - height * 2} ${half} ${y}`;
+  // Count half-waves rather than adding up floats, so the path always ends exactly at two widths.
+  for (let i = 2; i <= crests * 4; i++) d += ` T ${i * half} ${y}`;
   return d;
 }
 
 /**
  * Three slow waves behind the keycap that drift sideways at different speeds,
  * crossing as they go. Still if the user prefers reduced motion.
+ *
+ * Each wave is drawn twice as wide as the hero in its own layer, and the layer
+ * slides half its width. Moving an HTML layer rather than the SVG path lets the
+ * webview composite the motion instead of repainting every frame.
  */
 export function HeroWaves({ className }: { className?: string }) {
   return (
-    <svg
-      aria-hidden
-      viewBox={`0 0 ${WAVE_WIDTH} 120`}
-      preserveAspectRatio="none"
-      className={cn("pointer-events-none overflow-hidden text-chart fade-out-sides", className)}
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={1.5}
-    >
+    <div aria-hidden className={cn("pointer-events-none overflow-hidden text-chart fade-out-sides", className)}>
       {WAVES.map((wave) => (
-        <path
+        <div
           key={wave.y}
-          d={wavePath(wave.crests, wave.height, wave.y)}
-          strokeOpacity={wave.opacity}
-          vectorEffect="non-scaling-stroke"
-          className="motion-safe:animate-drift"
+          className="absolute inset-y-0 left-0 w-[200%] motion-safe:animate-drift"
           style={{
-            animationDuration: `${wave.seconds}s`,
+            "--drift-duration": `${wave.seconds}s`,
             animationDirection: wave.reverse ? "reverse" : "normal",
-          }}
-        />
+          } as CSSProperties}
+        >
+          <svg
+            viewBox={`0 0 ${WAVE_WIDTH * 2} 120`}
+            preserveAspectRatio="none"
+            className="size-full"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={1.5}
+          >
+            <path
+              d={wavePath(wave.crests, wave.height, wave.y)}
+              strokeOpacity={wave.opacity}
+              vectorEffect="non-scaling-stroke"
+            />
+          </svg>
+        </div>
       ))}
-    </svg>
+    </div>
   );
 }

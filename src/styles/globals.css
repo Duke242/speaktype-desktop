@@ -240,8 +240,9 @@
   --animate-wave: wave 1.1s ease-in-out infinite;
   /* Rings around the keycap swell and settle like water. Use with `motion-safe:`. */
   --animate-ripple: ripple 5.4s ease-in-out infinite;
-  /* The hero's waves slide one width along, forever. */
-  --animate-drift: drift 30s linear infinite;
+  /* The hero's waves slide half their layer's width (one hero width), forever.
+     Each wave sets its own `--drift-duration`. */
+  --animate-drift: drift var(--drift-duration) linear infinite;
 
   @keyframes wave {
     0%,
@@ -254,7 +255,7 @@
   }
   @keyframes drift {
     to {
-      transform: translateX(-1124px);
+      transform: translate3d(-50%, 0, 0);
     }
   }
   @keyframes ripple {

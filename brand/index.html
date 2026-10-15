@@ -26,6 +26,7 @@
     -webkit-mask-image: linear-gradient(90deg, transparent, #000 18%, #000 82%, transparent); }
   .waves svg { width: 100%; height: 100%; }
   .waves path { animation: drift linear infinite; }
+  @media (prefers-reduced-motion: reduce) { .waves path, .ring { animation: none !important; } }
   @keyframes drift { to { transform: translateX(-1124px); } }
   @keyframes ripple { 0%,100% { transform: scale(.97); opacity: .55; } 50% { transform: scale(1.04); opacity: 1; } }
 
