@@ -229,6 +229,8 @@ export interface HistoryItem {
   model: string;
   wordCount: number;
   audioPath: string | null;
+  /** What the speech model heard, when AI cleanup changed it. */
+  original?: string | null;
 }
 
 export interface StatsEntry {

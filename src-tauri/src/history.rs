@@ -28,6 +28,10 @@ pub struct HistoryItem {
     /// The recording this came from, if it was kept.
     #[serde(default)]
     pub audio_path: Option<String>,
+    /// What the speech model heard, before AI cleanup rewrote it. Only kept
+    /// when cleanup ran and changed the text.
+    #[serde(default)]
+    pub original: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -103,6 +107,7 @@ impl History {
         duration_secs: f64,
         model: &str,
         audio_path: Option<PathBuf>,
+        original: Option<&str>,
     ) -> Result<Option<HistoryItem>, String> {
         if transcript.is_empty() {
             return Ok(None);
@@ -115,6 +120,10 @@ impl History {
             model: model.to_string(),
             word_count: transcript.split_whitespace().count(),
             audio_path: audio_path.map(|p| p.to_string_lossy().into_owned()),
+            original: original
+                .map(str::trim)
+                .filter(|o| !o.is_empty() && *o != transcript)
+                .map(String::from),
         };
         self.items.insert(0, item.clone());
         self.stats.insert(0, StatsEntry::from(&item));
@@ -256,13 +265,13 @@ mod tests {
         let mut history = History::load(&dir.0);
         assert!(history.items().is_empty() && history.stats().is_empty());
 
-        assert!(history.add("", 1.0, "Tiny", None).unwrap().is_none());
+        assert!(history.add("", 1.0, "Tiny", None, None).unwrap().is_none());
         let first = history
-            .add("hello world", 1.5, "Tiny", None)
+            .add("hello world", 1.5, "Tiny", None, None)
             .unwrap()
             .unwrap();
         let second = history
-            .add("  three  short words ", 2.0, "Base", None)
+            .add("  three  short words ", 2.0, "Base", None, None)
             .unwrap()
             .unwrap();
         assert_eq!(second.word_count, 3);
@@ -276,11 +285,38 @@ mod tests {
     }
 
     #[test]
+    fn keeps_the_original_only_when_cleanup_changed_it() {
+        let dir = TempDir::new();
+        let mut history = History::load(&dir.0);
+        let changed = history
+            .add(
+                "What time is it?",
+                1.0,
+                "Tiny",
+                None,
+                Some("um what time is it"),
+            )
+            .unwrap()
+            .unwrap();
+        let same = history
+            .add("Hello.", 1.0, "Tiny", None, Some(" Hello. "))
+            .unwrap()
+            .unwrap();
+        assert_eq!(changed.original.as_deref(), Some("um what time is it"));
+        assert_eq!(same.original, None);
+        let reloaded = History::load(&dir.0);
+        assert_eq!(
+            reloaded.items()[1].original.as_deref(),
+            Some("um what time is it")
+        );
+    }
+
+    #[test]
     fn edits_replace_the_transcript_and_return_the_old_one() {
         let dir = TempDir::new();
         let mut history = History::load(&dir.0);
         let item = history
-            .add("Karen said hi", 1.0, "Tiny", None)
+            .add("Karen said hi", 1.0, "Tiny", None, None)
             .unwrap()
             .unwrap();
 
@@ -307,9 +343,12 @@ mod tests {
         fs::create_dir_all(audio.parent().unwrap()).unwrap();
         fs::write(&audio, b"RIFF").unwrap();
 
-        let kept = history.add("keep me", 1.0, "Tiny", None).unwrap().unwrap();
+        let kept = history
+            .add("keep me", 1.0, "Tiny", None, None)
+            .unwrap()
+            .unwrap();
         let item = history
-            .add("with audio", 1.0, "Tiny", Some(audio.clone()))
+            .add("with audio", 1.0, "Tiny", Some(audio.clone()), None)
             .unwrap()
             .unwrap();
         assert_eq!(history.audio_path(&item.id), Some(audio.clone()));
@@ -360,7 +399,7 @@ mod tests {
             fs::read_to_string(dir.0.join("history.json.corrupt")).unwrap(),
             "{ not json"
         );
-        history.add("fresh start", 1.0, "Tiny", None).unwrap();
+        history.add("fresh start", 1.0, "Tiny", None, None).unwrap();
         assert_eq!(History::load(&dir.0).items().len(), 1);
     }
 }
