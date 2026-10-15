@@ -1,4 +1,4 @@
-//! Wordfall's cleanup helper: runs a local language model through llama.cpp.
+//! WordFlow's cleanup helper: runs a local language model through llama.cpp.
 //!
 //! The app starts this program when transcript cleanup is on, and talks to it
 //! over stdin and stdout, one JSON object per line:
@@ -71,7 +71,7 @@ fn main() {
             std::process::exit(1);
         }
     };
-    if std::env::var_os("SPEAKTYPE_CLEANUP_LOGS").is_none() {
+    if std::env::var_os("WORDFLOW_CLEANUP_LOGS").is_none() {
         backend.void_logs();
     }
 

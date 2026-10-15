@@ -9,7 +9,7 @@ use std::sync::LazyLock;
 use regex::{NoExpand, Regex};
 use serde::{Deserialize, Serialize};
 
-use crate::{snippets::Snippet, spoken};
+use crate::{snippets::Snippet, spoken, tone::AppCategory};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -24,6 +24,38 @@ pub struct DictionaryEntry {
     /// Added by `learn` from a correction, rather than by the user.
     #[serde(default)]
     pub learned: bool,
+    /// The kinds of app the entry is used in, like code editors and terminals
+    /// for "emerge" to "merge". Empty for every app.
+    #[serde(
+        default,
+        skip_serializing_if = "Vec::is_empty",
+        deserialize_with = "app_categories"
+    )]
+    pub only_in: Vec<AppCategory>,
+}
+
+/// Kinds of app as saved, reading one this version doesn't know, from a newer
+/// version or another device, as "other" rather than failing to load the
+/// settings it's in. Apps of that kind are sorted into "other" here too.
+pub fn app_categories<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Vec<AppCategory>, D::Error> {
+    let values = Vec::<serde_json::Value>::deserialize(deserializer)?;
+    let mut categories = Vec::new();
+    for value in values {
+        let category = serde_json::from_value(value).unwrap_or(AppCategory::Other);
+        if !categories.contains(&category) {
+            categories.push(category);
+        }
+    }
+    Ok(categories)
+}
+
+impl DictionaryEntry {
+    /// Whether the entry is used when dictating into this kind of app.
+    pub fn applies_in(&self, app: AppCategory) -> bool {
+        self.is_enabled && (self.only_in.is_empty() || self.only_in.contains(&app))
+    }
 }
 
 fn yes() -> bool {
@@ -36,6 +68,9 @@ pub struct Options<'a> {
     /// Commas instead of the semicolons and colons the engine adds.
     pub plain_punctuation: bool,
     pub dictionary: &'a [DictionaryEntry],
+    /// The kind of app being dictated into, which picks the dictionary
+    /// entries that apply.
+    pub app: AppCategory,
     /// "Scratch that", "new line" and "new paragraph".
     pub voice_commands: bool,
     /// "Meet at 3, actually 4" becomes "meet at 4".
@@ -78,7 +113,11 @@ pub fn finish(text: &str, options: &Options) -> String {
     if format {
         text = spoken::format(&text);
     }
-    let text = apply_dictionary(&text, options.dictionary);
+    let entries = options
+        .dictionary
+        .iter()
+        .filter(|e| e.applies_in(options.app));
+    let text = apply_dictionary(&text, entries);
     let text = crate::snippets::expand(&text, options.snippets, |trigger| {
         if format {
             spoken::format(trigger)
@@ -248,12 +287,15 @@ fn remove_fillers(text: &str) -> String {
 
 /// Applies enabled dictionary entries in order. Each entry sees the output of
 /// the ones before it.
-pub fn apply_dictionary(text: &str, entries: &[DictionaryEntry]) -> String {
-    if text.is_empty() || entries.is_empty() {
-        return text.to_string();
-    }
+pub fn apply_dictionary<'a>(
+    text: &str,
+    entries: impl IntoIterator<Item = &'a DictionaryEntry>,
+) -> String {
     let mut out = text.to_string();
-    for entry in entries.iter().filter(|e| e.is_enabled) {
+    if text.is_empty() {
+        return out;
+    }
+    for entry in entries.into_iter().filter(|e| e.is_enabled) {
         let trigger = entry.trigger.trim();
         if trigger.is_empty() {
             continue;
@@ -288,12 +330,13 @@ const MAX_CONTEXT_CHARS: usize = 300;
 
 /// Text for Whisper to read before the audio: the words the dictionary
 /// corrects to, so names and jargon are expected rather than guessed, then the
-/// end of what was already said in this dictation, if anything.
-pub fn prompt(dictionary: &[DictionaryEntry], previous: &str) -> String {
+/// end of what was already said in this dictation, if anything. Only entries
+/// used in `app` are hinted.
+pub fn prompt(dictionary: &[DictionaryEntry], previous: &str, app: AppCategory) -> String {
     let mut hints: Vec<&str> = Vec::new();
     let mut chars = 0;
     // Newest entries first, so recently learned words are kept when there are many.
-    for entry in dictionary.iter().rev().filter(|e| e.is_enabled) {
+    for entry in dictionary.iter().rev().filter(|e| e.applies_in(app)) {
         let word = entry.replacement.trim();
         if !is_vocabulary(word) || hints.iter().any(|h| h.eq_ignore_ascii_case(word)) {
             continue;
@@ -384,6 +427,7 @@ mod tests {
             is_enabled: true,
             match_whole_word: whole_word,
             learned: false,
+            only_in: Vec::new(),
         }
     }
 
@@ -396,23 +440,76 @@ mod tests {
             entry("um", "", false),
             entry("cube our netties", "Kubernetes", true),
         ];
-        assert_eq!(prompt(&dictionary, ""), "Kubernetes, Karan.");
         assert_eq!(
-            prompt(&dictionary, "  so we deployed it "),
+            prompt(&dictionary, "", AppCategory::Other),
+            "Kubernetes, Karan."
+        );
+        assert_eq!(
+            prompt(&dictionary, "  so we deployed it ", AppCategory::Other),
             "Kubernetes, Karan. so we deployed it"
         );
-        assert_eq!(prompt(&[], "hello there"), "hello there");
-        assert_eq!(prompt(&[], ""), "");
+        assert_eq!(
+            prompt(&[], "hello there", AppCategory::Other),
+            "hello there"
+        );
+        assert_eq!(prompt(&[], "", AppCategory::Other), "");
 
         let mut disabled = entry("teh", "the", true);
         disabled.is_enabled = false;
-        assert_eq!(prompt(&[disabled], ""), "");
+        assert_eq!(prompt(&[disabled], "", AppCategory::Other), "");
+    }
+
+    #[test]
+    fn entries_limited_to_some_apps_only_apply_there() {
+        let mut merge = entry("emerge", "merge", true);
+        merge.only_in = vec![AppCategory::Code, AppCategory::Terminal];
+        let dictionary = [merge, entry("word fall", "Wordfall", true)];
+        let in_app = |app| Options {
+            app,
+            ..options(&dictionary, &[])
+        };
+        assert_eq!(
+            process("Emerge it into word fall", &in_app(AppCategory::Code)),
+            "merge it into Wordfall"
+        );
+        assert_eq!(
+            process("Emerge it into word fall", &in_app(AppCategory::Terminal)),
+            "merge it into Wordfall"
+        );
+        assert_eq!(
+            process("Emerge it into word fall", &in_app(AppCategory::Chat)),
+            "Emerge it into Wordfall"
+        );
+        assert_eq!(
+            prompt(&dictionary, "", AppCategory::Code),
+            "Wordfall, merge."
+        );
+        assert_eq!(prompt(&dictionary, "", AppCategory::Email), "Wordfall.");
+    }
+
+    #[test]
+    fn entries_saved_without_apps_apply_everywhere() {
+        let saved = r#"{"id":"1","trigger":"apr","replacement":"a PR"}"#;
+        let entry: DictionaryEntry = serde_json::from_str(saved).expect("old entry loads");
+        assert!(entry.only_in.is_empty());
+        assert!(entry.applies_in(AppCategory::Chat));
+        // Left out when empty, so entries read the same in older versions.
+        let json = serde_json::to_string(&entry).expect("serializes");
+        assert!(!json.contains("onlyIn"), "{json}");
+    }
+
+    #[test]
+    fn unknown_kinds_of_app_load_as_other() {
+        let saved =
+            r#"{"id":"1","trigger":"a","replacement":"b","onlyIn":["code","someday","later"]}"#;
+        let entry: DictionaryEntry = serde_json::from_str(saved).expect("entry still loads");
+        assert_eq!(entry.only_in, [AppCategory::Code, AppCategory::Other]);
     }
 
     #[test]
     fn prompt_keeps_only_the_end_of_long_context_from_a_word_start() {
         let said = "word ".repeat(200);
-        let prompt = prompt(&[], &said);
+        let prompt = prompt(&[], &said, AppCategory::Other);
         assert!(prompt.chars().count() <= MAX_CONTEXT_CHARS);
         assert!(prompt.starts_with("word") && prompt.ends_with("word"));
         assert_eq!(tail("héllo wörld", 5), "wörld");
@@ -424,7 +521,7 @@ mod tests {
         let many: Vec<_> = (0..100)
             .map(|i| entry(&format!("t{i}"), &format!("Name{i}"), true))
             .collect();
-        let prompt = prompt(&many, "");
+        let prompt = prompt(&many, "", AppCategory::Other);
         assert_eq!(prompt.split(", ").count(), MAX_HINTS);
         assert!(prompt.starts_with("Name99"), "newest first: {prompt}");
     }
@@ -508,10 +605,10 @@ mod tests {
 
     #[test]
     fn dictionary_matches_whole_words_case_insensitively() {
-        let entries = [entry("speak type", "SpeakType", true)];
+        let entries = [entry("word flow", "WordFlow", true)];
         assert_eq!(
-            apply_dictionary("I use Speak   Type daily", &entries),
-            "I use SpeakType daily"
+            apply_dictionary("I use Word   Flow daily", &entries),
+            "I use WordFlow daily"
         );
         let entries = [entry("cat", "dog", true)];
         assert_eq!(
@@ -630,6 +727,7 @@ mod tests {
             smart_trailing_punctuation: true,
             plain_punctuation: true,
             dictionary,
+            app: AppCategory::Other,
             voice_commands: true,
             self_corrections: true,
             smart_formatting: true,
@@ -640,7 +738,7 @@ mod tests {
 
     #[test]
     fn spoken_rules_run_in_order_before_dictionary_and_snippets() {
-        let dictionary = [entry("word fall", "Wordfall", true)];
+        let dictionary = [entry("word flow", "WordFlow", true)];
         let snippets = [Snippet {
             id: "1".into(),
             trigger: "my zoom room".into(),
@@ -657,10 +755,10 @@ mod tests {
         );
         assert_eq!(
             process(
-                "Try word fall. Scratch that. Use word fall new line thanks",
+                "Try word flow. Scratch that. Use word flow new line thanks",
                 &options
             ),
-            "Use Wordfall\nThanks"
+            "Use WordFlow\nThanks"
         );
         assert_eq!(process("My zoom room.", &options), "https://zoom.us/j/1");
         assert_eq!(

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-// Builds speaktype-cleanup, the helper that runs built-in cleanup models, and
+// Builds wordflow-cleanup, the helper that runs built-in cleanup models, and
 // puts it where the installer build expects it:
-// src-tauri/binaries/speaktype-cleanup-<target>[.exe].
+// src-tauri/binaries/wordflow-cleanup-<target>[.exe].
 //
 //   npm run worker:build                                    this computer
 //   npm run worker:build -- --target universal-apple-darwin Apple Silicon and Intel in one
@@ -21,7 +21,7 @@ import { fileURLToPath } from "node:url";
 const desktop = join(dirname(fileURLToPath(import.meta.url)), "..");
 const worker = join(desktop, "cleanup-worker");
 const binaries = join(desktop, "src-tauri", "binaries");
-const NAME = "speaktype-cleanup";
+const NAME = "wordflow-cleanup";
 
 const run = (command, args, cwd = desktop) => execFileSync(command, args, { cwd, stdio: "inherit" });
 

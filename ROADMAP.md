@@ -1,9 +1,8 @@
-# SpeakType 2: what's left
+# WordFlow: what's left
 
-The engineering checklist for SpeakType 2. For what's coming as a product, and
-why, see [macos-v1/ROADMAP.md](macos-v1/ROADMAP.md).
+The engineering checklist for WordFlow.
 
-## Parity with SpeakType 1 (macOS)
+## Core
 
 ### Dictation
 - [x] Hold-to-talk and toggle modes, plus "Hold or tap" (a quick tap keeps recording until the next press)
@@ -42,8 +41,7 @@ why, see [macos-v1/ROADMAP.md](macos-v1/ROADMAP.md).
 - [x] Update check against GitHub releases
 - [x] Launch at login
 
-## Planned for a later v2 release
-- [x] Import settings, dictionary and history from SpeakType 1 (automatic on first launch, or from Settings)
+## Planned
 - [x] Install updates in place (signed with the updater key; builds without one open the release page)
 - [x] Menu bar panel: dictate, today's stats, quick model/language/mic/mode switches, recent transcripts
 - [ ] Hide the Dock icon when the window is closed
@@ -51,7 +49,7 @@ why, see [macos-v1/ROADMAP.md](macos-v1/ROADMAP.md).
 - [ ] Signed Windows installer
 - [x] CI builds for macOS, Windows and Linux on every tag
 
-## New in SpeakType 2
+## Beyond the basics
 - [x] AI cleanup with a local language model: built in (llama.cpp, in its own helper process) or through a local server (Ollama, LM Studio)
 - [x] AI cleanup through a cloud API with the user's own key and model (OpenAI, Anthropic, Gemini, Groq, Mistral, OpenRouter or any OpenAI-compatible API)
 - [ ] AI cleanup tested with real models on macOS, Windows and Linux, and the prompt tuned from what people dictate
@@ -70,7 +68,7 @@ why, see [macos-v1/ROADMAP.md](macos-v1/ROADMAP.md).
 - [x] Finish and send: Return while recording inserts the transcript and presses Return
 - [x] Pause music and videos while dictating, browsers included, and resume them afterwards (#63)
 - [x] Share the dictionary and snippets between computers or with a team, through a synced folder; export and import them as a file
-- [ ] Sharing through a Wordfall account, without a synced folder
+- [ ] Sharing through a WordFlow account, without a synced folder
 
 ### Meeting notes
 - [x] Record the microphone and system audio as separate tracks, labelled "You" and "Others" (#170)

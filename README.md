@@ -1,6 +1,6 @@
-# Wordfall
+# WordFlow
 
-Wordfall (formerly SpeakType 2) is a dictation app for macOS, Windows and Linux. It replaces SpeakType 1, the macOS-only Swift app in [`macos-v1/`](macos-v1), once everything in [ROADMAP.md](ROADMAP.md) is done.
+WordFlow is a dictation app for macOS, Windows and Linux.
 
 ## Features
 
@@ -63,7 +63,7 @@ npm run release -- beta  # or the next beta
 
 CI (`.github/workflows/desktop.yml`) runs on every push to `main` and every pull request: UI checks and build, Rust format/lint/tests on all three systems, a dependency audit, and installers as artifacts.
 
-Pushing a `v2.*` tag publishes the installers as a GitHub pre-release. SpeakType 1 stays the "Latest" release, so its update check and download links are unaffected.
+Pushing a `v2.*` tag publishes the installers as a GitHub pre-release.
 
 Release builds take their version from the tag and include signed update packages, which the app installs in place. Signing needs the `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` secrets; the matching public key is in `src-tauri/tauri.conf.json`. Keep the private key safe: without it, installed copies can't be updated.
 
@@ -75,4 +75,3 @@ Release builds take their version from the tag and include signed update package
 | `src-tauri/src/` | App core: audio, transcription, dictation, paste, history, models, cleanup. |
 | `src-tauri/src/platform/` | OS-specific code, one folder per OS with the same functions. |
 | `cleanup-worker/` | Helper that runs built-in cleanup models with llama.cpp. |
-| `macos-v1/` | SpeakType 1 (Swift, macOS only). |

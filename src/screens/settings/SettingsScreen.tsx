@@ -7,7 +7,6 @@ import {
   Ear,
   Globe,
   Hand,
-  Import,
   Keyboard,
   Lightbulb,
   Mic,
@@ -51,9 +50,9 @@ import {
   useToast,
   type SelectOption,
 } from "@/components/ui";
-import { api, errorMessage, type InputDevice, type LegacyStatus, type Settings, type UpdateInfo } from "@/lib/api";
+import { api, errorMessage, type InputDevice, type Settings, type UpdateInfo } from "@/lib/api";
 import { cn } from "@/lib/cn";
-import { describeImport, hotkeyParts } from "@/lib/format";
+import { hotkeyParts } from "@/lib/format";
 import { hotkeyBlockedMessage, useWhileHotkeyBlocked } from "@/lib/hotkeyBlocked";
 
 import { LANGUAGES, languageName } from "@/lib/languages";
@@ -201,8 +200,8 @@ function GeneralTab() {
           label="Launch at login"
           description={
             settings.launchAtLogin
-              ? "Wordfall starts in the background when you log in, ready for your hotkey."
-              : "Wordfall only runs when you open it."
+              ? "WordFlow starts in the background when you log in, ready for your hotkey."
+              : "WordFlow only runs when you open it."
           }
         >
           <Switch label="Launch at login" checked={settings.launchAtLogin} onChange={(launchAtLogin) => save({ launchAtLogin })} />
@@ -211,7 +210,7 @@ function GeneralTab() {
           icon={Command}
          
           label={isMac ? "Show menu bar icon" : "Show tray icon"}
-          description="Quick access to dictation and Wordfall's window."
+          description="Quick access to dictation and WordFlow's window."
         >
           <Switch checked={settings.showTrayIcon} onChange={(showTrayIcon) => save({ showTrayIcon })} />
         </SettingRow>
@@ -221,8 +220,8 @@ function GeneralTab() {
           label="Restore clipboard after pasting"
           description={
             settings.restoreClipboard
-              ? "After Wordfall pastes, whatever you had copied is put back."
-              : "The transcript stays on your clipboard after Wordfall pastes it."
+              ? "After WordFlow pastes, whatever you had copied is put back."
+              : "The transcript stays on your clipboard after WordFlow pastes it."
           }
         >
           <Switch checked={settings.restoreClipboard} onChange={(restoreClipboard) => save({ restoreClipboard })} />
@@ -293,7 +292,7 @@ function GeneralTab() {
           label="Learn from my corrections"
           description={
             settings.learnCorrections
-              ? "When you fix a misheard name or term, or its capitals (github → GitHub), Wordfall adds it to Dictionary and gets it right next time. Learned words can be removed there."
+              ? "When you fix a misheard name or term, or its capitals (github → GitHub), WordFlow adds it to Dictionary and gets it right next time. Learned words can be removed there."
               : "Corrections are saved but nothing is learned from them."
           }
         >
@@ -316,7 +315,6 @@ function GeneralTab() {
       <LanguageSection />
       <SharingSection />
       <UpdatesSection />
-      <ImportSection />
     </>
   );
 }
@@ -377,7 +375,7 @@ function UpdatesSection() {
     try {
       const info = await api.checkForUpdate();
       if (info.available) setUpdate(info);
-      else toast(`You're up to date. Wordfall ${info.currentVersion} is the latest version.`);
+      else toast(`You're up to date. WordFlow ${info.currentVersion} is the latest version.`);
     } catch (error) {
       toast(errorMessage(error), "error");
     } finally {
@@ -397,55 +395,11 @@ function UpdatesSection() {
       <SettingRow
         icon={RefreshCw}
         label="Check for updates automatically"
-        description={`Once a day, in the background. You have Wordfall ${status.build || status.version}.`}
+        description={`Once a day, in the background. You have WordFlow ${status.build || status.version}.`}
       >
         <Switch checked={settings.autoUpdate} onChange={(autoUpdate) => save({ autoUpdate })} />
       </SettingRow>
       <UpdateDialog update={update} onClose={() => setUpdate(null)} />
-    </Section>
-  );
-}
-
-/** Only shown when SpeakType 1's data is on this computer. */
-function ImportSection() {
-  const toast = useToast();
-  const [available, setAvailable] = useState<LegacyStatus["available"]>(null);
-  const [importing, setImporting] = useState(false);
-
-  useEffect(() => {
-    api
-      .getLegacyStatus()
-      .then((status) => setAvailable(status.available))
-      .catch(() => {});
-  }, []);
-
-  if (!available) return null;
-
-  const run = async () => {
-    setImporting(true);
-    try {
-      const result = await api.importLegacy();
-      const what = describeImport(result);
-      toast(what ? `Imported ${what} from SpeakType 1.` : "Everything from SpeakType 1 is already here.");
-    } catch (error) {
-      toast(errorMessage(error), "error");
-    } finally {
-      setImporting(false);
-    }
-  };
-
-  return (
-    <Section title="SpeakType 1">
-      <SettingRow
-        icon={Import}
-       
-        label="Import from SpeakType 1"
-        description={`Found ${describeImport(available)} on this computer. Anything already here is skipped.`}
-      >
-        <Button loading={importing} onClick={run}>
-          Import
-        </Button>
-      </SettingRow>
     </Section>
   );
 }
@@ -476,7 +430,7 @@ function AudioTab() {
   return (
     <Section
       title="Microphone"
-      description="Wordfall records from this input."
+      description="WordFlow records from this input."
       action={
         <Button size="sm" variant="ghost" icon={RotateCw} loading={refreshing} onClick={refresh}>
           Refresh
@@ -555,7 +509,7 @@ function RecordingSection() {
 
 function PermissionsTab() {
   return (
-    <Section title="App permissions" description="Wordfall needs both to dictate into other apps.">
+    <Section title="App permissions" description="WordFlow needs both to dictate into other apps.">
       <PermissionList />
     </Section>
   );

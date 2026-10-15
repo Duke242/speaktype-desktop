@@ -59,7 +59,7 @@ export function installBrowserPreview() {
     autoUpdate: true,
     dictionary: [
       { id: "1", trigger: "my email", replacement: "karan@example.com", isEnabled: true, matchWholeWord: true },
-      { id: "2", trigger: "word fall", replacement: "Wordfall", isEnabled: true, matchWholeWord: true },
+      { id: "2", trigger: "word flow", replacement: "WordFlow", isEnabled: true, matchWholeWord: true },
       { id: "3", trigger: "um", replacement: "", isEnabled: false, matchWholeWord: false },
       { id: "4", trigger: "cooper netties", replacement: "Kubernetes", isEnabled: true, matchWholeWord: true, learned: true },
     ],
@@ -72,10 +72,9 @@ export function installBrowserPreview() {
       { id: "s3", trigger: "sign off", expansion: "Thanks,\nKaran", isEnabled: false },
     ],
     // Add ?sync=1 to preview sharing through a folder.
-    syncFolder: params.get("sync") ? "/Users/karan/Dropbox/Wordfall" : "",
+    syncFolder: params.get("sync") ? "/Users/karan/Dropbox/WordFlow" : "",
     hasCompletedOnboarding: params.get("onboarding") !== "1",
     hasShownModelPrompt: true,
-    hasImportedV1: false,
     meetings: { captureSystemAudio: true, systemAudioSource: "", summarizeAutomatically: true },
   };
   const meetings = sampleMeetings(now, day);
@@ -306,9 +305,9 @@ export function installBrowserPreview() {
         case "sync_now":
           return { lastSyncedAt: now - 120_000, error: null };
         case "pick_sync_folder":
-          return "/Users/karan/Dropbox/Wordfall";
+          return "/Users/karan/Dropbox/WordFlow";
         case "export_library":
-          return "/Users/karan/Downloads/wordfall-library.json";
+          return "/Users/karan/Downloads/wordflow-library.json";
         case "import_library":
           return { rules: 2, snippets: 1 };
         case "list_input_devices":
@@ -323,14 +322,6 @@ export function installBrowserPreview() {
             { kind: "microphone", granted: true },
             { kind: "accessibility", granted: false },
           ];
-        case "get_legacy_status":
-          return {
-            available: { transcripts: 21, dictionary: 3 },
-            // Add ?imported=1 to preview onboarding after an upgrade from SpeakType 1.
-            imported: params.get("imported") ? { transcripts: 21, dictionary: 3, settings: true } : null,
-          };
-        case "import_legacy":
-          return { transcripts: 21, dictionary: 3, settings: false };
         case "get_meeting_setup":
           return {
             systemAudioNote:

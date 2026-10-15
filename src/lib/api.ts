@@ -24,6 +24,8 @@ export interface DictionaryEntry {
   matchWholeWord: boolean;
   /** Added automatically from a correction, rather than by the user. */
   learned?: boolean;
+  /** The kinds of app the rule is used in. Missing or empty for every app. */
+  onlyIn?: AppCategory[];
 }
 
 /** A spoken phrase that expands into saved text. */
@@ -128,8 +130,6 @@ export interface Settings {
   syncFolder: string;
   hasCompletedOnboarding: boolean;
   hasShownModelPrompt: boolean;
-  /** Set once SpeakType 1's data has been brought over. */
-  hasImportedV1: boolean;
   meetings: MeetingSettings;
 }
 
@@ -192,7 +192,7 @@ export interface ServerModels {
 }
 
 export interface AppTone {
-  /** Apps Wordfall already knows. */
+  /** Apps WordFlow already knows. */
   builtIn: { name: string; category: AppCategory }[];
   /** The app dictated into last, so users can see what to call it. */
   lastApp: { id: string; name: string; title: string; category: AppCategory } | null;
@@ -256,20 +256,6 @@ export type PermissionKind = "microphone" | "accessibility";
 export interface Permission {
   kind: PermissionKind;
   granted: boolean;
-}
-
-/** What was brought over from SpeakType 1. */
-export interface ImportSummary {
-  transcripts: number;
-  dictionary: number;
-  settings: boolean;
-}
-
-export interface LegacyStatus {
-  /** SpeakType 1's data on this computer, if there is any. */
-  available: { transcripts: number; dictionary: number } | null;
-  /** What was brought over at first launch. Only reported once. */
-  imported: ImportSummary | null;
 }
 
 /** How sharing through a folder went. */
@@ -447,8 +433,6 @@ export const api = {
   checkForUpdate: () => invoke<UpdateInfo>("check_for_update"),
   /** Downloads and installs `version`, which the last check found, then restarts. */
   installUpdate: (version: string) => invoke<void>("install_update", { version }),
-  getLegacyStatus: () => invoke<LegacyStatus>("get_legacy_status"),
-  importLegacy: () => invoke<ImportSummary>("import_legacy"),
 
   getMeetingSetup: () => invoke<MeetingSetup>("get_meeting_setup"),
   getMeetingState: () => invoke<MeetingState>("get_meeting_state"),

@@ -1,26 +1,25 @@
 #!/usr/bin/env node
-// Tags a Wordfall release and pushes the tag. CI then builds installers for
+// Tags a WordFlow release and pushes the tag. CI then builds installers for
 // macOS, Windows and Linux and attaches them to the release.
 //
 //   npm run release            next alpha, e.g. v2.0.0-alpha.5
 //   npm run release -- beta    next beta, e.g. v2.0.0-beta.1
 //   npm run release -- stable  the version in tauri.conf.json, e.g. v2.0.0, as the
-//                              "Latest" release, which SpeakType 1 offers as an update
+//                              "Latest" release
 //   npm run release -- --dry   show the tag without creating it
 
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 
-const PRE_RELEASE_NOTES = `An early build of Wordfall for macOS, Windows and Linux. Expect rough edges.
+const PRE_RELEASE_NOTES = `An early build of WordFlow for macOS, Windows and Linux. Expect rough edges.
 See ROADMAP.md for what's left.
 
 The Windows installer isn't signed yet: on the SmartScreen prompt, click More info, then Run anyway.`;
 
-const STABLE_NOTES = `Wordfall is here, for macOS, Windows and Linux.
+const STABLE_NOTES = `WordFlow is here, for macOS, Windows and Linux.
 
 - One app on every system, with the same models running on your own computer.
 - A new design, a menu bar panel, and a smaller, lighter app.
-- Upgrading from SpeakType 1 on a Mac brings your history, dictionary and settings with you. Models need downloading again, since Wordfall uses a different format.
 
 The Windows installer isn't signed yet: on the SmartScreen prompt, click More info, then Run anyway.`;
 
@@ -65,7 +64,7 @@ if (dryRun) {
   process.exit(0);
 }
 
-git("tag", "-a", tag, "-m", `Wordfall ${tag}`);
+git("tag", "-a", tag, "-m", `WordFlow ${tag}`);
 git("push", "origin", tag);
 
 // Create the release here, with your GitHub login, and let CI attach the
@@ -78,11 +77,11 @@ execFileSync(
     "create",
     tag,
     "--verify-tag",
-    // Even a stable release starts as a pre-release: SpeakType 1 offers whatever is
-    // "Latest" as an update, and it must not see a release before its installers exist.
+    // Even a stable release starts as a pre-release, so nothing is offered as
+    // "Latest" before its installers exist.
     "--prerelease",
     "--title",
-    `Wordfall ${tag}`,
+    `WordFlow ${tag}`,
     "--notes",
     stable ? STABLE_NOTES : PRE_RELEASE_NOTES,
   ],

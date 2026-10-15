@@ -1,8 +1,7 @@
-//! Finds a newer Wordfall on GitHub and installs it in place.
+//! Finds a newer WordFlow on GitHub and installs it in place.
 //!
-//! Wordfall 2 ships as pre-releases while SpeakType 1 is still GitHub's
-//! "Latest" release, so this lists releases rather than asking for the latest
-//! one. Pre-release builds move to any newer release; stable builds only to
+//! WordFlow ships as pre-releases, which GitHub's "latest release" skips, so
+//! this lists releases rather than asking for the latest one. Pre-release builds move to any newer release; stable builds only to
 //! stable ones. CI attaches a signed `latest.json` to each release once its
 //! installers are built, which the updater plugin uses to download, verify and
 //! install the new version. Releases without one aren't offered: they're still
@@ -76,7 +75,7 @@ pub async fn check_for_update(
 ) -> Result<UpdateInfo, String> {
     let releases: Vec<Release> = reqwest::Client::new()
         .get(RELEASES_URL)
-        .header("User-Agent", "Wordfall")
+        .header("User-Agent", "WordFlow")
         .header("Accept", "application/vnd.github+json")
         .timeout(CHECK_TIMEOUT)
         .send()

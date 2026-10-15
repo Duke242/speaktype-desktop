@@ -133,44 +133,6 @@ impl History {
         items.and(stats).map(|()| Some(item))
     }
 
-    /// Adds items and stats from elsewhere, skipping any already here, and keeps
-    /// both lists newest first. Returns how many items were added.
-    ///
-    /// Items match by id. Stats have no id, so they match by time and word count.
-    pub fn import(
-        &mut self,
-        items: Vec<HistoryItem>,
-        stats: Vec<StatsEntry>,
-    ) -> Result<usize, String> {
-        let before_items = self.items.len();
-        let before_stats = self.stats.len();
-        for item in items {
-            if !self.items.iter().any(|existing| existing.id == item.id) {
-                self.items.push(item);
-            }
-        }
-        for entry in stats {
-            if !self
-                .stats
-                .iter()
-                .any(|s| s.created_at == entry.created_at && s.word_count == entry.word_count)
-            {
-                self.stats.push(entry);
-            }
-        }
-        let added = self.items.len() - before_items;
-        if added == 0 && self.stats.len() == before_stats {
-            return Ok(0);
-        }
-        self.items
-            .sort_by_key(|item| std::cmp::Reverse(item.created_at));
-        self.stats
-            .sort_by_key(|entry| std::cmp::Reverse(entry.created_at));
-        let items = write_json(&self.items_path, &self.items);
-        let stats = write_json(&self.stats_path, &self.stats);
-        items.and(stats).map(|()| added)
-    }
-
     /// Replaces an item's transcript, returning the one it had. Stats keep the
     /// original word count, as they record what was dictated.
     pub fn edit(&mut self, id: &str, transcript: &str) -> Result<Option<String>, String> {
@@ -285,7 +247,7 @@ mod tests {
 
     impl TempDir {
         fn new() -> Self {
-            let dir = std::env::temp_dir().join(format!("speaktype-test-{}", uuid::Uuid::new_v4()));
+            let dir = std::env::temp_dir().join(format!("wordflow-test-{}", uuid::Uuid::new_v4()));
             fs::create_dir_all(&dir).unwrap();
             Self(dir)
         }

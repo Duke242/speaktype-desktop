@@ -224,7 +224,7 @@ function Notes({
               </Button>
             }
           >
-            Set up AI cleanup with a built-in model or a local server, and Wordfall writes a summary, action items and
+            Set up AI cleanup with a built-in model or a local server, and WordFlow writes a summary, action items and
             open questions for each meeting.
           </Callout>
         ) : !hasTranscript ? (
