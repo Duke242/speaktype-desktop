@@ -8,7 +8,7 @@ Live typing is enabled in Settings → Behavior. It inserts short phrases during
 
 ## Finish and send
 
-Finish and send (Settings → Behavior) sends a message in one go: press Return while recording hands-free and WordFlow stops, inserts the transcript and presses Return about 150 ms later. Return is only claimed while recording, and not while the Hold-mode hotkey is held, where it's part of a shortcut and cancels as any other key does. A sent dictation isn't watched for corrections, as the field is cleared.
+Finish and send (Settings → Behavior) sends a message in one go: press Return while recording, hands-free or with the hotkey held, and WordFlow stops, inserts the transcript and presses Return about 150 ms later. Return and keypad Enter (what Fn+Return gives on a Mac) are only claimed while recording. With a modifier hotkey like ⌘ held, Return is part of a shortcut and cancels as any other key does; Fn isn't such a modifier, so Fn+Return sends. A sent dictation isn't watched for corrections, as the field is cleared.
 
 ## Tone that fits the app
 

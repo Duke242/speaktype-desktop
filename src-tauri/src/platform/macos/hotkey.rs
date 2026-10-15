@@ -57,6 +57,9 @@ static TAP: AtomicPtr<c_void> = AtomicPtr::new(ptr::null_mut());
 static TAP_STARTED: AtomicBool = AtomicBool::new(false);
 /// Whether macOS refused the tap last time, which happens without Accessibility permission.
 static TAP_REFUSED: AtomicBool = AtomicBool::new(false);
+/// Whether Return is claimed for Finish and send, so Fn+Return sends the
+/// dictation rather than interrupting it.
+static SENDS: AtomicBool = AtomicBool::new(false);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ModifierKey {
@@ -136,6 +139,10 @@ pub fn stop() {
     *ACTIVE.lock_unpoisoned() = None;
 }
 
+pub fn set_sends(sends: bool) {
+    SENDS.store(sends, Ordering::Relaxed);
+}
+
 /// Whether a modifier hotkey is set but macOS won't let us listen for it.
 pub fn is_blocked() -> bool {
     TAP_REFUSED.load(Ordering::Relaxed) && ACTIVE.lock_unpoisoned().is_some()
@@ -190,6 +197,14 @@ const TAP_DISABLED_BY_USER_INPUT: u32 = 0xFFFF_FFFF;
 const KEYCODE_FIELD: u32 = 9;
 /// F19, posted to break the Globe key's "show emoji picker" gesture.
 const KEYCODE_F19: u16 = 0x50;
+/// kVK_Return, and kVK_ANSI_KeypadEnter, which Fn+Return gives on Mac keyboards.
+const KEYCODE_RETURN: i64 = 0x24;
+const KEYCODE_KEYPAD_ENTER: i64 = 0x4C;
+
+fn is_return(keycode: i64) -> bool {
+    keycode == KEYCODE_RETURN || keycode == KEYCODE_KEYPAD_ENTER
+}
+
 /// How often to retry creating the tap while Accessibility permission is missing.
 const RETRY_INTERVAL: Duration = Duration::from_secs(2);
 
@@ -320,8 +335,16 @@ unsafe fn handle_event(event_type: u32, event: CGEventRef) -> CGEventRef {
                 is_fn = active.key == ModifierKey::Fn;
             }
             // Another key while the hotkey is held means it's part of a normal
-            // shortcut (⌘C with ⌘ as the hotkey), not a dictation.
-            KEY_DOWN if active.pressed && keycode != i64::from(KEYCODE_F19) => {
+            // shortcut (⌘C with ⌘ as the hotkey), not a dictation. Except
+            // Return with Fn, which the send key catches: Fn isn't a modifier
+            // to global shortcuts, so Fn+Return still reaches them.
+            KEY_DOWN
+                if active.pressed
+                    && keycode != i64::from(KEYCODE_F19)
+                    && !(active.key == ModifierKey::Fn
+                        && SENDS.load(Ordering::Relaxed)
+                        && is_return(keycode)) =>
+            {
                 active.pressed = false;
                 reported = Some((Arc::clone(&active.handler), HotkeyEvent::Interrupted));
             }
