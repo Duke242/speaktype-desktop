@@ -166,6 +166,9 @@ pub struct Settings {
     pub save_recordings: bool,
     /// Add misheard words to the dictionary when the user corrects a transcript.
     pub learn_corrections: bool,
+    /// On macOS, also watch Chrome and Electron apps for corrections, which
+    /// slows typing in them while watched.
+    pub watch_chromium_apps: bool,
     pub always_show_pill: bool,
     pub pill_position: PillPosition,
     pub show_tray_icon: bool,
@@ -212,6 +215,7 @@ impl Default for Settings {
             restore_clipboard: true,
             save_recordings: true,
             learn_corrections: true,
+            watch_chromium_apps: false,
             always_show_pill: false,
             pill_position: PillPosition::BottomCenter,
             show_tray_icon: true,
@@ -392,6 +396,7 @@ mod tests {
             "restoreClipboard",
             "saveRecordings",
             "learnCorrections",
+            "watchChromiumApps",
             "alwaysShowPill",
             "pillPosition",
             "showTrayIcon",

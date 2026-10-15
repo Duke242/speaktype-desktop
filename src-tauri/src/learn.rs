@@ -19,9 +19,11 @@
 //! sentence is grammar, and so is changing the case of everyday words.
 //!
 //! On macOS and Windows, the field a dictation was typed into is watched for a
-//! couple of minutes afterwards (`watch_for_corrections`), so fixing a word
+//! few seconds afterwards (`watch_for_corrections`), so fixing a word
 //! right where it was typed teaches it too. Only that field is read, never a
-//! password field, and nothing from it is kept beyond the learned words.
+//! password field, and nothing from it is kept beyond the learned words. On
+//! macOS, Chrome and Electron apps are only watched if the user turns that on,
+//! as it slows typing in them while watched.
 
 use std::{
     sync::atomic::{AtomicU64, Ordering},
@@ -431,7 +433,7 @@ pub fn learn_from_app(app: &AppHandle, typed: &str, edited: &str) {
 }
 
 /// How long after typing the field is watched, and how often it's read.
-const WATCH_FOR: Duration = Duration::from_secs(120);
+const WATCH_FOR: Duration = Duration::from_secs(10);
 const WATCH_EVERY: Duration = Duration::from_millis(800);
 /// Time for pasted text to land before the field is first read.
 const SETTLE: Duration = Duration::from_millis(900);
@@ -452,16 +454,18 @@ static WATCH: AtomicU64 = AtomicU64::new(0);
 /// is off or the field can't be read, as on Linux.
 pub fn watch_for_corrections(app: &AppHandle, typed: &str) {
     let typed = typed.trim();
-    if typed.is_empty() || !app.state::<AppState>().settings().learn_corrections {
+    let settings = app.state::<AppState>().settings();
+    if typed.is_empty() || !settings.learn_corrections {
         return;
     }
+    let chromium_apps = settings.watch_chromium_apps;
     let generation = WATCH.fetch_add(1, Ordering::SeqCst) + 1;
     let app = app.clone();
     let typed = typed.to_string();
     let spawned = thread::Builder::new()
         .name("correction-watch".into())
         .spawn(move || {
-            if let Some(edited) = watch(&typed, generation) {
+            if let Some(edited) = watch(&typed, generation, chromium_apps) {
                 learn_from_app(&app, &typed, &edited);
             }
         });
@@ -476,9 +480,9 @@ pub fn watch_for_corrections(app: &AppHandle, typed: &str) {
 /// newer dictation starts, time runs out, or the typed text is gone, as when a
 /// message is sent; then the last version seen counts, as it was sent as meant,
 /// and nothing typed in the field afterwards is compared.
-fn watch(typed: &str, generation: u64) -> Option<String> {
+fn watch(typed: &str, generation: u64, chromium_apps: bool) -> Option<String> {
     thread::sleep(SETTLE);
-    let (field, text) = read_field()?;
+    let (field, text) = read_field(chromium_apps)?;
     let span = Span::find(&text, typed)?;
     let mut previous = span.edited(&text)?.to_string();
     let mut settled = None;
@@ -501,12 +505,12 @@ fn watch(typed: &str, generation: u64) -> Option<String> {
 }
 
 /// The focused field and its text, given a moment to become readable.
-fn read_field() -> Option<(platform::FocusedField, String)> {
+fn read_field(chromium_apps: bool) -> Option<(platform::FocusedField, String)> {
     for attempt in 0..FIELD_RETRIES {
         if attempt > 0 {
             thread::sleep(FIELD_RETRY_EVERY);
         }
-        if let Some(field) = platform::FocusedField::current()
+        if let Some(field) = platform::FocusedField::current(chromium_apps)
             && let Some(text) = field.text()
         {
             return (text.len() <= MAX_FIELD_BYTES).then_some((field, text));

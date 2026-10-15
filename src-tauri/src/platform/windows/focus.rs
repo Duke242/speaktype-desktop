@@ -36,8 +36,9 @@ pub struct FocusedField {
 
 impl FocusedField {
     /// The focused text field in the foreground app, if it can be read.
-    /// Password fields are never read.
-    pub fn current() -> Option<Self> {
+    /// Password fields are never read. Chrome and Electron apps can be read
+    /// here without slowing them, so `chromium_apps` is only for macOS.
+    pub fn current(_chromium_apps: bool) -> Option<Self> {
         // SAFETY: initializes COM for this thread; balanced by `Com`'s drop.
         // A thread already initialized differently still gets a usable object.
         let com = Com(unsafe { CoInitializeEx(None, COINIT_MULTITHREADED) }.is_ok());
