@@ -30,7 +30,7 @@ Settings → Commands and formatting turns on rules for English dictation, all o
 
 ## Sharing
 
-To share the dictionary and snippets between computers or with a team, pick a folder in Settings → Sharing that Dropbox, iCloud Drive or a shared drive keeps in step. WordFlow keeps `wordfall-shared.json` there and merges it at launch, every minute and after each change, keeping the newest version of each rule or snippet. The same section exports and imports them as a file.
+To share the dictionary and snippets between computers or with a team, pick a folder in Settings → Sharing that Dropbox, iCloud Drive or a shared drive keeps in step. WordFlow keeps `wordflow-shared.json` there and merges it at launch, every minute and after each change, keeping the newest version of each rule or snippet. The same section exports and imports them as a file.
 
 ## Meetings
 

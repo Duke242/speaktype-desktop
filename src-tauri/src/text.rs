@@ -463,28 +463,28 @@ mod tests {
     fn entries_limited_to_some_apps_only_apply_there() {
         let mut merge = entry("emerge", "merge", true);
         merge.only_in = vec![AppCategory::Code, AppCategory::Terminal];
-        let dictionary = [merge, entry("word fall", "Wordfall", true)];
+        let dictionary = [merge, entry("word flow", "WordFlow", true)];
         let in_app = |app| Options {
             app,
             ..options(&dictionary, &[])
         };
         assert_eq!(
-            process("Emerge it into word fall", &in_app(AppCategory::Code)),
-            "merge it into Wordfall"
+            process("Emerge it into word flow", &in_app(AppCategory::Code)),
+            "merge it into WordFlow"
         );
         assert_eq!(
-            process("Emerge it into word fall", &in_app(AppCategory::Terminal)),
-            "merge it into Wordfall"
+            process("Emerge it into word flow", &in_app(AppCategory::Terminal)),
+            "merge it into WordFlow"
         );
         assert_eq!(
-            process("Emerge it into word fall", &in_app(AppCategory::Chat)),
-            "Emerge it into Wordfall"
+            process("Emerge it into word flow", &in_app(AppCategory::Chat)),
+            "Emerge it into WordFlow"
         );
         assert_eq!(
             prompt(&dictionary, "", AppCategory::Code),
-            "Wordfall, merge."
+            "WordFlow, merge."
         );
-        assert_eq!(prompt(&dictionary, "", AppCategory::Email), "Wordfall.");
+        assert_eq!(prompt(&dictionary, "", AppCategory::Email), "WordFlow.");
     }
 
     #[test]

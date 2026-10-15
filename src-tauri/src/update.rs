@@ -20,7 +20,7 @@ use crate::{
     meeting::{MeetingState, Meetings},
 };
 
-const RELEASES_URL: &str = "https://api.github.com/repos/Duke242/wordfall/releases?per_page=30";
+const RELEASES_URL: &str = "https://api.github.com/repos/Duke242/wordflow/releases?per_page=30";
 /// Keeps a stalled connection from leaving the check pending forever.
 const CHECK_TIMEOUT: Duration = Duration::from_secs(15);
 /// The update manifest CI attaches to each release.

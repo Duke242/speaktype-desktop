@@ -1,6 +1,6 @@
 //! Sharing the dictionary and snippets between computers, or with a team.
 //!
-//! There's no server. WordFlow keeps `wordfall-shared.json` in a folder the
+//! There's no server. WordFlow keeps `wordflow-shared.json` in a folder the
 //! user picks, usually one that Dropbox, iCloud Drive or a shared drive keeps
 //! in step. Every rule and snippet in it carries the time it last changed, and
 //! deletions stay as markers for a while, so each copy of WordFlow merges what
@@ -30,7 +30,9 @@ use crate::{
 };
 
 /// Keeps the name from before the rename to WordFlow, so shared folders keep syncing.
-pub const FILE_NAME: &str = "wordfall-shared.json";
+pub const FILE_NAME: &str = "wordflow-shared.json";
+/// The shared file's name from before the rename to WordFlow.
+const OLD_FILE_NAME: &str = "wordfall-shared.json";
 /// What was last synced, so changes made here can be told from changes made elsewhere.
 const STATE_FILE: &str = "sync-state.json";
 const FORMAT_VERSION: u32 = 1;
@@ -87,7 +89,7 @@ pub struct Record<T> {
     pub deleted: bool,
 }
 
-/// The contents of `wordfall-shared.json` and of exported files.
+/// The contents of `wordflow-shared.json` and of exported files.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Library {
@@ -525,6 +527,10 @@ fn sync(app: &AppHandle) -> Result<bool, String> {
         return Err("Couldn't find the shared folder. Is it still there?".into());
     }
     let shared_path = folder.join(FILE_NAME);
+    let old_path = folder.join(OLD_FILE_NAME);
+    if !shared_path.exists() && old_path.exists() {
+        fs::rename(&old_path, &shared_path).map_err(|e| e.to_string())?;
+    }
     // A file that can't be read is left alone rather than overwritten.
     let shared: Library = read_json(&shared_path)?.unwrap_or_default();
     let state_path = app
@@ -945,7 +951,7 @@ mod tests {
         let library = export_library(&[entry("a", "b")], &[], 7);
         write_json(&path, &library).unwrap();
         assert_eq!(read_json::<Library>(&path).unwrap(), Some(library));
-        assert!(!dir.join("wordfall-shared.json.tmp").exists());
+        assert!(!dir.join("wordflow-shared.json.tmp").exists());
         fs::write(&path, "{not json").unwrap();
         assert!(read_json::<Library>(&path).is_err());
         fs::remove_dir_all(dir).unwrap();

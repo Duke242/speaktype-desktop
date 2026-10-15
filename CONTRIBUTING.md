@@ -27,7 +27,7 @@ Thanks for helping out! This guide covers everything from a fresh machine to a m
 
 You don't have to write code to help. A clear bug report from a Windows or Linux machine is one of the most useful things you can send.
 
-**Before you start on something big,** [open an issue](https://github.com/Duke242/wordfall/issues) or comment on an existing one so we can agree on the approach. Small fixes can go straight to a pull request.
+**Before you start on something big,** [open an issue](https://github.com/Duke242/wordflow/issues) or comment on an existing one so we can agree on the approach. Small fixes can go straight to a pull request.
 
 ---
 
@@ -402,4 +402,4 @@ GGML_NATIVE=OFF GGML_CPU_ARM_ARCH=armv8.2-a+fp16 npm run app
 
 **Linux: the hotkey doesn't work on Wayland.** It only fires while an X11 app has focus (see [Linux](#linux)). An X11 session is the most reliable option for now.
 
-**Something else?** [Open an issue](https://github.com/Duke242/wordfall/issues) with your system, what you ran, and the full error output. Stuck setups are worth reporting too: they help us improve this guide.
+**Something else?** [Open an issue](https://github.com/Duke242/wordflow/issues) with your system, what you ran, and the full error output. Stuck setups are worth reporting too: they help us improve this guide.
