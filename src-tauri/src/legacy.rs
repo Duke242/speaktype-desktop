@@ -306,6 +306,7 @@ impl V1DictionaryEntry {
             is_enabled: self.is_enabled,
             match_whole_word: self.match_whole_word,
             learned: false,
+            only_in: Vec::new(),
         }
     }
 }
@@ -407,6 +408,7 @@ fn legacy_rules(raw: &str) -> Vec<DictionaryEntry> {
                 is_enabled: true,
                 match_whole_word: true,
                 learned: false,
+                only_in: Vec::new(),
             })
         })
         .collect()
@@ -537,6 +539,7 @@ mod tests {
             is_enabled: true,
             match_whole_word: true,
             learned: false,
+            only_in: Vec::new(),
         });
         assert_eq!(v1.import_dictionary(&mut settings), 1);
         assert_eq!(v1.import_dictionary(&mut settings), 0);

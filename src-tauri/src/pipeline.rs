@@ -18,7 +18,8 @@ use crate::{
     live, media, models,
     platform::FrontApp,
     settings::Settings,
-    text, tone,
+    text,
+    tone::{self, AppCategory},
 };
 
 #[derive(Debug)]
@@ -107,11 +108,12 @@ pub fn run(
         on_stage(Stage::Transcribing);
         loaded.map_err(Error::ModelLoad)?;
     }
+    let style = tone::Style::new(&settings.tone, target);
     // The recording is saved as it was captured.
     let heard = heard(&settings, samples);
     // Given words to expect and only silence, Whisper may write those words.
     let prompt = if live::has_speech(&heard) {
-        text::prompt(&settings.dictionary, "")
+        text::prompt(&settings.dictionary, "", style.category)
     } else {
         String::new()
     };
@@ -125,13 +127,13 @@ pub fn run(
         smart_trailing_punctuation: settings.smart_trailing_punctuation,
         plain_punctuation: settings.plain_punctuation,
         dictionary: &settings.dictionary,
+        app: style.category,
         voice_commands: settings.voice_commands,
         self_corrections: settings.self_corrections,
         smart_formatting: settings.smart_formatting,
         snippets: &settings.snippets,
         english: text::is_english(&settings.language),
     };
-    let style = tone::Style::new(&settings.tone, target);
     let mut text = style.format(&text::normalize_transcription(
         &raw,
         options.auto_edit,
@@ -233,7 +235,7 @@ pub fn transcribe_heard(app: &AppHandle, heard: &[f32]) -> Result<String, Error>
             .load_model(app, &mut engine, model)
             .map_err(Error::ModelLoad)?;
     }
-    let prompt = text::prompt(&settings.dictionary, "");
+    let prompt = text::prompt(&settings.dictionary, "", AppCategory::Other);
     let raw = engine
         .transcribe(heard, &settings.language, &prompt)
         .map_err(Error::Transcribe)?;

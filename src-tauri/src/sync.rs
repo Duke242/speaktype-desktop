@@ -25,7 +25,9 @@ use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_dialog::DialogExt;
 
-use crate::{AppState, LockExt, history::now_ms, snippets::Snippet, text::DictionaryEntry};
+use crate::{
+    AppState, LockExt, history::now_ms, snippets::Snippet, text::DictionaryEntry, tone::AppCategory,
+};
 
 pub const FILE_NAME: &str = "wordfall-shared.json";
 /// What was last synced, so changes made here can be told from changes made elsewhere.
@@ -49,6 +51,8 @@ pub struct Rule {
     pub match_whole_word: bool,
     #[serde(default)]
     pub learned: bool,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub only_in: Vec<AppCategory>,
 }
 
 /// A snippet as shared.
@@ -134,6 +138,7 @@ impl Local for DictionaryEntry {
             is_enabled: self.is_enabled,
             match_whole_word: self.match_whole_word,
             learned: self.learned,
+            only_in: self.only_in.clone(),
         }
     }
 
@@ -143,6 +148,7 @@ impl Local for DictionaryEntry {
         self.is_enabled = rule.is_enabled;
         self.match_whole_word = rule.match_whole_word;
         self.learned = rule.learned;
+        self.only_in = rule.only_in.clone();
     }
 
     fn create(rule: &Rule) -> Self {
@@ -153,6 +159,7 @@ impl Local for DictionaryEntry {
             is_enabled: true,
             match_whole_word: true,
             learned: false,
+            only_in: Vec::new(),
         };
         entry.update(rule);
         entry
@@ -643,6 +650,7 @@ mod tests {
             is_enabled: true,
             match_whole_word: true,
             learned: false,
+            only_in: Vec::new(),
         }
     }
 

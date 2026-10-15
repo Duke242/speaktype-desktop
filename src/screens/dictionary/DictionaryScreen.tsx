@@ -9,6 +9,7 @@ import {
   IconButton,
   Section,
   SegmentedControl,
+  Select,
   Page,
   PageHeader,
   Switch,
@@ -16,7 +17,7 @@ import {
   TextField,
   useToast,
 } from "@/components/ui";
-import { errorMessage, type DictionaryEntry } from "@/lib/api";
+import { errorMessage, type AppCategory, type DictionaryEntry } from "@/lib/api";
 import { cn } from "@/lib/cn";
 import { plural } from "@/lib/format";
 import { useStore } from "@/lib/store";
@@ -24,6 +25,34 @@ import { Field } from "./Field";
 import { SnippetsTab } from "./SnippetsTab";
 
 type Tab = "replacements" | "snippets";
+
+/** Where a rule is used, by the kinds of app `tone` sorts apps into. */
+type Scope = "everywhere" | "code" | "chat" | "email";
+
+const SCOPES: Record<Scope, { label: string; detail?: string; badge?: string; apps: AppCategory[] }> = {
+  everywhere: { label: "Everywhere", apps: [] },
+  code: {
+    label: "Code editors and terminals",
+    detail: "VS Code, Cursor, Terminal…",
+    badge: "Code only",
+    apps: ["code", "terminal"],
+  },
+  chat: { label: "Chat apps", detail: "Slack, Messages…", badge: "Chat only", apps: ["chat"] },
+  email: { label: "Email", detail: "Mail, Outlook…", badge: "Email only", apps: ["email"] },
+};
+
+const SCOPE_OPTIONS = (Object.keys(SCOPES) as Scope[]).map((value) => ({
+  value,
+  label: SCOPES[value].label,
+  detail: SCOPES[value].detail,
+}));
+
+function scopeOf(entry: DictionaryEntry | null): Scope {
+  const apps = entry?.onlyIn ?? [];
+  if (apps.length === 0) return "everywhere";
+  if (apps.includes("code") || apps.includes("terminal")) return "code";
+  return apps.includes("chat") ? "chat" : apps.includes("email") ? "email" : "everywhere";
+}
 
 export function DictionaryScreen() {
   const [tab, setTab] = useState<Tab>("replacements");
@@ -136,6 +165,7 @@ function RuleRow({
   onDelete: () => void;
   onToggle: (enabled: boolean) => void;
 }) {
+  const scopeBadge = SCOPES[scopeOf(entry)].badge;
   return (
     <div className="group flex items-center gap-4 py-3.5">
       <button
@@ -151,6 +181,7 @@ function RuleRow({
           <span className="type-body text-ink-muted italic">removed</span>
         )}
         {!entry.matchWholeWord && <Badge className="ml-1">Partial match</Badge>}
+        {scopeBadge && <Badge className="ml-1">{scopeBadge}</Badge>}
         {entry.learned && (
           <Badge tone="accent" icon={Lightbulb} className="ml-1">
             Learned
@@ -180,12 +211,14 @@ function RuleEditor({
   const [trigger, setTrigger] = useState("");
   const [replacement, setReplacement] = useState("");
   const [wholeWord, setWholeWord] = useState(true);
+  const [scope, setScope] = useState<Scope>("everywhere");
 
   useEffect(() => {
     if (!open) return;
     setTrigger(entry?.trigger ?? "");
     setReplacement(entry?.replacement ?? "");
     setWholeWord(entry?.matchWholeWord ?? true);
+    setScope(scopeOf(entry));
   }, [open, entry]);
 
   const valid = trigger.trim().length > 0;
@@ -197,6 +230,7 @@ function RuleEditor({
       replacement,
       isEnabled: entry?.isEnabled ?? true,
       matchWholeWord: wholeWord,
+      onlyIn: SCOPES[scope].apps,
     });
     onClose();
   };
@@ -239,6 +273,15 @@ function RuleEditor({
             <span className="block type-small text-ink-secondary">Won't fire inside longer words.</span>
           </span>
           <Switch checked={wholeWord} onChange={setWholeWord} label="Match whole words only" />
+        </div>
+        <div className="flex items-center gap-4">
+          <span className="flex-1">
+            <span className="block type-label">Use in</span>
+            <span className="block type-small text-ink-secondary">
+              For words that only mean something in some apps, like “emerge” to “merge” when coding.
+            </span>
+          </span>
+          <Select value={scope} options={SCOPE_OPTIONS} onChange={setScope} aria-label="Use in" className="w-[240px]" />
         </div>
         <button type="submit" hidden />
       </form>
