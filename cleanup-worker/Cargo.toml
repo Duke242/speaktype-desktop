@@ -1,7 +1,7 @@
 [package]
 name = "speaktype-cleanup"
 version = "2.0.0"
-description = "Runs Wordfall's local cleanup model, in its own process"
+description = "Runs Wordflow's local cleanup model, in its own process"
 edition = "2024"
 rust-version = "1.88"
 publish = false

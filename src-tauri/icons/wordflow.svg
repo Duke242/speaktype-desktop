@@ -1,5 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
-  <!-- Wordfall: five streaks of rain whose drops trace a "W", on deep blue water. -->
+  <!-- Wordflow: five streaks of rain whose drops trace a "W", on deep blue water. -->
   <defs>
     <linearGradient id="sea" x1="0.15" y1="0" x2="0.85" y2="1">
       <stop offset="0" stop-color="#3a86ee"/>

@@ -1,6 +1,6 @@
 # Contributing to SpeakType 1
 
-This folder holds SpeakType 1, the macOS-only Swift app. It only gets critical fixes. New features go into Wordfall, the cross-platform app at the root of this repository; its [contributing guide](../CONTRIBUTING.md) covers setup on every system.
+This folder holds SpeakType 1, the macOS-only Swift app. It only gets critical fixes. New features go into Wordflow, the cross-platform app at the root of this repository; its [contributing guide](../CONTRIBUTING.md) covers setup on every system.
 
 ## Set up
 

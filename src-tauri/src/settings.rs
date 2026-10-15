@@ -56,7 +56,7 @@ pub enum Theme {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum CleanupBackend {
-    /// A model Wordfall downloads and runs itself.
+    /// A model Wordflow downloads and runs itself.
     Builtin,
     /// A local server with an OpenAI-compatible API, such as Ollama or LM Studio.
     Server,
@@ -150,7 +150,7 @@ pub struct Settings {
     pub boost_quiet_speech: bool,
     /// Pause music and videos while recording, and resume them afterwards.
     pub pause_media: bool,
-    /// Start Wordfall, in the background, when the user logs in.
+    /// Start Wordflow, in the background, when the user logs in.
     pub launch_at_login: bool,
     pub auto_edit: bool,
     pub smart_trailing_punctuation: bool,

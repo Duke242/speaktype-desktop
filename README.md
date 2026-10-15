@@ -1,6 +1,6 @@
-# Wordfall
+# Wordflow
 
-Wordfall (formerly SpeakType 2) is a dictation app for macOS, Windows and Linux. It replaces SpeakType 1, the macOS-only Swift app in [`macos-v1/`](macos-v1), once everything in [ROADMAP.md](ROADMAP.md) is done.
+Wordflow (formerly SpeakType 2) is a dictation app for macOS, Windows and Linux. It replaces SpeakType 1, the macOS-only Swift app in [`macos-v1/`](macos-v1), once everything in [ROADMAP.md](ROADMAP.md) is done.
 
 ## Features
 

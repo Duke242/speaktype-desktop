@@ -15,7 +15,7 @@ describe("learnedMessage", () => {
   it("names the first word and counts the rest", () => {
     expect(learnedMessage([])).toBe("");
     expect(learnedMessage([entry("Karan")])).toBe("Learned “Karan”");
-    expect(learnedMessage([entry("Karan"), entry("Kubernetes"), entry("Wordfall")])).toBe(
+    expect(learnedMessage([entry("Karan"), entry("Kubernetes"), entry("Wordflow")])).toBe(
       "Learned “Karan” and 2 more",
     );
   });

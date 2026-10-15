@@ -49,7 +49,7 @@ pub async fn get_status(app: AppHandle, state: State<'_, AppState>) -> CommandRe
     Ok(Status {
         os: std::env::consts::OS,
         version: app.package_info().version.to_string(),
-        build: env!("WORDFALL_BUILD"),
+        build: env!("WORDFLOW_BUILD"),
         setup_notes: platform::setup_notes(),
         hotkey_error: state.hotkey_error.lock_unpoisoned().clone(),
         hotkey_blocked: platform::modifier_hotkey_blocked(),
@@ -431,7 +431,7 @@ pub struct LastApp {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AppTone {
-    /// Apps Wordfall already knows, by category.
+    /// Apps Wordflow already knows, by category.
     built_in: Vec<ToneApp>,
     /// The app dictated into last, so the user can see what it's called.
     last_app: Option<LastApp>,

@@ -6,7 +6,7 @@ import { useEffect } from "react";
  * so that's the app macOS asks about.
  */
 export function hotkeyBlockedMessage(keys: string) {
-  const app = import.meta.env.DEV ? "the terminal running this dev build" : "Wordfall";
+  const app = import.meta.env.DEV ? "the terminal running this dev build" : "Wordflow";
   return `${keys} won't start dictation until macOS allows it. Turn on ${app} in Privacy & Security → Accessibility.`;
 }
 

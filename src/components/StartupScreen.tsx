@@ -14,7 +14,7 @@ export function StartupScreen({ error, onRetry }: { error?: string; onRetry?: ()
     <div className="flex h-full items-center justify-center bg-app p-10">
       <Card padding="lg" className="flex max-w-[460px] flex-col items-center text-center">
         <IconTile icon={TriangleAlert} tone="danger" size="md" />
-        <h1 className="mt-4 type-section">Wordfall couldn't start</h1>
+        <h1 className="mt-4 type-section">Wordflow couldn't start</h1>
         <p className="mt-1.5 type-body text-ink-secondary">
           Something went wrong while the app was starting up. Trying again usually fixes it.
         </p>

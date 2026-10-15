@@ -12,7 +12,7 @@ fn main() {
     tauri_build::build()
 }
 
-/// Sets WORDFALL_BUILD to the release tag this build came from, e.g.
+/// Sets WORDFLOW_BUILD to the release tag this build came from, e.g.
 /// "v2.0.0-alpha.8", or "v2.0.0-alpha.8-3-g86cd117" for 3 commits past it, so
 /// Settings shows exactly which build is installed. Empty without git.
 fn stamp_build() {
@@ -25,7 +25,7 @@ fn stamp_build() {
             .map(|out| String::from_utf8_lossy(&out.stdout).trim().to_string())
     };
     let build = git(&["describe", "--tags", "--always", "--match", "v2.*"]).unwrap_or_default();
-    println!("cargo::rustc-env=WORDFALL_BUILD={build}");
+    println!("cargo::rustc-env=WORDFLOW_BUILD={build}");
     // Re-stamp after a commit, checkout or new tag.
     for path in ["HEAD", "refs", "packed-refs"] {
         if let Some(path) = git(&["rev-parse", "--git-path", path]) {

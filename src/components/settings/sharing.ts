@@ -17,7 +17,7 @@ export function describeLibraryImport({ rules, snippets }: LibraryImport) {
   return parts.length === 0 ? "Everything in that file is already here." : `Imported ${parts.join(" and ")}.`;
 }
 
-/** The last folder in a path, for a short label: "/Users/me/Dropbox/Wordfall" → "Wordfall". */
+/** The last folder in a path, for a short label: "/Users/me/Dropbox/Wordflow" → "Wordflow". */
 export function folderName(path: string) {
   const parts = path.split(/[\\/]/).filter(Boolean);
   return parts[parts.length - 1] ?? path;

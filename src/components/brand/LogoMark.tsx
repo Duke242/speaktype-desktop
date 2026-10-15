@@ -10,7 +10,7 @@ const DROPS = [
   { x: 23.4, y: 18.2 },
 ];
 
-/** The Wordfall mark: rain falling into a "W" on a deep blue rounded square, like the app icon. */
+/** The Wordflow mark: rain falling into a "W" on a deep blue rounded square, like the app icon. */
 export function LogoMark({ className }: { className?: string }) {
   const id = useId();
   return (

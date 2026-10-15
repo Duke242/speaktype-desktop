@@ -85,8 +85,8 @@ Every system needs:
 Then clone the repo and install the interface's dependencies:
 
 ```bash
-git clone https://github.com/<your-username>/wordfall.git
-cd wordfall
+git clone https://github.com/<your-username>/wordflow.git
+cd wordflow
 npm install
 ```
 
@@ -135,7 +135,7 @@ Windows 10 or 11, 64-bit.
 
 WebView2, which draws the interface, comes with Windows 10 and 11. If the window stays blank, install the [WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/).
 
-**Tip:** clone into a short path like `C:\dev\wordfall`. Deep folders can hit Windows' path length limit during the first build.
+**Tip:** clone into a short path like `C:\dev\wordflow`. Deep folders can hit Windows' path length limit during the first build.
 
 ### Linux
 

@@ -566,7 +566,7 @@ struct Worker {
 impl Worker {
     fn spawn(id: u64) -> Result<Self, String> {
         let path =
-            worker_path().ok_or("This build of Wordfall doesn't include built-in cleanup")?;
+            worker_path().ok_or("This build of Wordflow doesn't include built-in cleanup")?;
         let mut command = Command::new(&path);
         command
             .stdin(Stdio::piped())
