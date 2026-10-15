@@ -51,7 +51,11 @@ pub struct Rule {
     pub match_whole_word: bool,
     #[serde(default)]
     pub learned: bool,
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[serde(
+        default,
+        skip_serializing_if = "Vec::is_empty",
+        deserialize_with = "crate::text::app_categories"
+    )]
     pub only_in: Vec<AppCategory>,
 }
 

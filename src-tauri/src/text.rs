@@ -26,8 +26,29 @@ pub struct DictionaryEntry {
     pub learned: bool,
     /// The kinds of app the entry is used in, like code editors and terminals
     /// for "emerge" to "merge". Empty for every app.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    #[serde(
+        default,
+        skip_serializing_if = "Vec::is_empty",
+        deserialize_with = "app_categories"
+    )]
     pub only_in: Vec<AppCategory>,
+}
+
+/// Kinds of app as saved, reading one this version doesn't know, from a newer
+/// version or another device, as "other" rather than failing to load the
+/// settings it's in. Apps of that kind are sorted into "other" here too.
+pub fn app_categories<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> Result<Vec<AppCategory>, D::Error> {
+    let values = Vec::<serde_json::Value>::deserialize(deserializer)?;
+    let mut categories = Vec::new();
+    for value in values {
+        let category = serde_json::from_value(value).unwrap_or(AppCategory::Other);
+        if !categories.contains(&category) {
+            categories.push(category);
+        }
+    }
+    Ok(categories)
 }
 
 impl DictionaryEntry {
@@ -475,6 +496,14 @@ mod tests {
         // Left out when empty, so entries read the same in older versions.
         let json = serde_json::to_string(&entry).expect("serializes");
         assert!(!json.contains("onlyIn"), "{json}");
+    }
+
+    #[test]
+    fn unknown_kinds_of_app_load_as_other() {
+        let saved =
+            r#"{"id":"1","trigger":"a","replacement":"b","onlyIn":["code","someday","later"]}"#;
+        let entry: DictionaryEntry = serde_json::from_str(saved).expect("entry still loads");
+        assert_eq!(entry.only_in, [AppCategory::Code, AppCategory::Other]);
     }
 
     #[test]

@@ -27,9 +27,11 @@ import { SnippetsTab } from "./SnippetsTab";
 type Tab = "replacements" | "snippets";
 
 /** Where a rule is used, by the kinds of app `tone` sorts apps into. */
-type Scope = "everywhere" | "code" | "chat" | "email";
+type Preset = "everywhere" | "code" | "chat" | "email";
+/** "custom" is any other set of apps, from sync, shown and saved as it is. */
+type Scope = Preset | "custom";
 
-const SCOPES: Record<Scope, { label: string; detail?: string; badge?: string; apps: AppCategory[] }> = {
+const SCOPES: Record<Preset, { label: string; detail?: string; badge?: string; apps: AppCategory[] }> = {
   everywhere: { label: "Everywhere", apps: [] },
   code: {
     label: "Code editors and terminals",
@@ -41,17 +43,37 @@ const SCOPES: Record<Scope, { label: string; detail?: string; badge?: string; ap
   email: { label: "Email", detail: "Mail, Outlook…", badge: "Email only", apps: ["email"] },
 };
 
-const SCOPE_OPTIONS = (Object.keys(SCOPES) as Scope[]).map((value) => ({
-  value,
+const PRESET_OPTIONS = (Object.keys(SCOPES) as Preset[]).map((value) => ({
+  value: value as Scope,
   label: SCOPES[value].label,
   detail: SCOPES[value].detail,
 }));
 
+const APP_NAMES: Record<AppCategory, string> = {
+  chat: "chat",
+  email: "email",
+  terminal: "terminals",
+  code: "code editors",
+  other: "other apps",
+};
+
 function scopeOf(entry: DictionaryEntry | null): Scope {
   const apps = entry?.onlyIn ?? [];
-  if (apps.length === 0) return "everywhere";
-  if (apps.includes("code") || apps.includes("terminal")) return "code";
-  return apps.includes("chat") ? "chat" : apps.includes("email") ? "email" : "everywhere";
+  const preset = (Object.keys(SCOPES) as Preset[]).find(
+    (key) => SCOPES[key].apps.length === apps.length && SCOPES[key].apps.every((app) => apps.includes(app)),
+  );
+  return preset ?? "custom";
+}
+
+/** The rule's apps in words, like "terminals and chat". */
+function appNames(entry: DictionaryEntry | null) {
+  const names = (entry?.onlyIn ?? []).map((app) => APP_NAMES[app] ?? app);
+  return names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names.at(-1)}` : (names[0] ?? "");
+}
+
+function scopeBadgeOf(entry: DictionaryEntry) {
+  const scope = scopeOf(entry);
+  return scope === "custom" ? `Only in ${appNames(entry)}` : SCOPES[scope].badge;
 }
 
 export function DictionaryScreen() {
@@ -165,7 +187,7 @@ function RuleRow({
   onDelete: () => void;
   onToggle: (enabled: boolean) => void;
 }) {
-  const scopeBadge = SCOPES[scopeOf(entry)].badge;
+  const scopeBadge = scopeBadgeOf(entry);
   return (
     <div className="group flex items-center gap-4 py-3.5">
       <button
@@ -230,7 +252,7 @@ function RuleEditor({
       replacement,
       isEnabled: entry?.isEnabled ?? true,
       matchWholeWord: wholeWord,
-      onlyIn: SCOPES[scope].apps,
+      onlyIn: scope === "custom" ? (entry?.onlyIn ?? []) : SCOPES[scope].apps,
     });
     onClose();
   };
@@ -281,7 +303,17 @@ function RuleEditor({
               For words that only mean something in some apps, like “emerge” to “merge” when coding.
             </span>
           </span>
-          <Select value={scope} options={SCOPE_OPTIONS} onChange={setScope} aria-label="Use in" className="w-[240px]" />
+          <Select
+            value={scope}
+            options={
+              scopeOf(entry) === "custom"
+                ? [...PRESET_OPTIONS, { value: "custom", label: `Only in ${appNames(entry)}` }]
+                : PRESET_OPTIONS
+            }
+            onChange={setScope}
+            aria-label="Use in"
+            className="w-[240px]"
+          />
         </div>
         <button type="submit" hidden />
       </form>
