@@ -188,6 +188,9 @@ jobs:
           tagName: ${{ startsWith(github.ref, 'refs/tags/v2.') && github.ref_name || '' }}
           releaseName: ${{ startsWith(github.ref, 'refs/tags/v2.') && format('Wordfall {0}', github.ref_name) || '' }}
           releaseDraft: false
+          # The three systems build at once, so each writing latest.json would race.
+          # The update-manifest job writes it once all of them are uploaded.
+          includeUpdaterJson: false
       # No APPLE_* variables at all: tauri tries to import a certificate even when they're empty.
       - name: Build installers (unsigned)
         if: env.UNSIGNED_MACOS == 'true'
@@ -214,3 +217,20 @@ jobs:
             src-tauri/target/release/bundle/deb/*.deb
             src-tauri/target/release/bundle/rpm/*.rpm
             src-tauri/target/release/bundle/appimage/*.AppImage
+
+  # Written last, so the app only offers a release once every installer is ready.
+  update-manifest:
+    name: Update manifest
+    needs: bundle
+    if: ${{ startsWith(github.ref, 'refs/tags/v2.') && !cancelled() && !failure() }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - run: node scripts/updater-manifest.mjs "$GITHUB_REF_NAME"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -3,8 +3,10 @@
 //! Wordfall 2 ships as pre-releases while SpeakType 1 is still GitHub's
 //! "Latest" release, so this lists releases rather than asking for the latest
 //! one. Pre-release builds move to any newer release; stable builds only to
-//! stable ones. CI attaches a signed `latest.json` to each release, which the
-//! updater plugin uses to download, verify and install the new version.
+//! stable ones. CI attaches a signed `latest.json` to each release once its
+//! installers are built, which the updater plugin uses to download, verify and
+//! install the new version. Releases without one aren't offered: they're still
+//! building, or predate the updater and so are older than this build.
 
 use std::{sync::Mutex, time::Duration};
 
@@ -13,7 +15,11 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, State};
 use tauri_plugin_updater::{Update, UpdaterExt};
 
-use crate::LockExt;
+use crate::{
+    AppState, LockExt,
+    dictation::DictationState,
+    meeting::{MeetingState, Meetings},
+};
 
 const RELEASES_URL: &str = "https://api.github.com/repos/Duke242/wordfall/releases?per_page=30";
 /// Keeps a stalled connection from leaving the check pending forever.
@@ -94,35 +100,46 @@ pub async fn check_for_update(
         });
     };
 
-    let manifest = release.assets.iter().find(|a| a.name == MANIFEST);
-    let update = match manifest {
-        Some(asset) => signed_update(&app, &asset.browser_download_url).await,
-        None => None,
-    };
+    let update = signed_update(&app, release.manifest_url, &latest).await;
     let installable = update.is_some();
     *pending.0.lock_unpoisoned() = update;
     Ok(UpdateInfo {
         available: true,
         current_version: current.to_string(),
         latest_version: latest.to_string(),
-        notes: release.body.clone(),
-        url: release.html_url.clone(),
+        notes: release.body.to_string(),
+        url: release.html_url.to_string(),
         installable,
     })
 }
 
-/// Downloads and installs the update the last check found, then restarts.
-/// Progress arrives as `update-progress` events. On Windows the installer
-/// closes the app itself and opens the new version.
+/// Downloads and installs `version`, which the last check found, then
+/// restarts. Progress arrives as `update-progress` events. On Windows the
+/// installer closes the app itself and opens the new version.
 #[tauri::command]
 pub async fn install_update(
     app: AppHandle,
+    version: String,
     pending: State<'_, PendingUpdate>,
+    state: State<'_, AppState>,
+    meetings: State<'_, Meetings>,
 ) -> Result<(), String> {
+    // Restarting would cut off the recording.
+    if !matches!(
+        *state.dictation_state.lock_unpoisoned(),
+        DictationState::Idle
+    ) {
+        return Err("Finish dictating, then install the update.".into());
+    }
+    if !matches!(meetings.state(), MeetingState::Idle) {
+        return Err("Stop the meeting recording, then install the update.".into());
+    }
+    // Another check may have found something else since this one was shown.
     let update = pending
         .0
         .lock_unpoisoned()
         .clone()
+        .filter(|update| update.version == version)
         .ok_or("Check for updates again, then install.")?;
 
     let mut downloaded = 0;
@@ -145,30 +162,43 @@ pub async fn install_update(
     app.restart()
 }
 
+/// A release with its installers built, ready to update to.
+struct Candidate<'a> {
+    body: &'a str,
+    html_url: &'a str,
+    manifest_url: &'a str,
+}
+
 /// The newest release this build should move to, and its version.
-fn newest<'a>(releases: &'a [Release], current: &Version) -> Option<(&'a Release, Version)> {
+fn newest<'a>(releases: &'a [Release], current: &Version) -> Option<(Candidate<'a>, Version)> {
     let stable_only = current.pre.is_empty();
     releases
         .iter()
         .filter(|release| !release.draft)
         .filter_map(|release| {
             let version = Version::parse(release.tag_name.strip_prefix('v')?).ok()?;
-            Some((release, version))
+            let manifest = release.assets.iter().find(|a| a.name == MANIFEST)?;
+            let candidate = Candidate {
+                body: &release.body,
+                html_url: &release.html_url,
+                manifest_url: &manifest.browser_download_url,
+            };
+            Some((candidate, version))
         })
         .filter(|(_, version)| version > current && (version.pre.is_empty() || !stable_only))
         .max_by(|(_, a), (_, b)| a.cmp(b))
 }
 
-/// The release's signed build for this system. None while CI is still
-/// building it, or if the release has none for this system, in which case
-/// the update is offered as a download instead.
-async fn signed_update(app: &AppHandle, manifest_url: &str) -> Option<Update> {
+/// The release's signed build for this system. None if it has none for this
+/// system, in which case the update is offered as a download instead.
+async fn signed_update(app: &AppHandle, manifest_url: &str, version: &Version) -> Option<Update> {
+    let version = version.clone();
     let check = async {
         app.updater_builder()
             .endpoints(vec![manifest_url.parse()?])?
-            // The release's tag already showed it's newer; the manifest only
-            // supplies the files.
-            .version_comparator(|_, _| true)
+            // The release's tag already showed it's newer. The manifest must be
+            // for that same version, so an old manifest can't roll the app back.
+            .version_comparator(move |_, release| release.version == version)
             .timeout(CHECK_TIMEOUT)
             .build()?
             .check()
@@ -192,13 +222,17 @@ mod tests {
             body: String::new(),
             html_url: String::new(),
             draft: false,
-            assets: Vec::new(),
+            assets: vec![Asset {
+                name: MANIFEST.into(),
+                browser_download_url: format!("https://example.com/{tag}/{MANIFEST}"),
+            }],
         }
     }
 
     fn newest_tag(tags: &[&str], current: &str) -> Option<String> {
         let releases: Vec<_> = tags.iter().map(|tag| release(tag)).collect();
-        newest(&releases, &Version::parse(current).unwrap()).map(|(r, _)| r.tag_name.clone())
+        newest(&releases, &Version::parse(current).unwrap())
+            .map(|(_, version)| format!("v{version}"))
     }
 
     #[test]
@@ -231,10 +265,12 @@ mod tests {
     }
 
     #[test]
-    fn ignores_drafts_and_unreadable_tags() {
+    fn ignores_drafts_unbuilt_releases_and_unreadable_tags() {
         let mut draft = release("v2.0.0-alpha.9");
         draft.draft = true;
-        let releases = [draft, release("nightly"), release("v2.x")];
+        let mut building = release("v2.0.0-alpha.10");
+        building.assets.clear();
+        let releases = [draft, building, release("nightly"), release("v2.x")];
         assert!(newest(&releases, &Version::parse("2.0.0-alpha.8").unwrap()).is_none());
     }
 }

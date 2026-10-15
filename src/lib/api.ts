@@ -443,8 +443,8 @@ export const api = {
   openPermissionSettings: (kind: PermissionKind) => invoke<void>("open_permission_settings", { kind }),
 
   checkForUpdate: () => invoke<UpdateInfo>("check_for_update"),
-  /** Downloads and installs the update the last check found, then restarts. */
-  installUpdate: () => invoke<void>("install_update"),
+  /** Downloads and installs `version`, which the last check found, then restarts. */
+  installUpdate: (version: string) => invoke<void>("install_update", { version }),
   getLegacyStatus: () => invoke<LegacyStatus>("get_legacy_status"),
   importLegacy: () => invoke<ImportSummary>("import_legacy"),
 

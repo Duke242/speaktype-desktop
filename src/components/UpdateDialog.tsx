@@ -9,15 +9,20 @@ export function UpdateDialog({ update, onClose }: { update: UpdateInfo | null; o
   const toast = useToast();
   // Set while installing: how much of the download has arrived, 0..1.
   const [progress, setProgress] = useState<number | null>(null);
+  // Only the dialog that started the install follows it. Without a size, the
+  // bar creeps toward the end instead of standing still.
   useTauriEvent<UpdateProgress>("update-progress", ({ payload }) => {
-    if (payload.total) setProgress(payload.downloaded / payload.total);
+    const { downloaded, total } = payload;
+    const value = total ? downloaded / total : 1 - 1 / (1 + downloaded / 50_000_000);
+    setProgress((current) => (current === null ? null : value));
   });
 
   // Wordfall restarts into the new version once it's installed.
   const install = async () => {
+    if (!update) return;
     setProgress(0);
     try {
-      await api.installUpdate();
+      await api.installUpdate(update.latestVersion);
     } catch (error) {
       setProgress(null);
       toast(errorMessage(error), "error");
