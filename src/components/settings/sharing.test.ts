@@ -31,7 +31,7 @@ describe("describeLibraryImport", () => {
 
 describe("folderName", () => {
   it("takes the last folder on any system", () => {
-    expect(folderName("/Users/me/Dropbox/Wordflow")).toBe("Wordflow");
+    expect(folderName("/Users/me/Dropbox/WordFlow")).toBe("WordFlow");
     expect(folderName("C:\\Users\\me\\OneDrive\\Team\\")).toBe("Team");
     expect(folderName("/")).toBe("/");
   });

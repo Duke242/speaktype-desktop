@@ -17,7 +17,7 @@ export function UpdateDialog({ update, onClose }: { update: UpdateInfo | null; o
     setProgress((current) => (current === null ? null : value));
   });
 
-  // Wordflow restarts into the new version once it's installed.
+  // WordFlow restarts into the new version once it's installed.
   const install = async () => {
     if (!update) return;
     setProgress(0);
@@ -42,8 +42,8 @@ export function UpdateDialog({ update, onClose }: { update: UpdateInfo | null; o
       open={Boolean(update)}
       onClose={close}
       width={520}
-      title="A new version of Wordflow is available"
-      description={update && `Wordflow ${update.latestVersion} is out. You have ${update.currentVersion}.`}
+      title="A new version of WordFlow is available"
+      description={update && `WordFlow ${update.latestVersion} is out. You have ${update.currentVersion}.`}
       footer={
         <>
           <Button onClick={close} disabled={installing}>

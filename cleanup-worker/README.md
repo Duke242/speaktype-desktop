@@ -1,6 +1,6 @@
 # wordflow-cleanup
 
-The helper program behind AI cleanup's built-in models. Wordflow starts it when cleanup is on, sends it each transcript, and pastes the reply. It runs a GGUF language model with [llama.cpp](https://github.com/ggml-org/llama.cpp).
+The helper program behind AI cleanup's built-in models. WordFlow starts it when cleanup is on, sends it each transcript, and pastes the reply. It runs a GGUF language model with [llama.cpp](https://github.com/ggml-org/llama.cpp).
 
 ## Why it's a separate program
 

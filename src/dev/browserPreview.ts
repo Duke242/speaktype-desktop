@@ -59,7 +59,7 @@ export function installBrowserPreview() {
     autoUpdate: true,
     dictionary: [
       { id: "1", trigger: "my email", replacement: "karan@example.com", isEnabled: true, matchWholeWord: true },
-      { id: "2", trigger: "word flow", replacement: "Wordflow", isEnabled: true, matchWholeWord: true },
+      { id: "2", trigger: "word flow", replacement: "WordFlow", isEnabled: true, matchWholeWord: true },
       { id: "3", trigger: "um", replacement: "", isEnabled: false, matchWholeWord: false },
       { id: "4", trigger: "cooper netties", replacement: "Kubernetes", isEnabled: true, matchWholeWord: true, learned: true },
     ],
@@ -72,7 +72,7 @@ export function installBrowserPreview() {
       { id: "s3", trigger: "sign off", expansion: "Thanks,\nKaran", isEnabled: false },
     ],
     // Add ?sync=1 to preview sharing through a folder.
-    syncFolder: params.get("sync") ? "/Users/karan/Dropbox/Wordflow" : "",
+    syncFolder: params.get("sync") ? "/Users/karan/Dropbox/WordFlow" : "",
     hasCompletedOnboarding: params.get("onboarding") !== "1",
     hasShownModelPrompt: true,
     meetings: { captureSystemAudio: true, systemAudioSource: "", summarizeAutomatically: true },
@@ -305,7 +305,7 @@ export function installBrowserPreview() {
         case "sync_now":
           return { lastSyncedAt: now - 120_000, error: null };
         case "pick_sync_folder":
-          return "/Users/karan/Dropbox/Wordflow";
+          return "/Users/karan/Dropbox/WordFlow";
         case "export_library":
           return "/Users/karan/Downloads/wordflow-library.json";
         case "import_library":

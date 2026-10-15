@@ -1,9 +1,9 @@
 //! Sharing the dictionary and snippets between computers, or with a team.
 //!
-//! There's no server. Wordflow keeps `wordfall-shared.json` in a folder the
+//! There's no server. WordFlow keeps `wordfall-shared.json` in a folder the
 //! user picks, usually one that Dropbox, iCloud Drive or a shared drive keeps
 //! in step. Every rule and snippet in it carries the time it last changed, and
-//! deletions stay as markers for a while, so each copy of Wordflow merges what
+//! deletions stay as markers for a while, so each copy of WordFlow merges what
 //! it finds by keeping the newest version of each entry. Copies that read each
 //! other's files end up with the same entries, whatever order they sync in.
 //!
@@ -29,7 +29,7 @@ use crate::{
     AppState, LockExt, history::now_ms, snippets::Snippet, text::DictionaryEntry, tone::AppCategory,
 };
 
-/// Keeps the name from before the rename to Wordflow, so shared folders keep syncing.
+/// Keeps the name from before the rename to WordFlow, so shared folders keep syncing.
 pub const FILE_NAME: &str = "wordfall-shared.json";
 /// What was last synced, so changes made here can be told from changes made elsewhere.
 const STATE_FILE: &str = "sync-state.json";
@@ -597,7 +597,7 @@ pub fn export(app: &AppHandle) -> Result<Option<PathBuf>, String> {
     let Some(path) = app
         .dialog()
         .file()
-        .add_filter("Wordflow library", &["json"])
+        .add_filter("WordFlow library", &["json"])
         .set_file_name("wordflow-library.json")
         .blocking_save_file()
         .and_then(|p| p.into_path().ok())
@@ -625,7 +625,7 @@ pub fn import(app: &AppHandle) -> Result<Option<ImportSummary>, String> {
     let Some(path) = app
         .dialog()
         .file()
-        .add_filter("Wordflow library", &["json"])
+        .add_filter("WordFlow library", &["json"])
         .blocking_pick_file()
         .and_then(|p| p.into_path().ok())
     else {
@@ -706,7 +706,7 @@ mod tests {
     fn first_sync_shares_everything_and_keeps_ids() {
         let mut shared = Library::default();
         let mut laptop = Copy {
-            dictionary: vec![entry("word flow", "Wordflow")],
+            dictionary: vec![entry("word flow", "WordFlow")],
             snippets: vec![snippet("my email", "me@example.com")],
             ..Copy::default()
         };
@@ -717,7 +717,7 @@ mod tests {
 
         let mut desktop = Copy::default();
         desktop.sync(&mut shared, 2_000);
-        assert_eq!(desktop.rules(), [("word flow", "Wordflow")]);
+        assert_eq!(desktop.rules(), [("word flow", "WordFlow")]);
         assert_eq!(desktop.snippets[0].trigger, "my email");
     }
 
