@@ -4,7 +4,8 @@
 //! - `DEFAULT_HOTKEY`: the shortcut used until the user picks one.
 //! - `MODIFIER_HOTKEYS`, `start_modifier_hotkey`, `stop_modifier_hotkey`,
 //!   `modifier_hotkey_blocked`: hotkeys made of one modifier key, where the OS
-//!   allows listening for them.
+//!   allows listening for them. `set_modifier_hotkey_sends`: Return while it's
+//!   held sends, rather than making it part of a shortcut.
 //! - `send_paste_shortcut`: presses the paste keys for the focused app.
 //! - `send_copy_shortcut`, `can_copy_selection`: presses the copy keys, for
 //!   command mode, where it's safe to.

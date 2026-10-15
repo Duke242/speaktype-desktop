@@ -133,6 +133,8 @@ pub fn start_modifier_hotkey(_name: &str, _handler: HotkeyHandler) -> Result<(),
 
 pub fn stop_modifier_hotkey() {}
 
+pub fn set_modifier_hotkey_sends(_sends: bool) {}
+
 pub fn modifier_hotkey_blocked() -> bool {
     false
 }

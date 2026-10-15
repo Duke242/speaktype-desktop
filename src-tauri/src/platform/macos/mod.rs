@@ -35,6 +35,10 @@ pub fn stop_modifier_hotkey() {
     hotkey::stop();
 }
 
+pub fn set_modifier_hotkey_sends(sends: bool) {
+    hotkey::set_sends(sends);
+}
+
 pub fn modifier_hotkey_blocked() -> bool {
     hotkey::is_blocked()
 }

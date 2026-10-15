@@ -28,7 +28,7 @@ use std::{
 
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
-use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
+use tauri_plugin_global_shortcut::{GlobalShortcut, GlobalShortcutExt, ShortcutState};
 
 use crate::{
     AppState, LockExt,
@@ -46,8 +46,13 @@ use crate::{
 };
 
 const CANCEL_KEY: &str = "Escape";
-/// Finishes a recording and sends it, when Finish and send is on.
-const SEND_KEY: &str = "Enter";
+/// Finish a recording and send it, when Finish and send is on. On macOS the
+/// keypad Enter is a key of its own, and what Fn+Return gives. Elsewhere Enter
+/// covers both, and registering keypad Enter as well fails.
+#[cfg(target_os = "macos")]
+const SEND_KEYS: &[&str] = &["Enter", "NumpadEnter"];
+#[cfg(not(target_os = "macos"))]
+const SEND_KEYS: &[&str] = &["Enter"];
 
 const TRANSCRIBING: &str = "Transcribing...";
 const CLEANING_UP: &str = "Cleaning up...";
@@ -365,12 +370,7 @@ fn decide(
             Activity::Transcribing => Action::Nothing,
         },
         Input::Send => match activity {
-            // With the hotkey held in Hold mode, Return is just another key,
-            // which makes the hotkey part of a shortcut.
-            Activity::Recording {
-                by: Some(by),
-                locked: false,
-            } if hold && hotkey.down(by) => Action::Nothing,
+            // Also with the hotkey held: hold, speak, then Return to send.
             Activity::Recording { .. } => Action::Send,
             _ => Action::Nothing,
         },
@@ -514,7 +514,7 @@ struct Session {
     hotkey: Hotkey,
     /// Whether this session registered Escape, as opposed to the user's hotkey being Escape.
     owns_cancel_key: bool,
-    /// Whether this session registered Return, for Finish and send.
+    /// Whether this session registered Return and keypad Enter, for Finish and send.
     owns_send_key: bool,
     /// The session finished with Return, to be sent once it's typed.
     sending: Option<u64>,
@@ -974,22 +974,39 @@ impl Session {
         }
         let shortcuts = self.app.global_shortcut();
         if !active {
-            let _ = shortcuts.unregister(SEND_KEY);
+            unregister_send_keys(shortcuts);
+            platform::set_modifier_hotkey_sends(false);
             self.owns_send_key = false;
             return;
         }
-        if shortcuts.is_registered(SEND_KEY) {
+        if SEND_KEYS.iter().any(|key| shortcuts.is_registered(*key)) {
             return;
         }
         let controller = self.controller.clone();
-        let result = shortcuts.on_shortcut(SEND_KEY, move |_, _, event| {
+        let result = shortcuts.on_shortcuts(SEND_KEYS.iter().copied(), move |_, _, event| {
             if event.state == ShortcutState::Pressed {
                 controller.send(Event::Send);
             }
         });
         match result {
-            Ok(()) => self.owns_send_key = true,
-            Err(e) => eprintln!("[dictation] couldn't register Return: {e}"),
+            Ok(()) => {
+                platform::set_modifier_hotkey_sends(true);
+                self.owns_send_key = true;
+            }
+            Err(e) => {
+                // One may have registered before the other failed.
+                unregister_send_keys(shortcuts);
+                eprintln!("[dictation] couldn't register Return: {e}");
+            }
+        }
+    }
+}
+
+/// One at a time, so a key that isn't registered doesn't keep the others.
+fn unregister_send_keys(shortcuts: &GlobalShortcut<tauri::Wry>) {
+    for key in SEND_KEYS {
+        if shortcuts.is_registered(*key) {
+            let _ = shortcuts.unregister(*key);
         }
     }
 }
@@ -1100,7 +1117,7 @@ mod tests {
                 let action = decide(input, activity, mode, &mut hotkey, now);
                 activity = match (action, activity) {
                     (Action::Start { by }, _) => recording(by),
-                    (Action::Stop { .. }, _) => Activity::Transcribing,
+                    (Action::Stop { .. } | Action::Send, _) => Activity::Transcribing,
                     (Action::Discard, _) => Activity::Idle,
                     (Action::Lock, Activity::Recording { by, .. }) => {
                         Activity::Recording { by, locked: true }
@@ -1594,16 +1611,16 @@ mod tests {
     }
 
     #[test]
-    fn return_with_the_hotkey_held_is_part_of_a_shortcut() {
+    fn return_with_the_hotkey_held_sends() {
         use Input::*;
-        // The modifier listener reports the interruption, which discards.
+        // Releasing the hotkey afterwards finds the recording already stopped.
         assert_eq!(
             hold(&[
                 (0, HotkeyDown(DICTATION)),
                 (900, Send),
-                (910, HotkeyInterrupted)
+                (1_000, HotkeyUp(DICTATION))
             ]),
-            [START, Action::Nothing, Action::Discard]
+            [START, Action::Send, Action::Nothing]
         );
         // Not while idle or transcribing either.
         for activity in [Activity::Idle, Activity::Transcribing] {
