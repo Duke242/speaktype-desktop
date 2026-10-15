@@ -287,7 +287,16 @@ export interface UpdateInfo {
   currentVersion: string;
   latestVersion: string;
   notes: string;
+  /** The release page, for updates that can't be installed in place. */
   url: string;
+  /** A signed build for this system is ready, so `installUpdate` can run. */
+  installable: boolean;
+}
+
+/** Sent as `update-progress` while an update downloads. */
+export interface UpdateProgress {
+  downloaded: number;
+  total: number | null;
 }
 
 /** The microphone is "You", what the computer played is "Others". */
@@ -434,6 +443,8 @@ export const api = {
   openPermissionSettings: (kind: PermissionKind) => invoke<void>("open_permission_settings", { kind }),
 
   checkForUpdate: () => invoke<UpdateInfo>("check_for_update"),
+  /** Downloads and installs the update the last check found, then restarts. */
+  installUpdate: () => invoke<void>("install_update"),
   getLegacyStatus: () => invoke<LegacyStatus>("get_legacy_status"),
   importLegacy: () => invoke<ImportSummary>("import_legacy"),
 

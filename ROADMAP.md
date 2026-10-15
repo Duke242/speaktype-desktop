@@ -44,7 +44,7 @@ why, see [macos-v1/ROADMAP.md](macos-v1/ROADMAP.md).
 
 ## Planned for a later v2 release
 - [x] Import settings, dictionary and history from SpeakType 1 (automatic on first launch, or from Settings)
-- [ ] Install updates in place (currently opens the release page)
+- [x] Install updates in place (signed with the updater key; builds without one open the release page)
 - [x] Menu bar panel: dictate, today's stats, quick model/language/mic/mode switches, recent transcripts
 - [ ] Hide the Dock icon when the window is closed
 - [x] Signed and notarized macOS build, universal (Apple Silicon and Intel; Parakeet on Apple Silicon only)
