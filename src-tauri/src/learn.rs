@@ -19,7 +19,7 @@
 //! sentence is grammar, and so is changing the case of everyday words.
 //!
 //! On macOS and Windows, the field a dictation was typed into is watched for a
-//! couple of minutes afterwards (`watch_for_corrections`), so fixing a word
+//! few seconds afterwards (`watch_for_corrections`), so fixing a word
 //! right where it was typed teaches it too. Only that field is read, never a
 //! password field, and nothing from it is kept beyond the learned words.
 
@@ -431,7 +431,7 @@ pub fn learn_from_app(app: &AppHandle, typed: &str, edited: &str) {
 }
 
 /// How long after typing the field is watched, and how often it's read.
-const WATCH_FOR: Duration = Duration::from_secs(120);
+const WATCH_FOR: Duration = Duration::from_secs(10);
 const WATCH_EVERY: Duration = Duration::from_millis(800);
 /// Time for pasted text to land before the field is first read.
 const SETTLE: Duration = Duration::from_millis(900);
