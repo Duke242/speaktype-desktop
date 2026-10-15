@@ -28,7 +28,7 @@ use std::{
 
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager};
-use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
+use tauri_plugin_global_shortcut::{GlobalShortcut, GlobalShortcutExt, ShortcutState};
 
 use crate::{
     AppState, LockExt,
@@ -46,9 +46,13 @@ use crate::{
 };
 
 const CANCEL_KEY: &str = "Escape";
-/// Finish a recording and send it, when Finish and send is on. The keypad
-/// Enter is also what Fn+Return gives on Mac keyboards.
-const SEND_KEYS: [&str; 2] = ["Enter", "NumpadEnter"];
+/// Finish a recording and send it, when Finish and send is on. On macOS the
+/// keypad Enter is a key of its own, and what Fn+Return gives. Elsewhere Enter
+/// covers both, and registering keypad Enter as well fails.
+#[cfg(target_os = "macos")]
+const SEND_KEYS: &[&str] = &["Enter", "NumpadEnter"];
+#[cfg(not(target_os = "macos"))]
+const SEND_KEYS: &[&str] = &["Enter"];
 
 const TRANSCRIBING: &str = "Transcribing...";
 const CLEANING_UP: &str = "Cleaning up...";
@@ -970,7 +974,7 @@ impl Session {
         }
         let shortcuts = self.app.global_shortcut();
         if !active {
-            let _ = shortcuts.unregister_multiple(SEND_KEYS);
+            unregister_send_keys(shortcuts);
             platform::set_modifier_hotkey_sends(false);
             self.owns_send_key = false;
             return;
@@ -979,7 +983,7 @@ impl Session {
             return;
         }
         let controller = self.controller.clone();
-        let result = shortcuts.on_shortcuts(SEND_KEYS, move |_, _, event| {
+        let result = shortcuts.on_shortcuts(SEND_KEYS.iter().copied(), move |_, _, event| {
             if event.state == ShortcutState::Pressed {
                 controller.send(Event::Send);
             }
@@ -991,9 +995,18 @@ impl Session {
             }
             Err(e) => {
                 // One may have registered before the other failed.
-                let _ = shortcuts.unregister_multiple(SEND_KEYS);
+                unregister_send_keys(shortcuts);
                 eprintln!("[dictation] couldn't register Return: {e}");
             }
+        }
+    }
+}
+
+/// One at a time, so a key that isn't registered doesn't keep the others.
+fn unregister_send_keys(shortcuts: &GlobalShortcut<tauri::Wry>) {
+    for key in SEND_KEYS {
+        if shortcuts.is_registered(*key) {
+            let _ = shortcuts.unregister(*key);
         }
     }
 }
