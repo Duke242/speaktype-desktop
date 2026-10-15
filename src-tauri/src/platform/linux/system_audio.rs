@@ -77,7 +77,7 @@ pub fn open_system_audio(source: &str, buffer: &Buffer) -> Result<Opened, String
             "--channels=1",
             "--raw",
             "--latency-msec=100",
-            "--client-name=Wordfall",
+            "--client-name=Wordflow",
         ])
         .stdin(Stdio::null())
         .stdout(Stdio::piped())

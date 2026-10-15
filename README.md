@@ -1,6 +1,6 @@
-# Wordfall
+# Wordflow
 
-Wordfall is a dictation app for macOS, Windows and Linux.
+Wordflow is a dictation app for macOS, Windows and Linux.
 
 ## Features
 

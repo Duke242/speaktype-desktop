@@ -1,4 +1,4 @@
-name: Set up Wordfall build
+name: Set up Wordflow build
 description: Installs system libraries, Node, the Rust toolchain and caches for building the app.
 
 runs:

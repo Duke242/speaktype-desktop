@@ -29,7 +29,7 @@ const PLATFORMS = [
 const gh = (...args) => execFileSync("gh", args, { encoding: "utf8" });
 
 const { assets } = JSON.parse(gh("release", "view", tag, "--json", "assets"));
-const dir = mkdtempSync(join(tmpdir(), "wordfall-manifest-"));
+const dir = mkdtempSync(join(tmpdir(), "wordflow-manifest-"));
 gh("release", "download", tag, "--pattern", "*.sig", "--dir", dir);
 
 const platforms = {};

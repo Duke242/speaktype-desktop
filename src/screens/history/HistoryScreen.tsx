@@ -158,7 +158,7 @@ function HistoryRow({
   onToggle: () => void;
   onDelete: () => void;
   onSaveEdit: (transcript: string) => Promise<void>;
-  /** Whether saving an edit teaches Wordfall the corrected words. */
+  /** Whether saving an edit teaches Wordflow the corrected words. */
   learns: boolean;
   onReveal: () => void;
   revealLabel: string;
@@ -233,7 +233,7 @@ function HistoryRow({
               />
               <p className="mt-2 type-caption text-ink-muted">
                 {learns
-                  ? "Fix any misheard words. Wordfall remembers names and terms you correct, for next time."
+                  ? "Fix any misheard words. Wordflow remembers names and terms you correct, for next time."
                   : "Fix any misheard words. Learning from corrections is off in Settings."}
               </p>
               <div className="mt-3 flex items-center gap-2">

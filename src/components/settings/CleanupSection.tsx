@@ -42,7 +42,7 @@ export function CleanupSection() {
               value={cleanup.backend}
               onChange={(backend) => save({ backend })}
               options={[
-                { value: "builtin", label: "Wordfall" },
+                { value: "builtin", label: "Wordflow" },
                 { value: "server", label: "Local server" },
                 { value: "api", label: "Cloud API" },
               ]}
@@ -59,7 +59,7 @@ export function CleanupSection() {
 }
 
 const BACKENDS = {
-  builtin: { icon: Cpu, description: "Wordfall downloads a small model and runs it itself." },
+  builtin: { icon: Cpu, description: "Wordflow downloads a small model and runs it itself." },
   server: { icon: Server, description: "A model server you already run, such as Ollama or LM Studio." },
   api: { icon: Cloud, description: "A hosted model you choose, with your own API key." },
 } as const;
@@ -82,8 +82,8 @@ function BuiltinModels({ cleanup, save }: { cleanup: CleanupSettings; save: Save
   if (!status.builtinAvailable) {
     return (
       <Notice tone="warning">
-        This copy of Wordfall doesn't include its own cleanup engine. Use a local server instead, or if you built
-        Wordfall yourself, build cleanup-worker too.
+        This copy of Wordflow doesn't include its own cleanup engine. Use a local server instead, or if you built
+        Wordflow yourself, build cleanup-worker too.
       </Notice>
     );
   }
@@ -343,7 +343,7 @@ function ApiSettings({ cleanup, save }: { cleanup: CleanupSettings; save: Save }
           />
         </SettingRow>
       )}
-      <SettingRow icon={KeyRound} label="API key" description="Kept in Wordfall's settings file on this computer.">
+      <SettingRow icon={KeyRound} label="API key" description="Kept in Wordflow's settings file on this computer.">
         <TextField
           type="password"
           value={key}

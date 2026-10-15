@@ -33,7 +33,7 @@ export function OnboardingScreen() {
       <header data-tauri-drag-region className="relative flex h-14 shrink-0 items-center justify-center">
         <div className="pointer-events-none flex items-center gap-2">
           <LogoMark className="size-6" />
-          <span className="type-label">Wordfall</span>
+          <span className="type-label">Wordflow</span>
         </div>
       </header>
 
@@ -107,7 +107,7 @@ function Welcome() {
   return (
     <div className="flex flex-col items-center">
       <PillPreview className="mb-10" />
-      <StepHeader title="Welcome to Wordfall!">
+      <StepHeader title="Welcome to Wordflow!">
         Hold a key, speak naturally, and your words appear in whatever app you're using.
       </StepHeader>
       <div className="mt-14 grid w-full grid-cols-3 divide-x divide-line">
@@ -127,7 +127,7 @@ function Permissions() {
   return (
     <>
       <StepHeader title="Allow access">
-        Wordfall only listens while you dictate, and types the result where your cursor is.
+        Wordflow only listens while you dictate, and types the result where your cursor is.
       </StepHeader>
       <div className="mt-10 border-y border-line">
         <PermissionList />

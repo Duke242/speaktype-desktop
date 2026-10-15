@@ -255,7 +255,7 @@ impl AppState {
     }
 }
 
-/// Passed to Wordfall when the system starts it at login.
+/// Passed to Wordflow when the system starts it at login.
 const AT_LOGIN_ARG: &str = "--at-login";
 
 /// Turns starting at login on or off with the system.
@@ -280,7 +280,7 @@ fn sync_launch_at_login(app: &AppHandle, enabled: bool) -> Result<(), String> {
 
 pub fn run() {
     let app = tauri::Builder::default()
-        // Launching Wordfall again brings the running app forward instead of
+        // Launching Wordflow again brings the running app forward instead of
         // starting a second copy with its own tray icon and hotkey.
         .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
             tray::open_main_window(app, None);
@@ -288,6 +288,8 @@ pub fn run() {
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(
             tauri_plugin_autostart::Builder::new()
+                // The login item's name from before the rename to Wordflow, so existing
+                // login items are updated rather than duplicated.
                 .app_name("Wordfall")
                 .arg(AT_LOGIN_ARG)
                 .build(),
@@ -372,7 +374,7 @@ pub fn run() {
             Ok(())
         })
         .on_window_event(|window, event| match (window.label(), event) {
-            // Closing the main window keeps Wordfall running in the tray.
+            // Closing the main window keeps Wordflow running in the tray.
             ("main", WindowEvent::CloseRequested { api, .. }) => {
                 api.prevent_close();
                 let _ = window.hide();
@@ -438,7 +440,7 @@ pub fn run() {
             meeting::commands::export_meeting_markdown,
         ])
         .build(tauri::generate_context!())
-        .expect("error while building Wordfall");
+        .expect("error while building Wordflow");
 
     app.run(|app, event| {
         // macOS: clicking the Dock icon brings the hidden window back.

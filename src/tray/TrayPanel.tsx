@@ -95,7 +95,7 @@ function Header() {
       <div className="flex items-center gap-2.5">
         <LogoMark className="size-7" />
         <div className="min-w-0 flex-1">
-          <div className="type-label">Wordfall</div>
+          <div className="type-label">Wordflow</div>
           <div className="truncate type-caption text-ink-muted">{model ? model.name : "Download a model to start"}</div>
         </div>
         <span className="flex h-6 items-center gap-1.5 rounded-full border border-line bg-surface/70 px-2.5 type-caption font-medium text-ink-secondary tabular-nums">
@@ -305,7 +305,7 @@ function RecentItem({
   );
 }
 
-/** Fixes a misheard word in place. Saving teaches Wordfall the names and terms corrected, as in History. */
+/** Fixes a misheard word in place. Saving teaches Wordflow the names and terms corrected, as in History. */
 function RecentEditor({ item, onDone }: { item: HistoryItem; onDone: () => void }) {
   const { settings } = useStore();
   const toast = useToast();
@@ -371,11 +371,11 @@ function Footer() {
         onClick={() => api.openMainWindow()}
         className="flex h-8 items-center gap-1.5 rounded-control px-2.5 type-small font-medium text-ink-secondary transition-colors hover:bg-hover hover:text-ink"
       >
-        Open Wordfall <ArrowUpRight size={14} />
+        Open Wordflow <ArrowUpRight size={14} />
       </button>
       <span className="flex-1" />
       <IconButton icon={Settings} label="Settings" size="sm" onClick={() => api.openMainWindow("settings")} />
-      <IconButton icon={Power} label="Quit Wordfall" size="sm" onClick={() => api.quitApp()} />
+      <IconButton icon={Power} label="Quit Wordflow" size="sm" onClick={() => api.quitApp()} />
     </div>
   );
 }

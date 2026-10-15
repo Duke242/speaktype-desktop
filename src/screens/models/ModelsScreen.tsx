@@ -24,7 +24,7 @@ export function ModelsScreen() {
     <Page width="wide">
       <PageHeader
         title="AI Models"
-        description="Every model runs on this computer. Pick the one Wordfall uses to transcribe."
+        description="Every model runs on this computer. Pick the one Wordflow uses to transcribe."
         actions={
           report && (
             <span className="flex items-center gap-2 type-small text-ink-muted">
