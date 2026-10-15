@@ -12,7 +12,7 @@ export function Rail({ route, onNavigate }: { route: Route; onNavigate: (route: 
   const settings = NAV.find((item) => item.route === "settings")!;
 
   return (
-    <nav aria-label="WordFlow" className="relative z-20 flex h-full w-[76px] shrink-0 flex-col items-center border-r border-line">
+    <nav aria-label="WordFlow" className="relative z-20 flex h-full w-[72px] shrink-0 flex-col items-center">
       <div data-tauri-drag-region className={cn("w-full shrink-0", macChrome ? "h-12" : "h-5")} />
 
       <div data-tauri-drag-region className="flex w-full justify-center pt-3 pb-7">
@@ -52,19 +52,14 @@ function RailButton({
       aria-current={active ? "page" : undefined}
       onClick={onClick}
       className={cn(
-        "group relative grid size-11 place-items-center rounded-card transition-colors duration-150",
-        active ? "bg-accent-soft text-accent-ink" : "text-ink-muted hover:bg-hover hover:text-ink",
+        "group relative grid size-10 place-items-center rounded-control transition-[background-color,color,box-shadow] duration-150",
+        // The active screen is a raised tile, like a selected segment.
+        active
+          ? "bg-surface text-accent-ink shadow-card ring-1 ring-line"
+          : "text-ink-muted hover:bg-surface/60 hover:text-ink",
       )}
     >
-      {/* The active screen's marker, on the rail's left edge. */}
-      <span
-        aria-hidden
-        className={cn(
-          "absolute top-3 bottom-3 -left-4 w-[3px] rounded-full bg-accent transition-opacity duration-200",
-          active ? "opacity-100" : "opacity-0",
-        )}
-      />
-      <Icon size={20} strokeWidth={1.75} />
+      <Icon size={19} strokeWidth={1.75} />
       {/* The name, shown beside the icon on hover and keyboard focus. */}
       <span
         aria-hidden

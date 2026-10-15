@@ -70,20 +70,23 @@ export function App() {
   }
 
   return (
-    <div className="flex h-full bg-flow">
+    <div data-tauri-drag-region className="flex h-full bg-shell">
       <UpdateDialog update={update.info} onClose={update.dismiss} />
       <Rail route={route} onNavigate={setRoute} />
-      <main key={route} className="relative h-full min-w-0 flex-1 animate-fade-in">
-        {/* The window can be dragged by the strip along the top, as with a title bar. */}
-        <div data-tauri-drag-region className="absolute inset-x-0 top-0 z-10 h-7" />
-        {route === "dashboard" && <DashboardScreen onNavigate={setRoute} />}
-        {route === "history" && <HistoryScreen />}
-        {route === "meetings" && <MeetingsScreen onNavigate={setRoute} />}
-        {route === "dictionary" && <DictionaryScreen />}
-        {route === "statistics" && <StatisticsScreen />}
-        {route === "models" && <ModelsScreen />}
-        {route === "settings" && <SettingsScreen />}
-      </main>
+      {/* The screens sit on a panel that floats on the window's shell, beside the rail. */}
+      <div className="relative my-2 mr-2 min-w-0 flex-1 overflow-hidden rounded-panel border border-line bg-flow shadow-panel">
+        <main key={route} className="relative h-full animate-fade-in">
+          {/* The window can be dragged by the strip along the top, as with a title bar. */}
+          <div data-tauri-drag-region className="absolute inset-x-0 top-0 z-10 h-7" />
+          {route === "dashboard" && <DashboardScreen onNavigate={setRoute} />}
+          {route === "history" && <HistoryScreen />}
+          {route === "meetings" && <MeetingsScreen onNavigate={setRoute} />}
+          {route === "dictionary" && <DictionaryScreen />}
+          {route === "statistics" && <StatisticsScreen />}
+          {route === "models" && <ModelsScreen />}
+          {route === "settings" && <SettingsScreen />}
+        </main>
+      </div>
     </div>
   );
 }

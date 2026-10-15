@@ -37,33 +37,55 @@ export function KeyRipple({ hotkey, className }: { hotkey: string; className?: s
   );
 }
 
-/** Three slow waves drawn across the hero, behind the keycap. */
+/** The hero's width in SVG units; every wave repeats a whole number of times across it. */
+const WAVE_WIDTH = 1124;
+
+/**
+ * The hero's waves, faintest last: how many crests fit across, how tall they
+ * are, how long one full drift takes, and which way it goes.
+ */
+const WAVES = [
+  { crests: 2, height: 11, y: 60, opacity: 0.3, seconds: 12, reverse: false },
+  { crests: 3, height: 9, y: 67, opacity: 0.18, seconds: 16, reverse: true },
+  { crests: 4, height: 7, y: 53, opacity: 0.11, seconds: 21, reverse: false },
+];
+
+/** A sine-like wave across two hero widths, so sliding it one width left loops without a seam. */
+function wavePath(crests: number, height: number, y: number) {
+  const period = WAVE_WIDTH / crests;
+  let d = `M0 ${y} Q ${period / 4} ${y - height * 2} ${period / 2} ${y}`;
+  for (let x = period; x <= WAVE_WIDTH * 2; x += period / 2) d += ` T ${x} ${y}`;
+  return d;
+}
+
+/**
+ * Three slow waves behind the keycap that drift sideways at different speeds,
+ * crossing as they go. Still if the user prefers reduced motion.
+ */
 export function HeroWaves({ className }: { className?: string }) {
   return (
     <svg
       aria-hidden
-      viewBox="0 0 1124 120"
+      viewBox={`0 0 ${WAVE_WIDTH} 120`}
       preserveAspectRatio="none"
-      className={cn("pointer-events-none text-chart", className)}
+      className={cn("pointer-events-none overflow-hidden text-chart fade-out-sides", className)}
       fill="none"
       stroke="currentColor"
       strokeWidth={1.5}
     >
-      <path
-        d="M0 60 C 90 40, 180 80, 270 60 S 450 40, 540 60 S 720 82, 810 60 S 990 38, 1124 60"
-        strokeOpacity={0.28}
-        vectorEffect="non-scaling-stroke"
-      />
-      <path
-        d="M0 68 C 110 52, 200 86, 300 68 S 480 50, 580 68 S 760 88, 860 68 S 1020 50, 1124 66"
-        strokeOpacity={0.16}
-        vectorEffect="non-scaling-stroke"
-      />
-      <path
-        d="M0 52 C 120 36, 220 70, 330 52 S 520 34, 620 52 S 800 72, 900 52 S 1060 36, 1124 50"
-        strokeOpacity={0.1}
-        vectorEffect="non-scaling-stroke"
-      />
+      {WAVES.map((wave) => (
+        <path
+          key={wave.y}
+          d={wavePath(wave.crests, wave.height, wave.y)}
+          strokeOpacity={wave.opacity}
+          vectorEffect="non-scaling-stroke"
+          className="motion-safe:animate-drift"
+          style={{
+            animationDuration: `${wave.seconds}s`,
+            animationDirection: wave.reverse ? "reverse" : "normal",
+          }}
+        />
+      ))}
     </svg>
   );
 }
