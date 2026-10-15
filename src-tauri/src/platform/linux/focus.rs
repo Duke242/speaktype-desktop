@@ -5,7 +5,7 @@
 pub struct FocusedField(());
 
 impl FocusedField {
-    pub fn current() -> Option<Self> {
+    pub fn current(_chromium_apps: bool) -> Option<Self> {
         None
     }
 

@@ -114,6 +114,8 @@ export interface Settings {
   saveRecordings: boolean;
   /** Add misheard words to the dictionary when a transcript is corrected. */
   learnCorrections: boolean;
+  /** On macOS, also watch Chrome and Electron apps for corrections, which slows typing in them meanwhile. */
+  watchChromiumApps: boolean;
   alwaysShowPill: boolean;
   pillPosition: PillPosition;
   showTrayIcon: boolean;

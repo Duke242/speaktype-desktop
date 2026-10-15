@@ -196,8 +196,9 @@ pub struct FocusedField {
 
 impl FocusedField {
     /// The focused text field in the frontmost app, if it can be read.
-    /// Password fields are never read.
-    pub fn current() -> Option<Self> {
+    /// Password fields are never read. Chrome and Electron apps are only read
+    /// with `chromium_apps`, as it slows typing in them while watched.
+    pub fn current(chromium_apps: bool) -> Option<Self> {
         // SAFETY: returns a +1 reference to the system-wide element.
         let system = Element(unsafe { AXUIElementCreateSystemWide() });
         if system.0.is_null() {
@@ -210,6 +211,7 @@ impl FocusedField {
             .map(Element::retained);
         let (field, manual) = match Element::readable_focus(&system) {
             Some(field) => (field, app.and_then(ManualAccessibility::join)),
+            None if !chromium_apps => return None,
             None => {
                 // Chrome and Electron apps (Slack, VS Code, Discord…) only
                 // expose their text fields once asked to, and build them

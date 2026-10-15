@@ -53,6 +53,7 @@ export function installBrowserPreview() {
     restoreClipboard: true,
     saveRecordings: true,
     learnCorrections: true,
+    watchChromiumApps: false,
     alwaysShowPill: false,
     pillPosition: "bottomCenter",
     showTrayIcon: true,

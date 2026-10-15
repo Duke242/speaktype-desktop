@@ -292,7 +292,7 @@ function GeneralTab() {
           label="Learn from my corrections"
           description={
             settings.learnCorrections
-              ? "When you fix a misheard name or term, or its capitals (github → GitHub), WordFlow adds it to Dictionary and gets it right next time. Learned words can be removed there."
+              ? "When you fix a misheard name or term, or its capitals (github → GitHub), WordFlow adds it to Dictionary and gets it right next time. To fix a dictation, hover it under Recently said in the menu bar and click the pencil, or edit it in History. Learned words can be removed in Dictionary."
               : "Corrections are saved but nothing is learned from them."
           }
         >
@@ -301,6 +301,22 @@ function GeneralTab() {
             onChange={(learnCorrections) => save({ learnCorrections })}
           />
         </SettingRow>
+        {isMac && settings.learnCorrections && (
+          <SettingRow
+            icon={Globe}
+            label="Also learn in Chrome and Electron apps"
+            description={
+              settings.watchChromiumApps
+                ? "Fixes made right after dictating in Chrome, Slack, VS Code and similar apps are learned too. Typing in them may lag for about 10 seconds after each dictation."
+                : "Fixes made in Chrome, Slack, VS Code and similar apps aren't picked up, so typing in them stays smooth. Fix those dictations from the menu bar or History instead."
+            }
+          >
+            <Switch
+              checked={settings.watchChromiumApps}
+              onChange={(watchChromiumApps) => save({ watchChromiumApps })}
+            />
+          </SettingRow>
+        )}
         <SettingRow
           icon={BookA}
          
