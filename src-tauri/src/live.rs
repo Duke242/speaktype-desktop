@@ -24,6 +24,7 @@ use crate::{
     learn, models, pipeline, platform,
     settings::Settings,
     text,
+    tone::{self, AppCategory},
 };
 
 const RATE: usize = WHISPER_SAMPLE_RATE as usize;
@@ -137,6 +138,13 @@ fn run(
     rx: Receiver<Captured>,
 ) -> Option<Result<String, pipeline::Error>> {
     let model = models::find(&settings.selected_model)?;
+    // Picks the dictionary entries for this kind of app. Found before the
+    // first phrase, which needs at least a second of speech anyway.
+    let category = tone::Detection::start()
+        .app()
+        .map_or(AppCategory::Other, |app| {
+            tone::classify(&app, &settings.tone.apps)
+        });
     let mut pending = Vec::new();
     let mut offset = 0;
     let mut transcript = String::new();
@@ -183,6 +191,7 @@ fn run(
             let result = recognize(
                 app,
                 &settings,
+                category,
                 &heard[..end],
                 replayed,
                 &transcript,
@@ -233,6 +242,7 @@ fn run(
         let result = recognize(
             app,
             &settings,
+            category,
             &heard[..end],
             replayed,
             &transcript,
@@ -286,9 +296,11 @@ fn run(
 
 /// `said` is the transcript so far. Whisper reads its end as context, so each
 /// phrase continues the sentence instead of being heard as a fresh start.
+#[allow(clippy::too_many_arguments)]
 fn recognize(
     app: &AppHandle,
     settings: &Settings,
+    category: AppCategory,
     samples: &[f32],
     replayed: usize,
     said: &str,
@@ -305,11 +317,11 @@ fn recognize(
     state
         .load_model(app, &mut engine, model)
         .map_err(pipeline::Error::ModelLoad)?;
-    let prompt = text::prompt(&settings.dictionary, said);
+    let prompt = text::prompt(&settings.dictionary, said, category);
     let raw = engine
         .transcribe(samples, &settings.language, &prompt)
         .map_err(pipeline::Error::Transcribe)?;
-    let options = phrase_options(settings, final_phrase);
+    let options = phrase_options(settings, category, final_phrase);
     // No language-model cleanup here: it needs whole sentences, and would hold
     // up every phrase. Typing live trades it for words appearing as you speak.
     let processed = text::finish(
@@ -326,13 +338,18 @@ fn recognize(
 }
 
 /// How one phrase typed live is tidied.
-fn phrase_options(settings: &Settings, final_phrase: bool) -> text::Options<'_> {
+fn phrase_options(
+    settings: &Settings,
+    category: AppCategory,
+    final_phrase: bool,
+) -> text::Options<'_> {
     text::Options {
         auto_edit: settings.auto_edit,
         // Preserve sentence punctuation within the stream.
         smart_trailing_punctuation: final_phrase && settings.smart_trailing_punctuation,
         plain_punctuation: settings.plain_punctuation,
         dictionary: &settings.dictionary,
+        app: category,
         // Voice commands only apply to dictation pasted at the end. Typed live,
         // "new line" would press Return on Windows (sending a chat message or
         // running a terminal command) and type a stray character on macOS, and
@@ -467,7 +484,7 @@ mod tests {
             ..Settings::default()
         };
         assert!(settings.voice_commands);
-        let options = phrase_options(&settings, true);
+        let options = phrase_options(&settings, AppCategory::Other, true);
         assert!(!options.voice_commands);
         assert_eq!(
             text::finish("Hello new line there", &options),
@@ -545,11 +562,11 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "requires WORDFALL_TEST_MODELS, WORDFALL_TEST_AUDIO and a downloaded model"]
+    #[ignore = "requires WORDFLOW_TEST_MODELS, WORDFLOW_TEST_AUDIO and a downloaded model"]
     fn offline_speech_emits_phrases_before_the_recording_ends() {
-        let model_id = std::env::var("WORDFALL_TEST_MODEL").unwrap_or("base".into());
-        let models = std::env::var("WORDFALL_TEST_MODELS").expect("model folder");
-        let audio = std::env::var("WORDFALL_TEST_AUDIO").expect("generated test audio");
+        let model_id = std::env::var("WORDFLOW_TEST_MODEL").unwrap_or("base".into());
+        let models = std::env::var("WORDFLOW_TEST_MODELS").expect("model folder");
+        let audio = std::env::var("WORDFLOW_TEST_AUDIO").expect("generated test audio");
         let model = models::find(&model_id).expect("catalog model");
         let store = models::ModelStore::new(models.into());
         let mut engine = crate::engine::Engine::default();

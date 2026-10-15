@@ -1,4 +1,4 @@
-# Contributing to Wordfall
+# Contributing to WordFlow
 
 Thanks for helping out! This guide covers everything from a fresh machine to a merged pull request, on macOS, Windows and Linux. You don't need to know Rust or React already. The codebase is young and small, and it's a good place to learn either.
 
@@ -33,7 +33,7 @@ You don't have to write code to help. A clear bug report from a Windows or Linux
 
 ## How the app fits together
 
-Wordfall is one app for macOS, Windows and Linux. It has two halves:
+WordFlow is one app for macOS, Windows and Linux. It has two halves:
 
 - **The app core** (`src-tauri/`, Rust) records audio, runs the speech models, listens for the hotkey, pastes text, and saves settings and history.
 - **The interface** (`src/`, React) draws every window. It talks to the core through commands (`invoke`) and listens for events.
@@ -77,14 +77,14 @@ Every system needs:
 
 - **Git**
 - **Node.js 22 or newer** ([nodejs.org](https://nodejs.org), or `nvm install 22`)
-- **Rust**, the current stable version, installed with [rustup](https://rustup.rs). Wordfall needs at least 1.88.
+- **Rust**, the current stable version, installed with [rustup](https://rustup.rs). WordFlow needs at least 1.88.
 - **CMake**, used to build the Whisper engine
 
 Then clone the repo and install the interface's dependencies:
 
 ```bash
-git clone https://github.com/<your-username>/wordfall.git
-cd wordfall
+git clone https://github.com/<your-username>/wordflow.git
+cd wordflow
 npm install
 ```
 
@@ -108,7 +108,7 @@ Requires macOS 13 or later. Apple Silicon and Intel both work for development.
    node -v && cargo -V && cmake --version
    ```
 
-**Permissions while developing.** The first time you dictate, macOS asks for microphone access. For pasting and the <kbd>fn</kbd> hotkey, add the app under **System Settings → Privacy & Security → Accessibility**. In development that's the `wordfall` binary in `src-tauri/target/debug/`, or the terminal you started it from. If pasting stops working after a rebuild, remove the entry and add it again: macOS sometimes treats a rebuilt binary as a new app.
+**Permissions while developing.** The first time you dictate, macOS asks for microphone access. For pasting and the <kbd>fn</kbd> hotkey, add the app under **System Settings → Privacy & Security → Accessibility**. In development that's the `wordflow` binary in `src-tauri/target/debug/`, or the terminal you started it from. If pasting stops working after a rebuild, remove the entry and add it again: macOS sometimes treats a rebuilt binary as a new app.
 
 ### Windows
 
@@ -133,7 +133,7 @@ Windows 10 or 11, 64-bit.
 
 WebView2, which draws the interface, comes with Windows 10 and 11. If the window stays blank, install the [WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/).
 
-**Tip:** clone into a short path like `C:\dev\wordfall`. Deep folders can hit Windows' path length limit during the first build.
+**Tip:** clone into a short path like `C:\dev\wordflow`. Deep folders can hit Windows' path length limit during the first build.
 
 ### Linux
 
@@ -321,7 +321,7 @@ cargo run --release --example clean_text -- download qwen2.5-1.5b ./bench-models
 cargo run --release --example clean_text -- qwen2.5-1.5b ./bench-models "um so send it to bob no wait to alice"
 ```
 
-It prints the model's reply and what Wordfall would paste. When a reply doesn't look like an edit of what was said, the transcript is pasted unchanged. Include a few before and after examples in any pull request that changes the prompt.
+It prints the model's reply and what WordFlow would paste. When a reply doesn't look like an edit of what was said, the transcript is pasted unchanged. Include a few before and after examples in any pull request that changes the prompt.
 
 ---
 

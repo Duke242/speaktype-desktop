@@ -71,7 +71,7 @@ export function AppToneSection() {
   return (
     <Section
       title="Tone that fits the app"
-      description="Wordfall notices which app you're dictating into and writes to suit it."
+      description="WordFlow notices which app you're dictating into and writes to suit it."
     >
       <SettingRow
         icon={MessageSquareText}

@@ -37,7 +37,7 @@ use super::{
 };
 use crate::{
     AppState, LockExt, audio::WHISPER_SAMPLE_RATE, history, models, platform, settings::Settings,
-    text,
+    text, tone::AppCategory,
 };
 
 const RATE: f64 = WHISPER_SAMPLE_RATE as f64;
@@ -473,7 +473,7 @@ fn recognize(
     let model = models::find(&settings.selected_model).ok_or("No model selected")?;
     let mut engine = state.engine.lock_unpoisoned();
     state.load_model(app, &mut engine, model)?;
-    let prompt = text::prompt(&settings.dictionary, said);
+    let prompt = text::prompt(&settings.dictionary, said, AppCategory::Other);
     let raw = engine.transcribe(samples, &settings.language, &prompt)?;
     drop(engine);
     let options = text::Options {
@@ -482,6 +482,8 @@ fn recognize(
         smart_trailing_punctuation: false,
         plain_punctuation: settings.plain_punctuation,
         dictionary: &settings.dictionary,
+        // Not dictated into an app.
+        app: AppCategory::Other,
         // Commands and other spoken rules are for dictating; a meeting
         // transcript keeps what people said.
         voice_commands: false,
@@ -503,7 +505,7 @@ mod tests {
     use super::*;
 
     fn temp_dir() -> PathBuf {
-        let dir = std::env::temp_dir().join(format!("wordfall-test-{}", uuid::Uuid::new_v4()));
+        let dir = std::env::temp_dir().join(format!("wordflow-test-{}", uuid::Uuid::new_v4()));
         fs::create_dir_all(&dir).unwrap();
         dir
     }

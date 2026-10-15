@@ -56,7 +56,7 @@ pub enum Theme {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub enum CleanupBackend {
-    /// A model Wordfall downloads and runs itself.
+    /// A model WordFlow downloads and runs itself.
     Builtin,
     /// A local server with an OpenAI-compatible API, such as Ollama or LM Studio.
     Server,
@@ -150,7 +150,7 @@ pub struct Settings {
     pub boost_quiet_speech: bool,
     /// Pause music and videos while recording, and resume them afterwards.
     pub pause_media: bool,
-    /// Start Wordfall, in the background, when the user logs in.
+    /// Start WordFlow, in the background, when the user logs in.
     pub launch_at_login: bool,
     pub auto_edit: bool,
     pub smart_trailing_punctuation: bool,
@@ -291,7 +291,7 @@ mod tests {
     use super::*;
 
     fn temp_store() -> (SettingsStore, PathBuf) {
-        let dir = std::env::temp_dir().join(format!("wordfall-test-{}", uuid::Uuid::new_v4()));
+        let dir = std::env::temp_dir().join(format!("wordflow-test-{}", uuid::Uuid::new_v4()));
         (SettingsStore::new(dir.join("config")), dir)
     }
 
@@ -334,7 +334,7 @@ mod tests {
             "theme": "light",
             "recordingMode": "toggle",
             "pillPosition": "topRight",
-            "dictionary": [{"id": "1", "trigger": "word fall", "replacement": "Wordfall"}]
+            "dictionary": [{"id": "1", "trigger": "word flow", "replacement": "WordFlow"}]
         }"#;
         let settings: Settings = serde_json::from_str(json).unwrap();
         assert_eq!(settings.theme, Theme::Light);

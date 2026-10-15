@@ -1,9 +1,9 @@
 //! Sharing the dictionary and snippets between computers, or with a team.
 //!
-//! There's no server. Wordfall keeps `wordfall-shared.json` in a folder the
+//! There's no server. WordFlow keeps `wordfall-shared.json` in a folder the
 //! user picks, usually one that Dropbox, iCloud Drive or a shared drive keeps
 //! in step. Every rule and snippet in it carries the time it last changed, and
-//! deletions stay as markers for a while, so each copy of Wordfall merges what
+//! deletions stay as markers for a while, so each copy of WordFlow merges what
 //! it finds by keeping the newest version of each entry. Copies that read each
 //! other's files end up with the same entries, whatever order they sync in.
 //!
@@ -25,8 +25,11 @@ use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_dialog::DialogExt;
 
-use crate::{AppState, LockExt, history::now_ms, snippets::Snippet, text::DictionaryEntry};
+use crate::{
+    AppState, LockExt, history::now_ms, snippets::Snippet, text::DictionaryEntry, tone::AppCategory,
+};
 
+/// Keeps the name from before the rename to WordFlow, so shared folders keep syncing.
 pub const FILE_NAME: &str = "wordfall-shared.json";
 /// What was last synced, so changes made here can be told from changes made elsewhere.
 const STATE_FILE: &str = "sync-state.json";
@@ -49,6 +52,12 @@ pub struct Rule {
     pub match_whole_word: bool,
     #[serde(default)]
     pub learned: bool,
+    #[serde(
+        default,
+        skip_serializing_if = "Vec::is_empty",
+        deserialize_with = "crate::text::app_categories"
+    )]
+    pub only_in: Vec<AppCategory>,
 }
 
 /// A snippet as shared.
@@ -134,6 +143,7 @@ impl Local for DictionaryEntry {
             is_enabled: self.is_enabled,
             match_whole_word: self.match_whole_word,
             learned: self.learned,
+            only_in: self.only_in.clone(),
         }
     }
 
@@ -143,6 +153,7 @@ impl Local for DictionaryEntry {
         self.is_enabled = rule.is_enabled;
         self.match_whole_word = rule.match_whole_word;
         self.learned = rule.learned;
+        self.only_in = rule.only_in.clone();
     }
 
     fn create(rule: &Rule) -> Self {
@@ -153,6 +164,7 @@ impl Local for DictionaryEntry {
             is_enabled: true,
             match_whole_word: true,
             learned: false,
+            only_in: Vec::new(),
         };
         entry.update(rule);
         entry
@@ -585,8 +597,8 @@ pub fn export(app: &AppHandle) -> Result<Option<PathBuf>, String> {
     let Some(path) = app
         .dialog()
         .file()
-        .add_filter("Wordfall library", &["json"])
-        .set_file_name("wordfall-library.json")
+        .add_filter("WordFlow library", &["json"])
+        .set_file_name("wordflow-library.json")
         .blocking_save_file()
         .and_then(|p| p.into_path().ok())
     else {
@@ -613,7 +625,7 @@ pub fn import(app: &AppHandle) -> Result<Option<ImportSummary>, String> {
     let Some(path) = app
         .dialog()
         .file()
-        .add_filter("Wordfall library", &["json"])
+        .add_filter("WordFlow library", &["json"])
         .blocking_pick_file()
         .and_then(|p| p.into_path().ok())
     else {
@@ -643,6 +655,7 @@ mod tests {
             is_enabled: true,
             match_whole_word: true,
             learned: false,
+            only_in: Vec::new(),
         }
     }
 
@@ -693,18 +706,18 @@ mod tests {
     fn first_sync_shares_everything_and_keeps_ids() {
         let mut shared = Library::default();
         let mut laptop = Copy {
-            dictionary: vec![entry("word fall", "Wordfall")],
+            dictionary: vec![entry("word flow", "WordFlow")],
             snippets: vec![snippet("my email", "me@example.com")],
             ..Copy::default()
         };
         laptop.sync(&mut shared, 1_000);
         assert_eq!(shared.dictionary.len(), 1);
         assert_eq!(shared.snippets[0].item.expansion, "me@example.com");
-        assert_eq!(laptop.dictionary[0].id, "id-word fall");
+        assert_eq!(laptop.dictionary[0].id, "id-word flow");
 
         let mut desktop = Copy::default();
         desktop.sync(&mut shared, 2_000);
-        assert_eq!(desktop.rules(), [("word fall", "Wordfall")]);
+        assert_eq!(desktop.rules(), [("word flow", "WordFlow")]);
         assert_eq!(desktop.snippets[0].trigger, "my email");
     }
 
@@ -925,7 +938,7 @@ mod tests {
 
     #[test]
     fn json_files_are_written_whole_and_read_back() {
-        let dir = std::env::temp_dir().join(format!("wordfall-sync-{}", uuid::Uuid::new_v4()));
+        let dir = std::env::temp_dir().join(format!("wordflow-sync-{}", uuid::Uuid::new_v4()));
         fs::create_dir_all(&dir).unwrap();
         let path = dir.join(FILE_NAME);
         assert_eq!(read_json::<Library>(&path).unwrap(), None);

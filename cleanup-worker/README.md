@@ -1,6 +1,6 @@
-# wordfall-cleanup
+# wordflow-cleanup
 
-The helper program behind AI cleanup's built-in models. Wordfall starts it when cleanup is on, sends it each transcript, and pastes the reply. It runs a GGUF language model with [llama.cpp](https://github.com/ggml-org/llama.cpp).
+The helper program behind AI cleanup's built-in models. WordFlow starts it when cleanup is on, sends it each transcript, and pastes the reply. It runs a GGUF language model with [llama.cpp](https://github.com/ggml-org/llama.cpp).
 
 ## Why it's a separate program
 
@@ -23,7 +23,7 @@ One JSON object per line, on stdin and stdout:
 
 A request without `messages` only loads the model. The prompt, the checks on the reply, starting and stopping the helper, and timeouts are all in `src-tauri/src/cleanup.rs`. This program only runs the model.
 
-Set `WORDFALL_CLEANUP_LOGS=1` to see llama.cpp's own logs on stderr.
+Set `WORDFLOW_CLEANUP_LOGS=1` to see llama.cpp's own logs on stderr.
 
 ## Building
 

@@ -1,38 +1,31 @@
 import { useId } from "react";
 import { cn } from "@/lib/cn";
 
-// Five streaks of rain; the drops they land as trace a "W". Matches the app icon.
-const DROPS = [
-  { x: 8.6, y: 18.2 },
-  { x: 12.3, y: 22.6 },
-  { x: 16, y: 19.5 },
-  { x: 19.7, y: 22.6 },
-  { x: 23.4, y: 18.2 },
-];
+// One flowing ribbon shaped like a "W". Matches the app icon (icons/wordflow.svg scaled to 32).
+const RIBBON =
+  "M5.05 8.93 C6.99 8.93 7.77 23.3 10.87 23.3 S14.37 12.43 16 12.43 S18.64 23.3 21.13 23.3 S25 8.93 26.95 8.93";
 
-/** The Wordfall mark: rain falling into a "W" on a deep blue rounded square, like the app icon. */
+/** The WordFlow mark: a flowing "W" on a teal-to-blue rounded square, like the app icon. */
 export function LogoMark({ className }: { className?: string }) {
   const id = useId();
   return (
     <svg viewBox="0 0 32 32" aria-hidden className={cn("shrink-0", className)}>
       <defs>
         <linearGradient id={`${id}-sea`} x1="0.15" y1="0" x2="0.85" y2="1">
-          <stop offset="0" stopColor="#3a86ee" />
-          <stop offset="0.5" stopColor="#1a4fb0" />
-          <stop offset="1" stopColor="#0a1d47" />
-        </linearGradient>
-        <linearGradient id={`${id}-streak`} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#e6f6ff" stopOpacity="0.1" />
-          <stop offset="1" stopColor="#ffffff" />
+          <stop offset="0" stopColor="#86e2d8" />
+          <stop offset="0.5" stopColor="#56b8de" />
+          <stop offset="1" stopColor="#3a7cbf" />
         </linearGradient>
       </defs>
       <rect width="32" height="32" rx="8" fill={`url(#${id}-sea)`} />
-      {DROPS.map(({ x, y }) => (
-        <g key={x}>
-          <rect x={x - 1} y={y - 10} width="2" height="10" rx="1" fill={`url(#${id}-streak)`} />
-          <circle cx={x} cy={y} r="1.5" fill="#ffffff" />
-        </g>
-      ))}
+      <path
+        d={RIBBON}
+        fill="none"
+        stroke="#ffffff"
+        strokeWidth="3.3"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }

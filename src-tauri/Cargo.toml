@@ -1,17 +1,17 @@
 [package]
-name = "wordfall"
+name = "wordflow"
 version = "2.0.0"
 description = "Offline voice dictation for macOS, Windows and Linux"
 edition = "2024"
 rust-version = "1.88"
 
 [lib]
-name = "wordfall_lib"
+name = "wordflow_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 # The Dock and task manager show this name while developing.
 [[bin]]
-name = "Wordfall"
+name = "WordFlow"
 path = "src/main.rs"
 
 [features]

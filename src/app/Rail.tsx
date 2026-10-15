@@ -12,7 +12,7 @@ export function Rail({ route, onNavigate }: { route: Route; onNavigate: (route: 
   const settings = NAV.find((item) => item.route === "settings")!;
 
   return (
-    <nav aria-label="Wordfall" className="relative z-20 flex h-full w-[76px] shrink-0 flex-col items-center border-r border-line">
+    <nav aria-label="WordFlow" className="relative z-20 flex h-full w-[76px] shrink-0 flex-col items-center border-r border-line">
       <div data-tauri-drag-region className={cn("w-full shrink-0", macChrome ? "h-12" : "h-5")} />
 
       <div data-tauri-drag-region className="flex w-full justify-center pt-3 pb-7">

@@ -158,7 +158,7 @@ fn open_device(device: &cpal::Device, buffer: &Buffer, loopback: bool) -> Result
     // own, otherwise it would open that, like a headset's microphone.
     if loopback && device.supports_input() {
         return Err(format!(
-            "{name} is also a microphone, so Wordfall can't record what it plays. \
+            "{name} is also a microphone, so WordFlow can't record what it plays. \
              Choose another output, or a virtual device such as BlackHole"
         ));
     }

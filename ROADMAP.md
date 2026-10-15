@@ -1,6 +1,6 @@
-# Wordfall: what's left
+# WordFlow: what's left
 
-The engineering checklist for Wordfall.
+The engineering checklist for WordFlow.
 
 ## Core
 
@@ -68,7 +68,7 @@ The engineering checklist for Wordfall.
 - [x] Finish and send: Return while recording inserts the transcript and presses Return
 - [x] Pause music and videos while dictating, browsers included, and resume them afterwards (#63)
 - [x] Share the dictionary and snippets between computers or with a team, through a synced folder; export and import them as a file
-- [ ] Sharing through a Wordfall account, without a synced folder
+- [ ] Sharing through a WordFlow account, without a synced folder
 
 ### Meeting notes
 - [x] Record the microphone and system audio as separate tracks, labelled "You" and "Others" (#170)

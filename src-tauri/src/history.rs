@@ -238,7 +238,7 @@ mod tests {
 
     impl TempDir {
         fn new() -> Self {
-            let dir = std::env::temp_dir().join(format!("wordfall-test-{}", uuid::Uuid::new_v4()));
+            let dir = std::env::temp_dir().join(format!("wordflow-test-{}", uuid::Uuid::new_v4()));
             fs::create_dir_all(&dir).unwrap();
             Self(dir)
         }

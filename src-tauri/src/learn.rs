@@ -381,6 +381,7 @@ pub fn add_to_dictionary(
             is_enabled: true,
             match_whole_word: true,
             learned: true,
+            only_in: Vec::new(),
         };
         dictionary.push(entry.clone());
         added.push(entry);

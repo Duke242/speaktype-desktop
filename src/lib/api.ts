@@ -24,6 +24,8 @@ export interface DictionaryEntry {
   matchWholeWord: boolean;
   /** Added automatically from a correction, rather than by the user. */
   learned?: boolean;
+  /** The kinds of app the rule is used in. Missing or empty for every app. */
+  onlyIn?: AppCategory[];
 }
 
 /** A spoken phrase that expands into saved text. */
@@ -190,7 +192,7 @@ export interface ServerModels {
 }
 
 export interface AppTone {
-  /** Apps Wordfall already knows. */
+  /** Apps WordFlow already knows. */
   builtIn: { name: string; category: AppCategory }[];
   /** The app dictated into last, so users can see what to call it. */
   lastApp: { id: string; name: string; title: string; category: AppCategory } | null;

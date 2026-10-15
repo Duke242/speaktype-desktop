@@ -9,10 +9,10 @@ import { useEffect } from "react";
  * while macOS refuses it. Only removing and re-adding the app clears that.
  */
 export function hotkeyBlockedMessage(keys: string) {
-  const app = import.meta.env.DEV ? "the terminal running this dev build" : "Wordfall";
+  const app = import.meta.env.DEV ? "the terminal running this dev build" : "WordFlow";
   const stale = import.meta.env.DEV
     ? ""
-    : " Already on? An update can reset it: remove Wordfall with −, add it back with +, then reopen Wordfall.";
+    : " Already on? An update can reset it: remove WordFlow with −, add it back with +, then reopen WordFlow.";
   return `${keys} won't start dictation until macOS allows it. Turn on ${app} in Privacy & Security → Accessibility.${stale}`;
 }
 
