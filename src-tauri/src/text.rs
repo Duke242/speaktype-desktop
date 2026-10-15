@@ -508,10 +508,10 @@ mod tests {
 
     #[test]
     fn dictionary_matches_whole_words_case_insensitively() {
-        let entries = [entry("speak type", "SpeakType", true)];
+        let entries = [entry("word flow", "Wordflow", true)];
         assert_eq!(
-            apply_dictionary("I use Speak   Type daily", &entries),
-            "I use SpeakType daily"
+            apply_dictionary("I use Word   Flow daily", &entries),
+            "I use Wordflow daily"
         );
         let entries = [entry("cat", "dog", true)];
         assert_eq!(

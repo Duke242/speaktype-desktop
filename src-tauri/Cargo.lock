@@ -6664,7 +6664,6 @@ dependencies = [
  "hound",
  "objc2",
  "objc2-foundation",
- "plist",
  "regex",
  "reqwest 0.12.28",
  "semver",

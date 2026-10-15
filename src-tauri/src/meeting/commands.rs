@@ -204,7 +204,7 @@ mod tests {
 
     #[test]
     fn existing_files_are_not_overwritten() {
-        let dir = std::env::temp_dir().join(format!("speaktype-test-{}", uuid::Uuid::new_v4()));
+        let dir = std::env::temp_dir().join(format!("wordflow-test-{}", uuid::Uuid::new_v4()));
         std::fs::create_dir_all(&dir).unwrap();
         assert_eq!(free_path(&dir, "Sync"), dir.join("Sync.md"));
         std::fs::write(dir.join("Sync.md"), "").unwrap();

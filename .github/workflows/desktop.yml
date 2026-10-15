@@ -10,13 +10,7 @@ on:
   push:
     branches: [main]
     tags: ["v2.*"]
-    paths-ignore:
-      - "macos-v1/**"
-      - ".github/workflows/macos-v1.yml"
   pull_request:
-    paths-ignore:
-      - "macos-v1/**"
-      - ".github/workflows/macos-v1.yml"
   workflow_dispatch:
 
 concurrency:
@@ -117,15 +111,15 @@ jobs:
         include:
           - name: macOS
             os: macos-15
-            artifact: speaktype-macos
-            # One app for Apple Silicon and Intel: SpeakType 1 runs on both.
+            artifact: wordflow-macos
+            # One app for Apple Silicon and Intel.
             args: --target universal-apple-darwin
           - name: Windows
             os: windows-2025
-            artifact: speaktype-windows-x64
+            artifact: wordflow-windows-x64
           - name: Linux
             os: ubuntu-24.04
-            artifact: speaktype-linux-x64
+            artifact: wordflow-linux-x64
     runs-on: ${{ matrix.os }}
     permissions:
       contents: write
@@ -168,8 +162,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Only warnings in our own code should fail the lint job, not the installer build.
           RUSTFLAGS: ""
-          # Signs and notarizes the macOS app, so it opens without Gatekeeper warnings and
-          # SpeakType 1 accepts it as an update. Ignored on Windows and Linux.
+          # Signs and notarizes the macOS app, so it opens without Gatekeeper warnings.
+          # Ignored on Windows and Linux.
           APPLE_CERTIFICATE: ${{ secrets.DEVELOPER_ID_APPLICATION_CERT }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.DEVELOPER_ID_APPLICATION_CERT_PASSWORD }}
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}

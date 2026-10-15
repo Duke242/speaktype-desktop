@@ -149,7 +149,7 @@ mod tests {
 
     #[test]
     fn wav_round_trips_through_the_decoder() {
-        let dir = std::env::temp_dir().join(format!("speaktype-test-{}", uuid::Uuid::new_v4()));
+        let dir = std::env::temp_dir().join(format!("wordflow-test-{}", uuid::Uuid::new_v4()));
         let path = dir.join("tone.wav");
         let samples: Vec<f32> = (0..16_000)
             .map(|i| (i as f32 * 440.0 * std::f32::consts::TAU / 16_000.0).sin() * 0.5)
@@ -172,7 +172,7 @@ mod tests {
 
     #[test]
     fn empty_and_out_of_range_samples_write_valid_files() {
-        let dir = std::env::temp_dir().join(format!("speaktype-test-{}", uuid::Uuid::new_v4()));
+        let dir = std::env::temp_dir().join(format!("wordflow-test-{}", uuid::Uuid::new_v4()));
         let path = dir.join("nested").join("clipped.wav");
         write_wav(&path, &[2.0, -2.0, f32::NAN]).unwrap();
         let reader = hound::WavReader::open(&path).unwrap();
@@ -187,7 +187,7 @@ mod tests {
     #[test]
     fn missing_and_unsupported_files_fail_cleanly() {
         assert!(decode_file(Path::new("/definitely/not/here.wav")).is_err());
-        let path = std::env::temp_dir().join(format!("speaktype-{}.txt", uuid::Uuid::new_v4()));
+        let path = std::env::temp_dir().join(format!("wordflow-{}.txt", uuid::Uuid::new_v4()));
         fs::write(&path, "not audio").unwrap();
         assert!(decode_file(&path).is_err());
         fs::remove_file(path).unwrap();

@@ -1,14 +1,13 @@
 import { ArrowDown, ArrowLeft, ArrowRight, Check, Feather, Lock, Zap, type LucideIcon } from "lucide-react";
-import { useEffect, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { KeyRipple } from "@/components/brand/KeyRipple";
 import { LogoMark } from "@/components/brand/LogoMark";
 import { PillPreview } from "@/components/brand/PillPreview";
 import { HotkeyPicker } from "@/components/settings/HotkeyPicker";
 import { PermissionList } from "@/components/PermissionList";
 import { Button, IconTile, ProgressBar } from "@/components/ui";
-import { api, type ImportSummary } from "@/lib/api";
 import { cn } from "@/lib/cn";
-import { describeImport, formatModelSize } from "@/lib/format";
+import { formatModelSize } from "@/lib/format";
 import { useStore } from "@/lib/store";
 
 type Step = "welcome" | "permissions" | "model" | "ready";
@@ -20,14 +19,6 @@ export function OnboardingScreen() {
   const { status, models, updateSettings } = useStore();
   const steps: Step[] = ["welcome", ...(status.os === "macos" ? (["permissions"] as Step[]) : []), "model", "ready"];
   const [index, setIndex] = useState(0);
-  // Set when this install brought over data from SpeakType 1.
-  const [imported, setImported] = useState<ImportSummary | null>(null);
-  useEffect(() => {
-    api
-      .getLegacyStatus()
-      .then((status) => setImported(status.imported))
-      .catch(() => {});
-  }, []);
   const step = steps[index];
   const back = () => setIndex((i) => Math.max(0, i - 1));
   const next = () => setIndex((i) => Math.min(steps.length - 1, i + 1));
@@ -48,7 +39,7 @@ export function OnboardingScreen() {
 
       <div key={step} className="relative flex flex-1 animate-fade-in flex-col items-center overflow-y-auto px-10">
         <div className="my-auto w-full max-w-[600px] py-8">
-          {step === "welcome" && <Welcome imported={imported} />}
+          {step === "welcome" && <Welcome />}
           {step === "permissions" && <Permissions />}
           {step === "model" && <ModelStep />}
           {step === "ready" && <Ready />}
@@ -107,7 +98,7 @@ function StepHeader({ title, children }: { title: string; children?: ReactNode }
   );
 }
 
-function Welcome({ imported }: { imported: ImportSummary | null }) {
+function Welcome() {
   const features: { icon: LucideIcon; title: string; description: string }[] = [
     { icon: Lock, title: "Private", description: "Your voice never leaves this computer." },
     { icon: Zap, title: "Fast", description: "Speech becomes text in about a second." },
@@ -116,15 +107,9 @@ function Welcome({ imported }: { imported: ImportSummary | null }) {
   return (
     <div className="flex flex-col items-center">
       <PillPreview className="mb-10" />
-      {imported ? (
-        <StepHeader title="Welcome back!">
-          We brought over {describeImport(imported)} from SpeakType 1. A few quick steps and you're dictating again.
-        </StepHeader>
-      ) : (
-        <StepHeader title="Welcome to Wordflow!">
-          Hold a key, speak naturally, and your words appear in whatever app you're using.
-        </StepHeader>
-      )}
+      <StepHeader title="Welcome to Wordflow!">
+        Hold a key, speak naturally, and your words appear in whatever app you're using.
+      </StepHeader>
       <div className="mt-14 grid w-full grid-cols-3 divide-x divide-line">
         {features.map(({ icon: Icon, title, description }) => (
           <div key={title} className="flex flex-col items-center px-6 text-center">

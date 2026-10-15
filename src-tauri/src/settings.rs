@@ -183,8 +183,6 @@ pub struct Settings {
     /// or empty when sharing is off.
     pub sync_folder: String,
     pub has_completed_onboarding: bool,
-    /// Set once SpeakType 1's data has been brought over, so it only happens once.
-    pub has_imported_v1: bool,
     /// Set once the app has sent a new user to AI Models, so it only happens once.
     pub has_shown_model_prompt: bool,
     pub meetings: MeetingSettings,
@@ -225,7 +223,6 @@ impl Default for Settings {
             snippets: Vec::new(),
             sync_folder: String::new(),
             has_completed_onboarding: false,
-            has_imported_v1: false,
             has_shown_model_prompt: false,
             meetings: MeetingSettings::default(),
         }
@@ -241,11 +238,6 @@ impl SettingsStore {
         Self {
             path: config_dir.join("settings.json"),
         }
-    }
-
-    /// Whether settings have ever been saved here, i.e. this isn't a fresh install.
-    pub fn exists(&self) -> bool {
-        self.path.exists()
     }
 
     /// Reads settings, falling back to defaults if the file is missing or unreadable.
@@ -299,7 +291,7 @@ mod tests {
     use super::*;
 
     fn temp_store() -> (SettingsStore, PathBuf) {
-        let dir = std::env::temp_dir().join(format!("speaktype-test-{}", uuid::Uuid::new_v4()));
+        let dir = std::env::temp_dir().join(format!("wordflow-test-{}", uuid::Uuid::new_v4()));
         (SettingsStore::new(dir.join("config")), dir)
     }
 
@@ -342,7 +334,7 @@ mod tests {
             "theme": "light",
             "recordingMode": "toggle",
             "pillPosition": "topRight",
-            "dictionary": [{"id": "1", "trigger": "speak type", "replacement": "SpeakType"}]
+            "dictionary": [{"id": "1", "trigger": "word flow", "replacement": "Wordflow"}]
         }"#;
         let settings: Settings = serde_json::from_str(json).unwrap();
         assert_eq!(settings.theme, Theme::Light);

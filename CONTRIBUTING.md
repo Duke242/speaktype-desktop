@@ -1,4 +1,4 @@
-# Contributing to SpeakType
+# Contributing to Wordflow
 
 Thanks for helping out! This guide covers everything from a fresh machine to a merged pull request, on macOS, Windows and Linux. You don't need to know Rust or React already. The codebase is young and small, and it's a good place to learn either.
 
@@ -33,7 +33,7 @@ You don't have to write code to help. A clear bug report from a Windows or Linux
 
 ## How the app fits together
 
-SpeakType 2 is one app for macOS, Windows and Linux. It has two halves:
+Wordflow is one app for macOS, Windows and Linux. It has two halves:
 
 - **The app core** (`src-tauri/`, Rust) records audio, runs the speech models, listens for the hotkey, pastes text, and saves settings and history.
 - **The interface** (`src/`, React) draws every window. It talks to the core through commands (`invoke`) and listens for events.
@@ -58,7 +58,7 @@ SpeakType 2 is one app for macOS, Windows and Linux. It has two halves:
 │   │   ├── snippets.rs  sync.rs Snippets, and sharing them and the dictionary through a folder
 │   │   ├── meeting/             Meeting notes: capture, live transcript, storage, summaries
 │   │   ├── models.rs            Model catalogs and downloads
-│   │   ├── history.rs  settings.rs  legacy.rs (import from SpeakType 1)
+│   │   ├── history.rs  settings.rs
 │   │   └── platform/            Everything OS-specific
 │   │       ├── macos/  windows/  linux/
 │   └── examples/                transcribe_wav.rs and clean_text.rs: try models without the UI
@@ -69,8 +69,6 @@ SpeakType 2 is one app for macOS, Windows and Linux. It has two halves:
 
 Each folder in `platform/` exposes the same functions (hotkeys, pasting, permissions…), so the rest of the core never checks which OS it's on. To change how something works on one system, you usually only touch that system's folder.
 
-> SpeakType 1, the previous macOS-only Swift app, is in [`macos-v1/`](macos-v1). It only gets critical fixes. New work goes here.
-
 ---
 
 ## Set up your machine
@@ -79,7 +77,7 @@ Every system needs:
 
 - **Git**
 - **Node.js 22 or newer** ([nodejs.org](https://nodejs.org), or `nvm install 22`)
-- **Rust**, the current stable version, installed with [rustup](https://rustup.rs). SpeakType needs at least 1.88.
+- **Rust**, the current stable version, installed with [rustup](https://rustup.rs). Wordflow needs at least 1.88.
 - **CMake**, used to build the Whisper engine
 
 Then clone the repo and install the interface's dependencies:
@@ -110,7 +108,7 @@ Requires macOS 13 or later. Apple Silicon and Intel both work for development.
    node -v && cargo -V && cmake --version
    ```
 
-**Permissions while developing.** The first time you dictate, macOS asks for microphone access. For pasting and the <kbd>fn</kbd> hotkey, add the app under **System Settings → Privacy & Security → Accessibility**. In development that's the `SpeakType` binary in `src-tauri/target/debug/`, or the terminal you started it from. If pasting stops working after a rebuild, remove the entry and add it again: macOS sometimes treats a rebuilt binary as a new app.
+**Permissions while developing.** The first time you dictate, macOS asks for microphone access. For pasting and the <kbd>fn</kbd> hotkey, add the app under **System Settings → Privacy & Security → Accessibility**. In development that's the `wordflow` binary in `src-tauri/target/debug/`, or the terminal you started it from. If pasting stops working after a rebuild, remove the entry and add it again: macOS sometimes treats a rebuilt binary as a new app.
 
 ### Windows
 
@@ -210,7 +208,6 @@ Open [localhost:1420](http://localhost:1420). The interface runs with sample dat
 | --- | --- |
 | `?theme=dark` | Dark mode |
 | `?onboarding=1` | Onboarding for a new user |
-| `?onboarding=1&imported=1` | Onboarding after upgrading from SpeakType 1 |
 | `?empty=1` | No history or stats yet |
 | `?meeting=recording` | A meeting in progress, with its transcript growing |
 | `?notes=0` | Meetings without a model to write notes |
@@ -258,7 +255,7 @@ cargo test
 
 **Writing tests:**
 
-- **Rust:** tests live at the bottom of the file they test, in a `#[cfg(test)] mod tests` block. `dictation.rs`, `history.rs` and `legacy.rs` have good examples. Keep logic that decides things (like the dictation state machine) in plain functions, so it can be tested without a microphone or a window.
+- **Rust:** tests live at the bottom of the file they test, in a `#[cfg(test)] mod tests` block. `dictation.rs`, `history.rs` and `settings.rs` have good examples. Keep logic that decides things (like the dictation state machine) in plain functions, so it can be tested without a microphone or a window.
 - **TypeScript:** put tests next to the file, named `*.test.ts`, like `src/lib/format.test.ts`. They run with [Vitest](https://vitest.dev).
 
 ### Test by hand
@@ -324,7 +321,7 @@ cargo run --release --example clean_text -- download qwen2.5-1.5b ./bench-models
 cargo run --release --example clean_text -- qwen2.5-1.5b ./bench-models "um so send it to bob no wait to alice"
 ```
 
-It prints the model's reply and what SpeakType would paste. When a reply doesn't look like an edit of what was said, the transcript is pasted unchanged. Include a few before and after examples in any pull request that changes the prompt.
+It prints the model's reply and what Wordflow would paste. When a reply doesn't look like an edit of what was said, the transcript is pasted unchanged. Include a few before and after examples in any pull request that changes the prompt.
 
 ---
 

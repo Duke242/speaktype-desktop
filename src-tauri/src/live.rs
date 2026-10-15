@@ -545,11 +545,11 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "requires SPEAKTYPE_TEST_MODELS, SPEAKTYPE_TEST_AUDIO and a downloaded model"]
+    #[ignore = "requires WORDFLOW_TEST_MODELS, WORDFLOW_TEST_AUDIO and a downloaded model"]
     fn offline_speech_emits_phrases_before_the_recording_ends() {
-        let model_id = std::env::var("SPEAKTYPE_TEST_MODEL").unwrap_or("base".into());
-        let models = std::env::var("SPEAKTYPE_TEST_MODELS").expect("model folder");
-        let audio = std::env::var("SPEAKTYPE_TEST_AUDIO").expect("generated test audio");
+        let model_id = std::env::var("WORDFLOW_TEST_MODEL").unwrap_or("base".into());
+        let models = std::env::var("WORDFLOW_TEST_MODELS").expect("model folder");
+        let audio = std::env::var("WORDFLOW_TEST_AUDIO").expect("generated test audio");
         let model = models::find(&model_id).expect("catalog model");
         let store = models::ModelStore::new(models.into());
         let mut engine = crate::engine::Engine::default();

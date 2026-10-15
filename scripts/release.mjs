@@ -5,7 +5,7 @@
 //   npm run release            next alpha, e.g. v2.0.0-alpha.5
 //   npm run release -- beta    next beta, e.g. v2.0.0-beta.1
 //   npm run release -- stable  the version in tauri.conf.json, e.g. v2.0.0, as the
-//                              "Latest" release, which SpeakType 1 offers as an update
+//                              "Latest" release
 //   npm run release -- --dry   show the tag without creating it
 
 import { execFileSync } from "node:child_process";
@@ -20,7 +20,6 @@ const STABLE_NOTES = `Wordflow is here, for macOS, Windows and Linux.
 
 - One app on every system, with the same models running on your own computer.
 - A new design, a menu bar panel, and a smaller, lighter app.
-- Upgrading from SpeakType 1 on a Mac brings your history, dictionary and settings with you. Models need downloading again, since Wordflow uses a different format.
 
 The Windows installer isn't signed yet: on the SmartScreen prompt, click More info, then Run anyway.`;
 
@@ -78,8 +77,8 @@ execFileSync(
     "create",
     tag,
     "--verify-tag",
-    // Even a stable release starts as a pre-release: SpeakType 1 offers whatever is
-    // "Latest" as an update, and it must not see a release before its installers exist.
+    // Even a stable release starts as a pre-release, so nothing is offered as
+    // "Latest" before its installers exist.
     "--prerelease",
     "--title",
     `Wordflow ${tag}`,

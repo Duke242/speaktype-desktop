@@ -1,5 +1,5 @@
 [package]
-name = "speaktype-cleanup"
+name = "wordflow-cleanup"
 version = "2.0.0"
 description = "Runs Wordflow's local cleanup model, in its own process"
 edition = "2024"

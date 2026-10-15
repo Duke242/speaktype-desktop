@@ -4,7 +4,7 @@
 //! and formats spoken lists. It runs in one of three ways:
 //!
 //! - Built in: a GGUF model from `models::CLEANUP_CATALOG`, run by the
-//!   `speaktype-cleanup` helper (cleanup-worker/). It's a separate
+//!   `wordflow-cleanup` helper (cleanup-worker/). It's a separate
 //!   program because whisper.cpp and llama.cpp each bundle a different version
 //!   of ggml, and only one copy survives linking into one binary. It also keeps
 //!   a crash or hang in the model away from dictation.
@@ -52,7 +52,7 @@ const IDLE_CHECK: Duration = Duration::from_secs(30);
 
 const SERVER_LIST_TIMEOUT: Duration = Duration::from_secs(5);
 
-const WORKER_NAME: &str = "speaktype-cleanup";
+const WORKER_NAME: &str = "wordflow-cleanup";
 
 const SYSTEM_PROMPT_START: &str = "\
 You are a transcript editor. You receive text that someone dictated, between <transcript> tags, \
@@ -513,9 +513,9 @@ fn watch_idle(slot: Weak<Mutex<Option<Worker>>>, id: u64) {
 
 /// Where the helper program is: next to the app's own executable once
 /// installed, or in the cleanup-worker build folder while developing.
-/// `SPEAKTYPE_CLEANUP_WORKER` overrides both.
+/// `WORDFLOW_CLEANUP_WORKER` overrides both.
 pub fn worker_path() -> Option<PathBuf> {
-    if let Some(path) = std::env::var_os("SPEAKTYPE_CLEANUP_WORKER") {
+    if let Some(path) = std::env::var_os("WORDFLOW_CLEANUP_WORKER") {
         return Some(PathBuf::from(path));
     }
     let file = format!("{WORKER_NAME}{}", std::env::consts::EXE_SUFFIX);
@@ -548,7 +548,7 @@ struct Reply {
     error: Option<String>,
 }
 
-/// A running `speaktype-cleanup`. Dropping it stops the process.
+/// A running `wordflow-cleanup`. Dropping it stops the process.
 struct Worker {
     id: u64,
     child: Child,
