@@ -798,7 +798,7 @@ mod tests {
     #[test]
     fn free_space_is_found_for_a_folder_that_doesnt_exist_yet() {
         let dir =
-            std::env::temp_dir().join(format!("speaktype-test-{}/models", uuid::Uuid::new_v4()));
+            std::env::temp_dir().join(format!("wordfall-test-{}/models", uuid::Uuid::new_v4()));
         assert!(free_space(&dir).is_some_and(|bytes| bytes > 0));
     }
 
@@ -881,8 +881,7 @@ mod tests {
 
     impl TempStore {
         fn new() -> Self {
-            let root =
-                std::env::temp_dir().join(format!("speaktype-test-{}", uuid::Uuid::new_v4()));
+            let root = std::env::temp_dir().join(format!("wordfall-test-{}", uuid::Uuid::new_v4()));
             std::fs::create_dir_all(&root).unwrap();
             Self {
                 store: ModelStore::new(root.clone()),

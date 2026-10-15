@@ -130,8 +130,6 @@ export interface Settings {
   syncFolder: string;
   hasCompletedOnboarding: boolean;
   hasShownModelPrompt: boolean;
-  /** Set once SpeakType 1's data has been brought over. */
-  hasImportedV1: boolean;
   meetings: MeetingSettings;
 }
 
@@ -258,20 +256,6 @@ export interface Permission {
   granted: boolean;
 }
 
-/** What was brought over from SpeakType 1. */
-export interface ImportSummary {
-  transcripts: number;
-  dictionary: number;
-  settings: boolean;
-}
-
-export interface LegacyStatus {
-  /** SpeakType 1's data on this computer, if there is any. */
-  available: { transcripts: number; dictionary: number } | null;
-  /** What was brought over at first launch. Only reported once. */
-  imported: ImportSummary | null;
-}
-
 /** How sharing through a folder went. */
 export interface SyncStatus {
   lastSyncedAt: number | null;
@@ -289,7 +273,16 @@ export interface UpdateInfo {
   currentVersion: string;
   latestVersion: string;
   notes: string;
+  /** The release page, for updates that can't be installed in place. */
   url: string;
+  /** A signed build for this system is ready, so `installUpdate` can run. */
+  installable: boolean;
+}
+
+/** Sent as `update-progress` while an update downloads. */
+export interface UpdateProgress {
+  downloaded: number;
+  total: number | null;
 }
 
 /** The microphone is "You", what the computer played is "Others". */
@@ -436,8 +429,8 @@ export const api = {
   openPermissionSettings: (kind: PermissionKind) => invoke<void>("open_permission_settings", { kind }),
 
   checkForUpdate: () => invoke<UpdateInfo>("check_for_update"),
-  getLegacyStatus: () => invoke<LegacyStatus>("get_legacy_status"),
-  importLegacy: () => invoke<ImportSummary>("import_legacy"),
+  /** Downloads and installs `version`, which the last check found, then restarts. */
+  installUpdate: (version: string) => invoke<void>("install_update", { version }),
 
   getMeetingSetup: () => invoke<MeetingSetup>("get_meeting_setup"),
   getMeetingState: () => invoke<MeetingState>("get_meeting_state"),

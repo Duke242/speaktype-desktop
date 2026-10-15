@@ -5,8 +5,6 @@
 //! Work that can block for a while, like waiting for the engine, runs on the
 //! blocking thread pool so it doesn't hold up other commands.
 
-use std::time::Duration;
-
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, State, ipc::Response};
 use tauri_plugin_opener::OpenerExt;
@@ -19,7 +17,6 @@ use crate::{
     dictation::{DictationState, Event},
     history::{HistoryItem, StatsEntry},
     learn,
-    legacy::{self, ImportSummary, V1Data},
     models::{self, ModelStatus},
     platform::{self, Permission, PermissionKind},
     settings::{CleanupBackend, CleanupSettings, Settings},
@@ -554,75 +551,6 @@ pub async fn get_dictation_state(state: State<'_, AppState>) -> CommandResult<Di
     Ok(state.dictation_state.lock_unpoisoned().clone())
 }
 
-// ---- SpeakType 1 ----
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct LegacyStatus {
-    /// SpeakType 1's data on this computer, if there is any.
-    available: Option<LegacyData>,
-    /// What was brought over at first launch. Reported once.
-    imported: Option<ImportSummary>,
-}
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct LegacyData {
-    transcripts: usize,
-    dictionary: usize,
-}
-
-fn read_legacy(app: &AppHandle) -> CommandResult<Option<V1Data>> {
-    let home = app.path().home_dir().map_err(|e| e.to_string())?;
-    match legacy::preferences_path(&home) {
-        Some(path) => V1Data::read(&path),
-        None => Ok(None),
-    }
-}
-
-#[tauri::command]
-pub async fn get_legacy_status(
-    app: AppHandle,
-    state: State<'_, AppState>,
-) -> CommandResult<LegacyStatus> {
-    let available = read_legacy(&app)?
-        .filter(|data| data.transcripts() > 0 || data.dictionary_len() > 0)
-        .map(|data| LegacyData {
-            transcripts: data.transcripts(),
-            dictionary: data.dictionary_len(),
-        });
-    Ok(LegacyStatus {
-        available,
-        imported: state.legacy_import.lock_unpoisoned().take(),
-    })
-}
-
-/// Adds SpeakType 1's history and dictionary entries that aren't here yet.
-/// Settings are left alone, since they may have been changed here since.
-#[tauri::command]
-pub async fn import_legacy(
-    app: AppHandle,
-    state: State<'_, AppState>,
-) -> CommandResult<ImportSummary> {
-    let data = read_legacy(&app)?.ok_or("There's no SpeakType 1 data on this computer")?;
-    let transcripts = data.import_history(&mut state.history.lock_unpoisoned())?;
-    let mut settings = state.settings();
-    let dictionary = data.import_dictionary(&mut settings);
-    if dictionary > 0 || !settings.has_imported_v1 {
-        settings.has_imported_v1 = true;
-        state.replace_settings(settings)?;
-        let _ = app.emit("settings-changed", ());
-    }
-    if transcripts > 0 {
-        let _ = app.emit("history-changed", ());
-    }
-    Ok(ImportSummary {
-        transcripts,
-        dictionary,
-        settings: false,
-    })
-}
-
 // ---- Permissions ----
 
 #[tauri::command]
@@ -643,100 +571,6 @@ pub async fn open_permission_settings(app: AppHandle, kind: PermissionKind) -> C
     app.opener()
         .open_url(url, None::<&str>)
         .map_err(|e| e.to_string())
-}
-
-// ---- Updates ----
-
-const RELEASES_URL: &str = "https://api.github.com/repos/Duke242/wordfall/releases/latest";
-/// Keeps a stalled connection from leaving the check pending forever.
-const UPDATE_CHECK_TIMEOUT: Duration = Duration::from_secs(15);
-
-#[derive(Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct UpdateInfo {
-    available: bool,
-    current_version: String,
-    latest_version: String,
-    notes: String,
-    url: String,
-}
-
-#[tauri::command]
-pub async fn check_for_update(app: AppHandle) -> CommandResult<UpdateInfo> {
-    #[derive(serde::Deserialize)]
-    struct Release {
-        tag_name: String,
-        #[serde(default)]
-        body: String,
-        html_url: String,
-    }
-    let release: Release = reqwest::Client::new()
-        .get(RELEASES_URL)
-        .header("User-Agent", "Wordfall")
-        .header("Accept", "application/vnd.github+json")
-        .timeout(UPDATE_CHECK_TIMEOUT)
-        .send()
-        .await
-        .and_then(|r| r.error_for_status())
-        .map_err(|e| format!("Couldn't check for updates: {e}"))?
-        .json()
-        .await
-        .map_err(|e| format!("Couldn't read the update info: {e}"))?;
-
-    let current = app.package_info().version.to_string();
-    let latest = release.tag_name.trim_start_matches('v').to_string();
-    Ok(UpdateInfo {
-        available: is_newer(&latest, &current),
-        current_version: current,
-        latest_version: latest,
-        notes: release.body,
-        url: release.html_url,
-    })
-}
-
-/// Compares dotted version numbers, ignoring anything after a `-`. Missing or
-/// unreadable parts count as 0.
-fn is_newer(candidate: &str, current: &str) -> bool {
-    let parse = |v: &str| -> Vec<u64> {
-        let release = v.split_once('-').map_or(v, |(release, _)| release);
-        release
-            .split('.')
-            .map(|part| part.parse().unwrap_or(0))
-            .collect()
-    };
-    let (a, b) = (parse(candidate), parse(current));
-    let part = |parts: &[u64], i: usize| parts.get(i).copied().unwrap_or(0);
-    (0..a.len().max(b.len()))
-        .map(|i| (part(&a, i), part(&b, i)))
-        .find(|(x, y)| x != y)
-        .is_some_and(|(x, y)| x > y)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::is_newer;
-
-    #[test]
-    fn compares_versions_numerically() {
-        assert!(is_newer("1.0.21", "1.0.9"));
-        assert!(is_newer("2.0", "1.9.9"));
-        assert!(!is_newer("1.0.0", "1.0"));
-        assert!(!is_newer("1.0.20", "2.0.0-beta"));
-    }
-
-    #[test]
-    fn equal_and_older_versions_are_not_newer() {
-        assert!(!is_newer("2.0.0", "2.0.0"));
-        assert!(!is_newer("1.9.9", "2.0.0"));
-        assert!(!is_newer("", ""));
-    }
-
-    #[test]
-    fn ignores_pre_release_suffixes() {
-        assert!(!is_newer("2.0.0-alpha.5", "2.0.0"));
-        assert!(is_newer("2.0.1-beta", "2.0.0"));
-        assert!(is_newer("2.1", "2.0.0-alpha.5"));
-    }
 }
 
 // ---- Windows ----

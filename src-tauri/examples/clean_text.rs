@@ -6,7 +6,7 @@
 //!
 //! Built-in models need the helper: build cleanup-worker/ first.
 
-use speaktype_lib::devtools::{self, CleanupBackend, CleanupSettings};
+use wordfall_lib::devtools::{self, CleanupBackend, CleanupSettings};
 
 fn main() -> Result<(), String> {
     let args: Vec<String> = std::env::args().collect();

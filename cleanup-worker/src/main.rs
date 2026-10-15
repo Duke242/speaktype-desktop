@@ -71,7 +71,7 @@ fn main() {
             std::process::exit(1);
         }
     };
-    if std::env::var_os("SPEAKTYPE_CLEANUP_LOGS").is_none() {
+    if std::env::var_os("WORDFALL_CLEANUP_LOGS").is_none() {
         backend.void_logs();
     }
 

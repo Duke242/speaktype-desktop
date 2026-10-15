@@ -10,13 +10,7 @@ on:
   push:
     branches: [main]
     tags: ["v2.*"]
-    paths-ignore:
-      - "macos-v1/**"
-      - ".github/workflows/macos-v1.yml"
   pull_request:
-    paths-ignore:
-      - "macos-v1/**"
-      - ".github/workflows/macos-v1.yml"
   workflow_dispatch:
 
 concurrency:
@@ -117,15 +111,15 @@ jobs:
         include:
           - name: macOS
             os: macos-15
-            artifact: speaktype-macos
-            # One app for Apple Silicon and Intel: SpeakType 1 runs on both.
+            artifact: wordfall-macos
+            # One app for Apple Silicon and Intel.
             args: --target universal-apple-darwin
           - name: Windows
             os: windows-2025
-            artifact: speaktype-windows-x64
+            artifact: wordfall-windows-x64
           - name: Linux
             os: ubuntu-24.04
-            artifact: speaktype-linux-x64
+            artifact: wordfall-linux-x64
     runs-on: ${{ matrix.os }}
     permissions:
       contents: write
@@ -136,6 +130,26 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: ./.github/actions/setup-desktop-build
+      # A release takes its version from the tag, e.g. 2.0.0-alpha.9, so the app
+      # can tell releases apart, and gets signed packages for the in-app updater.
+      - name: Prepare the release
+        if: startsWith(github.ref, 'refs/tags/v2.')
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          if [ -z "$TAURI_SIGNING_PRIVATE_KEY" ]; then
+            echo "::error title=Missing updater key::Add the TAURI_SIGNING_PRIVATE_KEY and TAURI_SIGNING_PRIVATE_KEY_PASSWORD secrets to sign updates."
+            exit 1
+          fi
+          node -e '
+            const fs = require("fs");
+            const path = "src-tauri/tauri.conf.json";
+            const config = JSON.parse(fs.readFileSync(path, "utf8"));
+            config.version = process.argv[1];
+            config.bundle.createUpdaterArtifacts = true;
+            fs.writeFileSync(path, JSON.stringify(config, null, 2));
+          ' "${GITHUB_REF_NAME#v}"
       # Runs built-in cleanup models. Bundled next to the app by tauri.cleanup.conf.json.
       - name: Build the cleanup helper
         env:
@@ -148,14 +162,17 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Only warnings in our own code should fail the lint job, not the installer build.
           RUSTFLAGS: ""
-          # Signs and notarizes the macOS app, so it opens without Gatekeeper warnings and
-          # SpeakType 1 accepts it as an update. Ignored on Windows and Linux.
+          # Signs and notarizes the macOS app, so it opens without Gatekeeper warnings.
+          # Ignored on Windows and Linux.
           APPLE_CERTIFICATE: ${{ secrets.DEVELOPER_ID_APPLICATION_CERT }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.DEVELOPER_ID_APPLICATION_CERT_PASSWORD }}
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
           APPLE_ID: ${{ secrets.NOTARIZATION_APPLE_ID }}
           APPLE_PASSWORD: ${{ secrets.NOTARIZATION_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          # Signs the update packages the in-app updater installs. Only releases make them.
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           projectPath: .
           tauriScript: npx tauri
@@ -165,6 +182,9 @@ jobs:
           tagName: ${{ startsWith(github.ref, 'refs/tags/v2.') && github.ref_name || '' }}
           releaseName: ${{ startsWith(github.ref, 'refs/tags/v2.') && format('Wordfall {0}', github.ref_name) || '' }}
           releaseDraft: false
+          # The three systems build at once, so each writing latest.json would race.
+          # The update-manifest job writes it once all of them are uploaded.
+          includeUpdaterJson: false
       # No APPLE_* variables at all: tauri tries to import a certificate even when they're empty.
       - name: Build installers (unsigned)
         if: env.UNSIGNED_MACOS == 'true'
@@ -191,3 +211,20 @@ jobs:
             src-tauri/target/release/bundle/deb/*.deb
             src-tauri/target/release/bundle/rpm/*.rpm
             src-tauri/target/release/bundle/appimage/*.AppImage
+
+  # Written last, so the app only offers a release once every installer is ready.
+  update-manifest:
+    name: Update manifest
+    needs: bundle
+    if: ${{ startsWith(github.ref, 'refs/tags/v2.') && !cancelled() && !failure() }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - run: node scripts/updater-manifest.mjs "$GITHUB_REF_NAME"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

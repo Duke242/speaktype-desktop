@@ -245,7 +245,7 @@ mod tests {
 
     #[test]
     fn files_of_different_lengths_mix_into_the_longer_one() {
-        let dir = std::env::temp_dir().join(format!("speaktype-test-{}", uuid::Uuid::new_v4()));
+        let dir = std::env::temp_dir().join(format!("wordfall-test-{}", uuid::Uuid::new_v4()));
         fs::create_dir_all(&dir).unwrap();
         let write = |name: &str, samples: &[f32]| {
             let path = dir.join(name);
