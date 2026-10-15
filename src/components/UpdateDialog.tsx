@@ -1,9 +1,37 @@
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { Download } from "lucide-react";
-import { Button, Dialog } from "@/components/ui";
-import type { UpdateInfo } from "@/lib/api";
+import { useState } from "react";
+import { Button, Dialog, ProgressBar, useToast } from "@/components/ui";
+import { api, errorMessage, type UpdateInfo, type UpdateProgress } from "@/lib/api";
+import { useTauriEvent } from "@/lib/useTauriEvent";
 
 export function UpdateDialog({ update, onClose }: { update: UpdateInfo | null; onClose: () => void }) {
+  const toast = useToast();
+  // Set while installing: how much of the download has arrived, 0..1.
+  const [progress, setProgress] = useState<number | null>(null);
+  // Only the dialog that started the install follows it. Without a size, the
+  // bar creeps toward the end instead of standing still.
+  useTauriEvent<UpdateProgress>("update-progress", ({ payload }) => {
+    const { downloaded, total } = payload;
+    const value = total ? downloaded / total : 1 - 1 / (1 + downloaded / 50_000_000);
+    setProgress((current) => (current === null ? null : value));
+  });
+
+  // Wordfall restarts into the new version once it's installed.
+  const install = async () => {
+    if (!update) return;
+    setProgress(0);
+    try {
+      await api.installUpdate(update.latestVersion);
+    } catch (error) {
+      setProgress(null);
+      toast(errorMessage(error), "error");
+    }
+  };
+  const installing = progress !== null;
+  // Closing mid-download would hide the progress, not stop the install.
+  const close = () => !installing && onClose();
+
   const notes = update?.notes
     .split("\n")
     .map((line) => line.replace(/^\s*[-*•]\s*/, "").trim())
@@ -12,26 +40,35 @@ export function UpdateDialog({ update, onClose }: { update: UpdateInfo | null; o
   return (
     <Dialog
       open={Boolean(update)}
-      onClose={onClose}
+      onClose={close}
       width={520}
       title="A new version of Wordfall is available"
       description={update && `Wordfall ${update.latestVersion} is out. You have ${update.currentVersion}.`}
       footer={
         <>
-          <Button onClick={onClose}>Remind me later</Button>
-          <Button
-            variant="primary"
-            icon={Download}
-            onClick={() => {
-              if (update) openUrl(update.url);
-              onClose();
-            }}
-          >
-            Get the update
+          <Button onClick={close} disabled={installing}>
+            Remind me later
           </Button>
+          {update?.installable ? (
+            <Button variant="primary" icon={Download} loading={installing} onClick={install}>
+              {installing ? "Installing…" : "Install and restart"}
+            </Button>
+          ) : (
+            <Button
+              variant="primary"
+              icon={Download}
+              onClick={() => {
+                if (update) openUrl(update.url);
+                onClose();
+              }}
+            >
+              Get the update
+            </Button>
+          )}
         </>
       }
     >
+      {installing && <ProgressBar value={progress} className="mb-4" />}
       {notes && notes.length > 0 && (
         <div className="rounded-card border border-line-subtle bg-surface-sunken p-4">
           <p className="mb-2 type-overline text-ink-muted">What's new</p>

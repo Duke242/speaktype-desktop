@@ -393,7 +393,14 @@ export function installBrowserPreview() {
         case "export_meeting_markdown":
           return "/Users/karan/Downloads/meeting.md";
         case "check_for_update":
-          return { available: false, currentVersion: "2.0.0", latestVersion: "2.0.0", notes: "", url: "" };
+          return {
+            available: false,
+            currentVersion: "2.0.0",
+            latestVersion: "2.0.0",
+            notes: "",
+            url: "",
+            installable: false,
+          };
         default:
           return null;
       }

@@ -65,6 +65,8 @@ CI (`.github/workflows/desktop.yml`) runs on every push to `main` and every pull
 
 Pushing a `v2.*` tag publishes the installers as a GitHub pre-release. SpeakType 1 stays the "Latest" release, so its update check and download links are unaffected.
 
+Release builds take their version from the tag and include signed update packages, which the app installs in place. Signing needs the `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` secrets; the matching public key is in `src-tauri/tauri.conf.json`. Keep the private key safe: without it, installed copies can't be updated.
+
 ## Layout
 
 | Path | Contents |

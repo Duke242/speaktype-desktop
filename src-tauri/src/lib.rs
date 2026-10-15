@@ -27,6 +27,7 @@ mod sync;
 mod text;
 mod tone;
 mod tray;
+mod update;
 
 use std::sync::{Arc, Mutex, MutexGuard, OnceLock, PoisonError, RwLock, TryLockError};
 
@@ -333,6 +334,8 @@ pub fn run() {
         )
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .manage(update::PendingUpdate::default())
         .setup(|app| {
             engine::silence_logs();
             for dir in [app.path().app_config_dir()?, app.path().app_data_dir()?] {
@@ -478,7 +481,8 @@ pub fn run() {
             commands::get_permissions,
             commands::request_permission,
             commands::open_permission_settings,
-            commands::check_for_update,
+            update::check_for_update,
+            update::install_update,
             commands::open_main_window,
             commands::hide_tray_panel,
             commands::quit_app,
