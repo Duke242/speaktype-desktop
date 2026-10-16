@@ -679,7 +679,7 @@ impl Session {
                 } else {
                     None
                 };
-                let prefetch = if live.is_none() && !command {
+                let prefetch = if settings.transcribe_while_speaking && live.is_none() && !command {
                     stream::Prefetch::spawn(self.app.clone(), recording.monitor(), settings.clone())
                         .map_err(|e| eprintln!("[stream] couldn't start worker: {e}"))
                         .ok()
