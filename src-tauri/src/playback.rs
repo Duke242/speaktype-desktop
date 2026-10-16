@@ -8,12 +8,22 @@
 use std::{
     sync::mpsc::{self, Sender},
     thread,
+    time::Duration,
 };
 
-use crate::platform::{self, PausedMedia};
+use crate::{
+    audio::Monitor,
+    platform::{self, PausedMedia},
+};
+
+/// How long sound keeps coming out of the speakers after a player is told to
+/// pause: the player's own delay, then the output device's buffering.
+const PAUSE_TAIL: Duration = Duration::from_millis(150);
 
 enum Request {
-    Pause,
+    /// Pauses for the recording `Monitor` reads, which shouldn't keep what
+    /// the microphone heard of the media.
+    Pause(Monitor),
     Resume,
 }
 
@@ -31,8 +41,13 @@ impl Playback {
             for request in rx {
                 match request {
                     // Already paused for this dictation.
-                    Request::Pause if paused.is_some() => {}
-                    Request::Pause => paused = platform::pause_media(),
+                    Request::Pause(_) if paused.is_some() => {}
+                    Request::Pause(recording) => {
+                        paused = platform::pause_media();
+                        if paused.is_some() {
+                            recording.silence_until(PAUSE_TAIL);
+                        }
+                    }
                     Request::Resume => {
                         if let Some(media) = paused.take() {
                             platform::resume_media(media);
@@ -47,9 +62,10 @@ impl Playback {
         Self { tx }
     }
 
-    /// Pauses whatever is playing, unless this already paused something.
-    pub fn pause(&self) {
-        let _ = self.tx.send(Request::Pause);
+    /// Pauses whatever is playing, unless this already paused something. The
+    /// start of `recording`, which heard it playing, is silenced.
+    pub fn pause(&self, recording: Monitor) {
+        let _ = self.tx.send(Request::Pause(recording));
     }
 
     /// Resumes what `pause` paused, if anything. Safe to call any time.
