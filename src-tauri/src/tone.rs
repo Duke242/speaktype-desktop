@@ -120,6 +120,7 @@ const BUILT_IN: &[(&[&str], &str, AppCategory)] = {
         (&["com.vscodium", "vscodium", "codium"], "VSCodium", Code),
         (&["com.todesktop.230313mzl4w4u92", "cursor"], "Cursor", Code),
         (&["com.exafunction.windsurf", "windsurf"], "Windsurf", Code),
+        (&["com.t3tools.*", "t3 code*"], "T3 Code", Code),
         (&["dev.zed.zed", "dev.zed.zed-preview", "zed", "zed-editor"], "Zed", Code),
         (&["com.apple.dt.xcode", "xcode"], "Xcode", Code),
         (&["com.jetbrains.*", "jetbrains-*", "idea", "idea64", "intellij idea", "pycharm",
@@ -543,6 +544,8 @@ mod tests {
         assert_eq!(category("olk"), AppCategory::Email);
         assert_eq!(category("thunderbird"), AppCategory::Email);
         assert_eq!(category("com.googlecode.iterm2"), AppCategory::Terminal);
+        assert_eq!(category("com.t3tools.t3code"), AppCategory::Code);
+        assert_eq!(category("T3 Code (Beta)"), AppCategory::Code);
         assert_eq!(category("WindowsTerminal"), AppCategory::Terminal);
         assert_eq!(category("gnome-terminal-server"), AppCategory::Terminal);
         assert_eq!(category("kitty"), AppCategory::Terminal);
