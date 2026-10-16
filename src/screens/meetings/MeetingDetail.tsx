@@ -217,14 +217,14 @@ function Notes({
           <Callout
             icon={Sparkles}
             tone="accent"
-            title="Notes need AI cleanup"
+            title="Notes need an AI model"
             action={
               <Button size="sm" variant="ghost" icon={ArrowRight} onClick={() => onNavigate("settings")}>
                 Open Settings
               </Button>
             }
           >
-            Set up AI cleanup with a built-in model or a local server, and WordFlow writes a summary, action items and
+            Choose an AI cleanup model in Settings, built in or on a local server, and WordFlow writes a summary, action items and
             open questions for each meeting.
           </Callout>
         ) : !hasTranscript ? (

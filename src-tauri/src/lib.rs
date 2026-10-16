@@ -107,17 +107,18 @@ pub mod devtools {
         Ok(())
     }
 
-    /// Loads a catalog model from `models_dir` and transcribes a WAV file
-    /// `runs` times, printing load and transcription times.
+    /// Loads a catalog model from `models_dir` and transcribes each audio file
+    /// once to warm up, then `runs` more times, printing the load time and the
+    /// fastest and median transcription times.
     pub fn benchmark(
         model_id: &str,
         models_dir: &Path,
-        wav: &Path,
+        files: &[&Path],
+        language: &str,
         runs: usize,
     ) -> Result<(), String> {
         let model = crate::models::find(model_id).ok_or("Unknown model id")?;
         let store = crate::models::ModelStore::new(models_dir.to_path_buf());
-        let (samples, duration) = crate::media::decode_file(wav)?;
 
         crate::engine::silence_logs();
         let mut engine = crate::engine::Engine::default();
@@ -125,17 +126,25 @@ pub mod devtools {
         engine.load(model, &store.path(model))?;
         println!("{model_id}: loaded in {:.2?}", started.elapsed());
 
-        for run in 1..=runs {
-            let started = Instant::now();
-            let text = engine.transcribe(&samples, "auto", "")?;
-            let elapsed = started.elapsed();
+        for file in files {
+            let (samples, duration) = crate::media::decode_file(file)?;
+            let text = engine.transcribe(&samples, language, "")?;
+            let mut times: Vec<_> = (0..runs.max(1))
+                .map(|_| {
+                    let started = Instant::now();
+                    engine
+                        .transcribe(&samples, language, "")
+                        .map(|_| started.elapsed())
+                })
+                .collect::<Result<_, _>>()?;
+            times.sort();
+            let median = times[times.len() / 2];
             println!(
-                "  run {run}: {duration:.1}s of audio in {elapsed:.2?} ({:.0}x real time)",
-                duration / elapsed.as_secs_f64()
+                "  {duration:>5.1}s of audio: median {median:>8.2?}, fastest {:>8.2?} ({:.0}x real time)",
+                times[0],
+                duration / median.as_secs_f64()
             );
-            if run == runs {
-                println!("  text: {}", text.trim());
-            }
+            println!("    text: {}", text.trim());
         }
         Ok(())
     }

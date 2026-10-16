@@ -45,7 +45,12 @@ pub struct Whisper {
 
 impl Whisper {
     pub fn load(path: &Path) -> Result<Self, String> {
-        let context = WhisperContext::new_with_params(path, WhisperContextParameters::default())
+        // whisper-rs turns flash attention off, unlike whisper.cpp. On, the GPU
+        // is about a quarter faster (Metal, M1 Max) and the CPU and Neural
+        // Engine are unchanged.
+        let mut params = WhisperContextParameters::default();
+        params.flash_attn(true);
+        let context = WhisperContext::new_with_params(path, params)
             .map_err(|e| format!("Couldn't load model: {e}"))?;
         let state = context
             .create_state()
