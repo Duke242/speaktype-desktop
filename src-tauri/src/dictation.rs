@@ -558,8 +558,14 @@ impl Session {
                 }
             }
             Event::PauseMedia { session } => {
-                if matches!(self.phase, Phase::Recording { session: s, .. } if s == session) {
-                    self.playback.pause();
+                if let Phase::Recording {
+                    session: s,
+                    recording,
+                    ..
+                } = &self.phase
+                    && *s == session
+                {
+                    self.playback.pause(recording.monitor());
                 }
             }
             Event::MessageExpired { generation } => {

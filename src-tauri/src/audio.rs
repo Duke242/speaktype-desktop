@@ -11,7 +11,7 @@
 use std::{
     sync::{
         Arc, Mutex,
-        atomic::{AtomicU32, Ordering},
+        atomic::{AtomicU32, AtomicUsize, Ordering},
         mpsc::{self, Receiver, RecvTimeoutError, Sender},
     },
     thread,
@@ -94,6 +94,8 @@ pub struct Recording {
 pub struct Monitor {
     buffer: Buffer,
     sample_rate: u32,
+    /// Device-rate samples before this index are silenced as they arrive.
+    muted_until: Arc<AtomicUsize>,
 }
 
 impl Monitor {
@@ -113,6 +115,17 @@ impl Monitor {
         };
         resample(&samples, self.sample_rate, WHISPER_SAMPLE_RATE)
     }
+
+    /// Silences everything recorded so far, and the next `tail` of audio.
+    /// For sound the microphone picked up from speakers, such as a video that
+    /// was only just paused: `tail` covers what's still on its way out of them.
+    pub fn silence_until(&self, tail: Duration) {
+        let mut buffer = self.buffer.lock_unpoisoned();
+        let tail = (tail.as_secs_f64() * f64::from(self.sample_rate)) as usize;
+        buffer.fill(0.0);
+        self.muted_until
+            .fetch_max(buffer.len() + tail, Ordering::Relaxed);
+    }
 }
 
 impl Recording {
@@ -129,6 +142,8 @@ impl Recording {
         let device_id = device_id.to_string();
         let buffer = Buffer::default();
         let capture_buffer = buffer.clone();
+        let muted_until = Arc::new(AtomicUsize::new(0));
+        let capture_muted_until = muted_until.clone();
 
         thread::Builder::new()
             .name("audio-capture".into())
@@ -136,13 +151,14 @@ impl Recording {
                 let started = Instant::now();
                 let buffer = capture_buffer;
                 let level = Arc::new(AtomicU32::new(NO_LEVEL));
-                let (stream, sample_rate) = match open_stream(&device_id, &buffer, &level) {
-                    Ok(opened) => opened,
-                    Err(e) => {
-                        let _ = ready_tx.send(Err(e));
-                        return;
-                    }
-                };
+                let (stream, sample_rate) =
+                    match open_stream(&device_id, &buffer, &level, &capture_muted_until) {
+                        Ok(opened) => opened,
+                        Err(e) => {
+                            let _ = ready_tx.send(Err(e));
+                            return;
+                        }
+                    };
                 let _ = ready_tx.send(Ok(sample_rate));
 
                 // Polling at half the meter's interval forwards every update
@@ -179,6 +195,7 @@ impl Recording {
                 monitor: Monitor {
                     buffer,
                     sample_rate,
+                    muted_until,
                 },
             }),
             Ok(Err(e)) => Err(e),
@@ -207,6 +224,7 @@ fn open_stream(
     device_id: &str,
     buffer: &Buffer,
     level: &Arc<AtomicU32>,
+    muted_until: &Arc<AtomicUsize>,
 ) -> Result<(cpal::Stream, u32), String> {
     let host = cpal::default_host();
     let device = device_id
@@ -231,6 +249,7 @@ fn open_stream(
         channels,
         buffer: buffer.clone(),
         level: level.clone(),
+        muted_until: muted_until.clone(),
         meter: LevelMeter::new(),
     };
     let stream = match format {
@@ -254,6 +273,7 @@ struct Sink {
     channels: usize,
     buffer: Buffer,
     level: Arc<AtomicU32>,
+    muted_until: Arc<AtomicUsize>,
     meter: LevelMeter,
 }
 
@@ -278,6 +298,10 @@ where
                 buf.extend(data.chunks(sink.channels).map(|frame| {
                     frame.iter().map(|s| f32::from_sample(*s)).sum::<f32>() / frame.len() as f32
                 }));
+                let muted_until = sink.muted_until.load(Ordering::Relaxed).min(buf.len());
+                if let Some(muted) = buf.get_mut(start..muted_until) {
+                    muted.fill(0.0);
+                }
                 if let Some(level) = sink.meter.push(&buf[start..]) {
                     sink.level.store(level.to_bits(), Ordering::Relaxed);
                 }
@@ -514,6 +538,7 @@ mod tests {
             let monitor = Monitor {
                 buffer,
                 sample_rate: rate,
+                muted_until: Arc::default(),
             };
             let first = monitor.read(0);
             assert_eq!(first.len(), 6 * WHISPER_SAMPLE_RATE as usize);
@@ -522,6 +547,18 @@ mod tests {
             assert!(next.iter().all(|s| (s - 0.2).abs() < 1e-5));
             assert!(monitor.read(first.len() + next.len()).is_empty());
         }
+    }
+
+    #[test]
+    fn silencing_clears_what_was_heard_and_mutes_the_tail() {
+        let monitor = Monitor {
+            buffer: Arc::new(Mutex::new(vec![0.2; 16_000])),
+            sample_rate: 16_000,
+            muted_until: Arc::default(),
+        };
+        monitor.silence_until(Duration::from_millis(150));
+        assert!(monitor.buffer.lock_unpoisoned().iter().all(|&s| s == 0.0));
+        assert_eq!(monitor.muted_until.load(Ordering::Relaxed), 16_000 + 2_400);
     }
 
     #[test]
