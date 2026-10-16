@@ -165,11 +165,7 @@ function GeneralTab() {
         <SettingRow
           icon={TextCursorInput}
           label="Edit with your voice"
-          description={
-            settings.cleanup.enabled
-              ? "Select text in any app, hold this shortcut and say what to change, like “make this friendlier”. The result replaces your selection."
-              : "Select text, hold this shortcut and say what to change. Needs AI cleanup, below."
-          }
+          description="Select text in any app, hold this shortcut and say what to change, like “make this friendlier”. The result replaces your selection. Uses the AI cleanup model, below."
         >
           <CommandHotkeyPicker />
         </SettingRow>

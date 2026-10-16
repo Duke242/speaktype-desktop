@@ -224,7 +224,7 @@ function StartMeeting() {
             <div className="type-label text-ink">Write notes when it ends</div>
             <div className="mt-0.5 type-small text-ink-secondary">
               {setup && !setup.notesAvailable
-                ? "Needs AI cleanup, set up in Settings."
+                ? "Needs an AI cleanup model, chosen in Settings."
                 : "A summary, action items and open questions, by your AI cleanup model."}
             </div>
           </div>

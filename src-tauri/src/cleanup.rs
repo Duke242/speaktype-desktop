@@ -361,7 +361,8 @@ impl Cleaner {
         Self::is_set_up(settings, models)
     }
 
-    /// Whether cleanup is on with a model ready to use. Command mode needs this too.
+    /// Whether dictation cleanup is on with a model ready to use. Command mode
+    /// and meeting notes only need the model: see the free `is_set_up`.
     pub fn is_set_up(settings: &CleanupSettings, models: &ModelStore) -> bool {
         settings.enabled && is_set_up(settings, models)
     }

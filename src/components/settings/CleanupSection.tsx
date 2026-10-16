@@ -22,38 +22,34 @@ export function CleanupSection() {
   return (
     <Section
       title="AI cleanup"
-      description="A language model tidies each dictation. If it's slow or fails, your transcript is pasted as it was."
+      description="A language model tidies dictations and edits text you select with your voice. If it's slow or fails, your transcript is pasted as it was."
     >
       <SettingRow
         icon={Brain}
-        label="Clean up with an AI model"
-        description="Fixes misheard words and grammar, keeps only your correction when you change your mind, and turns spoken lists into lists."
+        label="Clean up dictations"
+        description="Fixes misheard words and grammar, keeps only your correction when you change your mind, and turns spoken lists into lists. Off is faster; editing with your voice and meeting notes still use the model."
       >
         <Switch checked={cleanup.enabled} onChange={(enabled) => save({ enabled })} />
       </SettingRow>
-      {cleanup.enabled && (
-        <>
-          <SettingRow
-            icon={BACKENDS[cleanup.backend].icon}
-            label="Model runs in"
-            description={BACKENDS[cleanup.backend].description}
-          >
-            <SegmentedControl
-              value={cleanup.backend}
-              onChange={(backend) => save({ backend })}
-              options={[
-                { value: "builtin", label: "WordFlow" },
-                { value: "server", label: "Local server" },
-                { value: "api", label: "Cloud API" },
-              ]}
-              className="w-[300px]"
-            />
-          </SettingRow>
-          {cleanup.backend === "builtin" && <BuiltinModels cleanup={cleanup} save={save} />}
-          {cleanup.backend === "server" && <ServerSettings cleanup={cleanup} save={save} />}
-          {cleanup.backend === "api" && <ApiSettings cleanup={cleanup} save={save} />}
-        </>
-      )}
+      <SettingRow
+        icon={BACKENDS[cleanup.backend].icon}
+        label="Model runs in"
+        description={BACKENDS[cleanup.backend].description}
+      >
+        <SegmentedControl
+          value={cleanup.backend}
+          onChange={(backend) => save({ backend })}
+          options={[
+            { value: "builtin", label: "WordFlow" },
+            { value: "server", label: "Local server" },
+            { value: "api", label: "Cloud API" },
+          ]}
+          className="w-[300px]"
+        />
+      </SettingRow>
+      {cleanup.backend === "builtin" && <BuiltinModels cleanup={cleanup} save={save} />}
+      {cleanup.backend === "server" && <ServerSettings cleanup={cleanup} save={save} />}
+      {cleanup.backend === "api" && <ApiSettings cleanup={cleanup} save={save} />}
     </Section>
   );
 }

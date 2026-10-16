@@ -1,7 +1,8 @@
 //! Command mode: select text in any app, hold the command shortcut and say
 //! what to do with it, like "make this friendlier" or "translate to French".
 //! The selection is copied, the instruction transcribed, and the AI cleanup
-//! model rewrites the selection, which is pasted over it.
+//! model rewrites the selection, which is pasted over it. It only needs the
+//! model chosen: cleaning up dictations can be off.
 //!
 //! It has its own shortcut rather than guessing from what was said: a
 //! dictation that happens to start with "make" or "fix" should never replace
@@ -12,7 +13,7 @@ use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 
 use crate::{
     AppState,
-    cleanup::{Cleaner, Message, Prompt},
+    cleanup::{self, Message, Prompt},
     dictation::{Controller, Event},
     paste::Paster,
     pipeline::{self, Error, Stage},
@@ -24,7 +25,7 @@ use crate::{
 /// take too long to rewrite.
 pub const MAX_SELECTION_WORDS: usize = 1200;
 
-const NOT_SET_UP: &str = "Set up AI cleanup to use commands";
+const NOT_SET_UP: &str = "Choose an AI model in Settings to use commands";
 const NO_SAFE_COPY: &str = "Commands can't run on Wayland yet";
 const NO_SELECTION: &str = "Select some text first";
 const TOO_LONG: &str = "Selection is too long";
@@ -164,14 +165,14 @@ pub fn register_hotkey(
         .map_err(|e| format!("Couldn't register {hotkey}: {e}"))
 }
 
-/// Why command mode can't run, if it can't: it needs AI cleanup on with a
-/// model ready, and a copy shortcut that's safe to press in the focused app.
+/// Why command mode can't run, if it can't: it needs an AI cleanup model
+/// ready, and a copy shortcut that's safe to press in the focused app.
 pub fn unavailable(app: &AppHandle) -> Option<&'static str> {
     if !platform::can_copy_selection() {
         return Some(NO_SAFE_COPY);
     }
     let state = app.state::<AppState>();
-    (!Cleaner::is_set_up(&state.settings().cleanup, &state.models)).then_some(NOT_SET_UP)
+    (!cleanup::is_set_up(&state.settings().cleanup, &state.models)).then_some(NOT_SET_UP)
 }
 
 /// With nothing selected, VS Code and JetBrains IDEs copy the whole current
@@ -206,7 +207,7 @@ pub fn run(
 
     let state = app.state::<AppState>();
     let settings = state.settings();
-    if !Cleaner::is_set_up(&settings.cleanup, &state.models) {
+    if !cleanup::is_set_up(&settings.cleanup, &state.models) {
         return Err(Error::Command(NOT_SET_UP, None));
     }
     on_stage(Stage::Editing);
