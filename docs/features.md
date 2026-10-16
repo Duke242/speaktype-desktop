@@ -2,6 +2,10 @@
 
 How each feature behaves, in detail. For setup and builds, see the [README](../README.md).
 
+## Transcribing while you speak
+
+With Transcribe while speaking on (Settings → Behavior, off by default), dictation that's pasted when you finish is transcribed while you're still talking (`src-tauri/src/stream.rs`). Each time you pause for about 0.3 seconds after at least five seconds of speech, that part goes to the speech model in the background. Where two parts meet, the second one's first letter decides whether a sentence ended there, since the model finishing the first couldn't hear what came next. Continuous speech is cut near its quietest point at 28 seconds, and the last half second is heard again so a word split by the cut comes out whole. On release only the speech since the last cut is left, so a one-minute dictation pastes about as soon as a five-second one. Tone, AI cleanup, voice commands and the dictionary still run once over the whole transcript. Command mode and live typing don't use it.
+
 ## Live typing
 
 Live typing is enabled in Settings → Behavior. It inserts short phrases during recording, at pauses or roughly every four seconds of continuous speech (plus model processing time). Use Fn in Hold mode on macOS, or Toggle mode with other shortcuts. Native Wayland sessions retain insertion on release. Escape stops further insertion and keeps the transcript in History; text already typed remains. Switching the active app pauses live insertion for that session. Live typing leaves the clipboard untouched.

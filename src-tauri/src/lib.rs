@@ -22,6 +22,7 @@ mod playback;
 mod settings;
 mod snippets;
 mod spoken;
+mod stream;
 mod sync;
 mod text;
 mod tone;

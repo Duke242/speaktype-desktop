@@ -135,6 +135,8 @@ pub struct Settings {
     pub hotkey: String,
     pub recording_mode: RecordingMode,
     pub live_typing: bool,
+    /// Transcribe at pauses while recording, so only the last part is left on release.
+    pub transcribe_while_speaking: bool,
     /// Return while recording stops, inserts the transcript and presses Return,
     /// to send a message in one go.
     pub finish_and_send: bool,
@@ -198,6 +200,7 @@ impl Default for Settings {
             hotkey: crate::platform::DEFAULT_HOTKEY.to_string(),
             recording_mode: RecordingMode::Hold,
             live_typing: false,
+            transcribe_while_speaking: false,
             finish_and_send: false,
             selected_model: String::new(),
             language: "auto".to_string(),
@@ -350,7 +353,7 @@ mod tests {
             settings.save_recordings,
             "recordings stay on for people upgrading"
         );
-        assert!(!settings.live_typing);
+        assert!(!settings.live_typing && !settings.transcribe_while_speaking);
         assert!(settings.boost_quiet_speech);
         assert!(!settings.pause_media && !settings.launch_at_login);
         assert!(settings.voice_commands && settings.self_corrections && settings.smart_formatting);
@@ -380,6 +383,7 @@ mod tests {
             "hotkey",
             "recordingMode",
             "liveTyping",
+            "transcribeWhileSpeaking",
             "selectedModel",
             "language",
             "recentLanguages",

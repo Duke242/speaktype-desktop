@@ -29,11 +29,27 @@ use crate::{
 
 const RATE: usize = WHISPER_SAMPLE_RATE as usize;
 const FRAME: usize = RATE / 50; // 20 ms
-const MIN_PHRASE: usize = RATE;
-const MAX_PHRASE: usize = RATE * 4;
-const QUIET_SAMPLES: usize = RATE * 3 / 10;
-const OVERLAP: usize = RATE / 2;
 const POLL: Duration = Duration::from_millis(100);
+
+/// Where audio arriving in a stream is cut into phrases, in samples.
+pub struct Bounds {
+    /// Pauses don't end a phrase shorter than this.
+    pub min: usize,
+    /// Longer speech is cut without a pause, near its quietest point.
+    pub max: usize,
+    /// A pause this long ends a phrase.
+    pub quiet: usize,
+    /// Audio replayed after a cut without a pause, so a word split by it is heard whole.
+    pub overlap: usize,
+}
+
+/// Typing live: short phrases, so words appear soon after they're said.
+const PHRASES: Bounds = Bounds {
+    min: RATE,
+    max: RATE * 4,
+    quiet: RATE * 3 / 10,
+    overlap: RATE / 2,
+};
 
 pub struct Handle {
     finish: Option<Sender<Captured>>,
@@ -184,10 +200,10 @@ fn run(
         let gain = current_gain(&booster);
         loop {
             let heard = gain::amplify(&pending, gain);
-            let Some(end) = phrase_end(&heard, false) else {
+            let Some(end) = phrase_end(&PHRASES, &heard, false) else {
                 break;
             };
-            let carry = overlap_at(&heard, end);
+            let carry = overlap_at(&PHRASES, &heard, end);
             let result = recognize(
                 app,
                 &settings,
@@ -228,7 +244,7 @@ fn run(
     // saving. Escape disables insertion immediately but keeps the transcript.
     loop {
         let heard = gain::amplify(&pending, gain);
-        let Some(end) = phrase_end(&heard, true) else {
+        let Some(end) = phrase_end(&PHRASES, &heard, true) else {
             break;
         };
         if pending.len() <= replayed {
@@ -237,7 +253,7 @@ fn run(
         let carry = if end == pending.len() {
             0
         } else {
-            overlap_at(&heard, end)
+            overlap_at(&PHRASES, &heard, end)
         };
         let result = recognize(
             app,
@@ -392,7 +408,7 @@ fn append(
 }
 
 /// Reconcile only overlapped audio; natural pauses preserve intentional repetition.
-fn without_overlap<'a>(previous: &str, phrase: &'a str) -> &'a str {
+pub fn without_overlap<'a>(previous: &str, phrase: &'a str) -> &'a str {
     let words: Vec<_> = previous.split_whitespace().collect();
     let next: Vec<_> = phrase.split_whitespace().collect();
     let normalized = |word: &str| {
@@ -418,13 +434,13 @@ fn without_overlap<'a>(previous: &str, phrase: &'a str) -> &'a str {
     phrase
 }
 
-fn overlap_at(samples: &[f32], end: usize) -> usize {
-    let has_pause = end >= QUIET_SAMPLES
-        && samples[end - QUIET_SAMPLES..end]
+pub fn overlap_at(bounds: &Bounds, samples: &[f32], end: usize) -> usize {
+    let has_pause = end >= bounds.quiet
+        && samples[end - bounds.quiet..end]
             .chunks(FRAME)
             .all(|frame| rms(frame) < 0.006);
-    if end >= MAX_PHRASE - RATE / 2 && !has_pause {
-        OVERLAP
+    if end >= bounds.max - RATE / 2 && !has_pause {
+        bounds.overlap
     } else {
         0
     }
@@ -444,10 +460,10 @@ pub fn has_speech(samples: &[f32]) -> bool {
         == 3
 }
 
-/// Finalize on a 300 ms pause, or near the quietest point before four seconds.
-/// Forced cuts can retain audio context via `overlap_at`.
-fn phrase_end(samples: &[f32], finished: bool) -> Option<usize> {
-    let limit = samples.len().min(MAX_PHRASE);
+/// Finalize on a pause of `bounds.quiet`, or near the quietest point before
+/// `bounds.max`. Forced cuts can retain audio context via `overlap_at`.
+pub fn phrase_end(bounds: &Bounds, samples: &[f32], finished: bool) -> Option<usize> {
+    let limit = samples.len().min(bounds.max);
     let mut quiet = 0;
     for (index, frame) in samples[..limit].chunks(FRAME).enumerate() {
         quiet = if rms(frame) < 0.006 {
@@ -456,20 +472,20 @@ fn phrase_end(samples: &[f32], finished: bool) -> Option<usize> {
             0
         };
         let end = (index * FRAME + frame.len()).min(limit);
-        if end >= MIN_PHRASE && quiet >= QUIET_SAMPLES {
+        if end >= bounds.min && quiet >= bounds.quiet {
             return Some(end);
         }
     }
-    if limit == MAX_PHRASE {
+    if limit == bounds.max {
         // Prefer a natural word boundary within the last half second.
-        let start = MAX_PHRASE - RATE / 2;
-        let boundary = samples[start..MAX_PHRASE]
+        let start = bounds.max - RATE / 2;
+        let boundary = samples[start..bounds.max]
             .chunks(FRAME)
             .enumerate()
             .min_by(|(_, a), (_, b)| rms(a).total_cmp(&rms(b)))
             .map(|(i, _)| start + i * FRAME + FRAME)
-            .unwrap_or(MAX_PHRASE);
-        return Some(boundary.min(MAX_PHRASE));
+            .unwrap_or(bounds.max);
+        return Some(boundary.min(bounds.max));
     }
     (finished && !samples.is_empty()).then_some(samples.len())
 }
@@ -496,8 +512,8 @@ mod tests {
     #[test]
     fn pauses_finalize_phrases_without_waiting_for_release() {
         let mut samples = vec![0.08; RATE * 2];
-        samples.extend(vec![0.0; QUIET_SAMPLES]);
-        assert_eq!(phrase_end(&samples, false), Some(samples.len()));
+        samples.extend(vec![0.0; PHRASES.quiet]);
+        assert_eq!(phrase_end(&PHRASES, &samples, false), Some(samples.len()));
         assert!(has_speech(&samples));
     }
 
@@ -508,8 +524,8 @@ mod tests {
             .collect();
         let mut pending = original.clone();
         let mut drained = Vec::new();
-        while let Some(end) = phrase_end(&pending, true) {
-            assert!(end <= MAX_PHRASE);
+        while let Some(end) = phrase_end(&PHRASES, &pending, true) {
+            assert!(end <= PHRASES.max);
             drained.extend(pending.drain(..end));
         }
         assert_eq!(drained, original);
@@ -518,9 +534,12 @@ mod tests {
 
     #[test]
     fn short_utterances_flush_only_on_stop_and_noise_does_not_transcribe() {
-        assert_eq!(phrase_end(&vec![0.08; RATE / 2], false), None);
-        assert_eq!(phrase_end(&vec![0.08; RATE / 2], true), Some(RATE / 2));
-        assert_eq!(phrase_end(&[], true), None);
+        assert_eq!(phrase_end(&PHRASES, &vec![0.08; RATE / 2], false), None);
+        assert_eq!(
+            phrase_end(&PHRASES, &vec![0.08; RATE / 2], true),
+            Some(RATE / 2)
+        );
+        assert_eq!(phrase_end(&PHRASES, &[], true), None);
         assert!(!has_speech(&vec![0.002; RATE * 4]));
     }
 
@@ -556,10 +575,13 @@ mod tests {
             "The next sentence"
         );
         assert_eq!(without_overlap("你好 世界", "世界 再见"), "再见");
-        assert_eq!(overlap_at(&vec![0.08; MAX_PHRASE], MAX_PHRASE), OVERLAP);
+        assert_eq!(
+            overlap_at(&PHRASES, &vec![0.08; PHRASES.max], PHRASES.max),
+            PHRASES.overlap
+        );
         let mut paused = vec![0.08; RATE * 2];
-        paused.extend(vec![0.0; QUIET_SAMPLES]);
-        assert_eq!(overlap_at(&paused, paused.len()), 0);
+        paused.extend(vec![0.0; PHRASES.quiet]);
+        assert_eq!(overlap_at(&PHRASES, &paused, paused.len()), 0);
     }
 
     #[test]
@@ -586,8 +608,8 @@ mod tests {
         for block in samples.chunks(RATE / 4) {
             received += block.len();
             pending.extend_from_slice(block);
-            while let Some(end) = phrase_end(&pending, false) {
-                let carry = overlap_at(&pending, end);
+            while let Some(end) = phrase_end(&PHRASES, &pending, false) {
+                let carry = overlap_at(&PHRASES, &pending, end);
                 if has_speech(&pending[replayed..end]) {
                     let text = engine
                         .transcribe(&pending[..end], "en", "")

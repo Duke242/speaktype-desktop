@@ -91,6 +91,8 @@ export interface Settings {
   hotkey: string;
   recordingMode: RecordingMode;
   liveTyping: boolean;
+  /** Transcribe at pauses while recording, so release is near-instant. */
+  transcribeWhileSpeaking: boolean;
   finishAndSend: boolean;
   selectedModel: string;
   language: string;

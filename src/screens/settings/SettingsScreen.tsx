@@ -23,6 +23,7 @@ import {
   Sun,
   TextCursorInput,
   Wand2,
+  Zap,
   type LucideIcon,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
@@ -188,6 +189,17 @@ function GeneralTab() {
             For live typing with this shortcut, choose Toggle mode. Other modes insert the transcript when you stop.
           </p>
         )}
+        <SettingRow
+          icon={Zap}
+          label="Transcribe while speaking"
+          description="Transcribe at pauses as you talk, so longer dictations insert almost as soon as you stop. Punctuation where parts meet can differ slightly. Not used while typing live."
+        >
+          <Switch
+            label="Transcribe while speaking"
+            checked={settings.transcribeWhileSpeaking}
+            onChange={(transcribeWhileSpeaking) => save({ transcribeWhileSpeaking })}
+          />
+        </SettingRow>
         <SettingRow
           icon={CornerDownLeft}
           label="Finish and send"

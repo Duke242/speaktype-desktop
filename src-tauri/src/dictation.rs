@@ -42,7 +42,7 @@ use crate::{
     platform::{self, FrontApp, HotkeyEvent},
     playback::Playback,
     settings::RecordingMode,
-    tone,
+    stream, tone,
 };
 
 const CANCEL_KEY: &str = "Escape";
@@ -393,6 +393,8 @@ enum Phase {
         started_at_ms: u64,
         session: u64,
         live: Option<live::Handle>,
+        /// Transcribing behind the speaker, when the text is pasted at the end.
+        prefetch: Option<stream::Prefetch>,
     },
     Transcribing {
         session: u64,
@@ -677,6 +679,13 @@ impl Session {
                 } else {
                     None
                 };
+                let prefetch = if settings.transcribe_while_speaking && live.is_none() && !command {
+                    stream::Prefetch::spawn(self.app.clone(), recording.monitor(), settings.clone())
+                        .map_err(|e| eprintln!("[stream] couldn't start worker: {e}"))
+                        .ok()
+                } else {
+                    None
+                };
                 self.command_session = command.then_some(session);
                 self.target = Some(tone::Detection::start());
                 let started_at_ms = now_ms();
@@ -687,6 +696,7 @@ impl Session {
                     started_at_ms,
                     session,
                     live,
+                    prefetch,
                 };
                 self.set_cancel_key(true);
                 // An edit replaces the selection, so there's nothing to send.
@@ -727,6 +737,7 @@ impl Session {
             recording,
             session,
             live,
+            prefetch,
             ..
         } = mem::replace(&mut self.phase, Phase::Idle)
         else {
@@ -794,6 +805,7 @@ impl Session {
                     &captured,
                     target.as_ref(),
                     command.as_ref(),
+                    prefetch,
                 );
                 controller.send(Event::Transcribed { session, outcome });
             });
@@ -1021,6 +1033,7 @@ fn transcribe(
     captured: &Captured,
     target: Option<&FrontApp>,
     command: Option<&Paster>,
+    prefetch: Option<stream::Prefetch>,
 ) -> Outcome {
     let on_stage = |stage| controller.send(Event::Stage { session, stage });
     // Without an outcome the session would stay transcribing until Escape.
@@ -1042,6 +1055,7 @@ fn transcribe(
             &captured.samples,
             captured.duration_secs,
             target,
+            prefetch,
             on_stage,
         )
         .map(|item| item.transcript),
