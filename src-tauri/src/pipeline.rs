@@ -5,6 +5,7 @@ use std::{
     fmt,
     path::{Path, PathBuf},
     sync::MutexGuard,
+    time::{Duration, Instant},
 };
 
 use tauri::{AppHandle, Emitter, Manager};
@@ -106,6 +107,7 @@ pub fn run(
     // Before taking the engine, which the part it's finishing holds.
     let mut earlier = prefetch.map(Prefetch::finish).unwrap_or_default();
 
+    let started = Instant::now();
     let mut engine = lock_engine(&state, &on_stage);
     if engine.loaded_model() != Some(model.id) {
         on_stage(Stage::Loading);
@@ -113,6 +115,7 @@ pub fn run(
         on_stage(Stage::Transcribing);
         loaded.map_err(Error::ModelLoad)?;
     }
+    let loading = started.elapsed();
     let style = tone::Style::new(&settings.tone, target);
     // The recording is saved as it was captured.
     let heard = heard(&settings, samples);
@@ -134,6 +137,8 @@ pub fn run(
     }
     drop(engine);
     let raw = earlier.raw;
+    // Only what was left after the parts transcribed while speaking.
+    let transcribing = started.elapsed() - loading;
 
     let options = text::Options {
         auto_edit: settings.auto_edit,
@@ -153,7 +158,9 @@ pub fn run(
         options.plain_punctuation,
     ));
     let mut original = None;
+    let mut cleaning = None;
     if Cleaner::will_run(&settings.cleanup, &state.models, &text) {
+        let started = Instant::now();
         on_stage(Stage::CleaningUp);
         original = Some(text.clone());
         let mut hint = style.hint();
@@ -164,11 +171,13 @@ pub fn run(
             .cleaner
             .clean_for(&settings.cleanup, &state.models, &text, hint.as_ref());
         text = style.adjust_cleaned(&text);
+        cleaning = Some(started.elapsed());
     } else {
         text = style.adjust(&text);
     }
     // After cleanup, so dictionary rules and snippets always have the last word.
     let text = text::finish(&text, &options);
+    log_timings(duration_secs, model.name, loading, transcribing, cleaning);
     if text.is_empty() {
         // Usually "scratch that". In case it wasn't meant, what was heard
         // stays in History rather than being lost with the recording.
@@ -317,6 +326,26 @@ pub fn save(
         audio_path: None,
         original: None,
     })
+}
+
+/// How long each stage took, to see where the wait after speaking goes.
+fn log_timings(
+    duration_secs: f64,
+    model: &str,
+    loading: Duration,
+    transcribing: Duration,
+    cleaning: Option<Duration>,
+) {
+    let mut line = format!("[pipeline] {duration_secs:.1}s of audio:");
+    // Waiting for the engine counts as loading: a warm-up holds it while loading.
+    if loading >= Duration::from_millis(10) {
+        line += &format!(" loaded in {loading:.2?},");
+    }
+    line += &format!(" {model} in {transcribing:.2?}");
+    if let Some(cleaning) = cleaning {
+        line += &format!(", cleaned up in {cleaning:.2?}");
+    }
+    eprintln!("{line}");
 }
 
 /// If a warm-up holds the engine, the model is still loading, so report that while waiting.
