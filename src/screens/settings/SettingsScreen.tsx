@@ -9,6 +9,7 @@ import {
   Hand,
   Keyboard,
   Lightbulb,
+  MessageSquareText,
   Mic,
   Monitor,
   Music,
@@ -59,13 +60,27 @@ import { hotkeyBlockedMessage, useWhileHotkeyBlocked } from "@/lib/hotkeyBlocked
 import { LANGUAGES, languageName } from "@/lib/languages";
 import { useStore } from "@/lib/store";
 
-type Tab = "general" | "audio" | "permissions";
+type Tab = "general" | "dictation" | "ai" | "audio" | "permissions";
+
+/** The tab Settings opens on next, set by links into it from other screens. */
+let nextTab: Tab | null = null;
+
+/** Opens Settings on `tab` next time, as when a screen links to AI cleanup. */
+export function showSettingsTab(tab: Tab) {
+  nextTab = tab;
+}
 
 export function SettingsScreen() {
   const { status } = useStore();
-  const [tab, setTab] = useState<Tab>("general");
+  const [tab, setTab] = useState<Tab>(() => {
+    const first = nextTab ?? "general";
+    nextTab = null;
+    return first;
+  });
   const tabs: { value: Tab; label: string; icon: LucideIcon }[] = [
     { value: "general", label: "General", icon: Command },
+    { value: "dictation", label: "Dictation", icon: MessageSquareText },
+    { value: "ai", label: "AI cleanup", icon: Sparkles },
     { value: "audio", label: "Audio", icon: Mic },
   ];
   // Only macOS has per-app permissions to manage.
@@ -75,9 +90,11 @@ export function SettingsScreen() {
     <Page>
       <PageHeader
         title="Settings"
-        actions={<SegmentedControl value={tab} options={tabs} onChange={setTab} className={tabs.length > 2 ? "w-[340px]" : "w-[230px]"} />}
+        actions={<SegmentedControl value={tab} options={tabs} onChange={setTab} className={tabs.length > 4 ? "w-[600px]" : "w-[460px]"} />}
       />
       {tab === "general" && <GeneralTab />}
+      {tab === "dictation" && <DictationTab />}
+      {tab === "ai" && <CleanupSection />}
       {tab === "audio" && (
         <>
           <AudioTab />
@@ -165,13 +182,63 @@ function GeneralTab() {
         <SettingRow
           icon={TextCursorInput}
           label="Edit with your voice"
-          description="Select text in any app, hold this shortcut and say what to change, like “make this friendlier”. The result replaces your selection. Uses the AI cleanup model, below."
+          description="Select text in any app, hold this shortcut and say what to change, like “make this friendlier”. The result replaces your selection. Uses the model set up under AI cleanup."
         >
           <CommandHotkeyPicker />
         </SettingRow>
       </Section>
 
-      <Section title="Behavior">
+      <Section title="App">
+        <SettingRow
+          icon={Power}
+          label="Launch at login"
+          description={
+            settings.launchAtLogin
+              ? "WordFlow starts in the background when you log in, ready for your hotkey."
+              : "WordFlow only runs when you open it."
+          }
+        >
+          <Switch label="Launch at login" checked={settings.launchAtLogin} onChange={(launchAtLogin) => save({ launchAtLogin })} />
+        </SettingRow>
+        <SettingRow
+          icon={Command}
+         
+          label={isMac ? "Show menu bar icon" : "Show tray icon"}
+          description="Quick access to dictation and WordFlow's window."
+        >
+          <Switch checked={settings.showTrayIcon} onChange={(showTrayIcon) => save({ showTrayIcon })} />
+        </SettingRow>
+        <SettingRow
+          icon={PanelBottom}
+         
+          label="Always show the recorder pill"
+          description={
+            settings.alwaysShowPill
+              ? "The small recorder stays on screen even when you're not dictating."
+              : "The recorder appears while you dictate and hides when you're done."
+          }
+        >
+          <Switch checked={settings.alwaysShowPill} onChange={(alwaysShowPill) => save({ alwaysShowPill })} />
+        </SettingRow>
+        <SettingRow icon={PanelBottom} label="Recorder position" description="Where the pill appears on your screen.">
+          <PillPositionPicker value={settings.pillPosition} onChange={(pillPosition) => save({ pillPosition })} />
+        </SettingRow>
+      </Section>
+
+      <SharingSection />
+      <UpdatesSection />
+    </>
+  );
+}
+
+function DictationTab() {
+  const { settings, status } = useStore();
+  const save = useSave();
+  const isMac = status.os === "macos";
+
+  return (
+    <>
+      <Section title="Inserting text">
         <SettingRow
           icon={Keyboard}
          
@@ -204,25 +271,6 @@ function GeneralTab() {
           <Switch label="Finish and send" checked={settings.finishAndSend} onChange={(finishAndSend) => save({ finishAndSend })} />
         </SettingRow>
         <SettingRow
-          icon={Power}
-          label="Launch at login"
-          description={
-            settings.launchAtLogin
-              ? "WordFlow starts in the background when you log in, ready for your hotkey."
-              : "WordFlow only runs when you open it."
-          }
-        >
-          <Switch label="Launch at login" checked={settings.launchAtLogin} onChange={(launchAtLogin) => save({ launchAtLogin })} />
-        </SettingRow>
-        <SettingRow
-          icon={Command}
-         
-          label={isMac ? "Show menu bar icon" : "Show tray icon"}
-          description="Quick access to dictation and WordFlow's window."
-        >
-          <Switch checked={settings.showTrayIcon} onChange={(showTrayIcon) => save({ showTrayIcon })} />
-        </SettingRow>
-        <SettingRow
           icon={ClipboardCheck}
          
           label="Restore clipboard after pasting"
@@ -234,34 +282,10 @@ function GeneralTab() {
         >
           <Switch checked={settings.restoreClipboard} onChange={(restoreClipboard) => save({ restoreClipboard })} />
         </SettingRow>
-        <SettingRow
-          icon={AudioLines}
-         
-          label="Keep recordings"
-          description={
-            settings.saveRecordings
-              ? "Each dictation's audio is kept on this computer, so you can replay it from History."
-              : "Only the text is kept. Recordings you already have stay until you delete them in History."
-          }
-        >
-          <Switch checked={settings.saveRecordings} onChange={(saveRecordings) => save({ saveRecordings })} />
-        </SettingRow>
-        <SettingRow
-          icon={PanelBottom}
-         
-          label="Always show the recorder pill"
-          description={
-            settings.alwaysShowPill
-              ? "The small recorder stays on screen even when you're not dictating."
-              : "The recorder appears while you dictate and hides when you're done."
-          }
-        >
-          <Switch checked={settings.alwaysShowPill} onChange={(alwaysShowPill) => save({ alwaysShowPill })} />
-        </SettingRow>
-        <SettingRow icon={PanelBottom} label="Recorder position" description="Where the pill appears on your screen.">
-          <PillPositionPicker value={settings.pillPosition} onChange={(pillPosition) => save({ pillPosition })} />
-        </SettingRow>
       </Section>
+
+      <LanguageSection />
+      <SpokenSection />
 
       <Section title="Transcript cleanup" description="Light, offline tidying after each dictation.">
         <SettingRow
@@ -295,6 +319,15 @@ function GeneralTab() {
           <Switch checked={settings.plainPunctuation} onChange={(plainPunctuation) => save({ plainPunctuation })} />
         </SettingRow>
         <SettingRow
+          icon={BookA}
+         
+          label="Replacements and snippets"
+          description="Word fixes and snippets (say “my calendar link”, get the link) live in Dictionary."
+        />
+      </Section>
+
+      <Section title="Learning">
+        <SettingRow
           icon={Lightbulb}
          
           label="Learn from my corrections"
@@ -325,20 +358,9 @@ function GeneralTab() {
             />
           </SettingRow>
         )}
-        <SettingRow
-          icon={BookA}
-         
-          label="Replacements and snippets"
-          description="Word fixes and snippets (say “my calendar link”, get the link) live in Dictionary."
-        />
       </Section>
 
-      <SpokenSection />
-      <CleanupSection />
       <AppToneSection />
-      <LanguageSection />
-      <SharingSection />
-      <UpdatesSection />
     </>
   );
 }
@@ -527,6 +549,18 @@ function RecordingSection() {
       >
         <Switch label="Pause media while dictating" checked={settings.pauseMedia} onChange={(pauseMedia) => save({ pauseMedia })} />
       </SettingRow>
+        <SettingRow
+          icon={AudioLines}
+         
+          label="Keep recordings"
+          description={
+            settings.saveRecordings
+              ? "Each dictation's audio is kept on this computer, so you can replay it from History."
+              : "Only the text is kept. Recordings you already have stay until you delete them in History."
+          }
+        >
+          <Switch checked={settings.saveRecordings} onChange={(saveRecordings) => save({ saveRecordings })} />
+        </SettingRow>
     </Section>
   );
 }

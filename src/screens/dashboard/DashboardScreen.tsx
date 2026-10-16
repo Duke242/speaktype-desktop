@@ -9,6 +9,7 @@ import { formatMinutesSaved, formatNumber, hotkeyParts, plural } from "@/lib/for
 import { useCopy, useEngineStatus, useHistory, useNow } from "@/lib/hooks";
 import { hotkeyBlockedMessage, useWhileHotkeyBlocked } from "@/lib/hotkeyBlocked";
 import { useStore } from "@/lib/store";
+import { showSettingsTab } from "@/screens/settings/SettingsScreen";
 import { useTauriEvent } from "@/lib/useTauriEvent";
 import { feedTime, hotkeyVerb, recentlyLearned, summarize, thisDevice } from "./summary";
 
@@ -241,7 +242,10 @@ function CleanupStatus({ onNavigate }: { onNavigate: (route: Route) => void }) {
   return (
     <button
       type="button"
-      onClick={() => onNavigate("settings")}
+      onClick={() => {
+        showSettingsTab("ai");
+        onNavigate("settings");
+      }}
       title={hint}
       className={cn(
         "inline-flex items-center gap-1.5 rounded-full hover:text-ink-secondary hover:underline",

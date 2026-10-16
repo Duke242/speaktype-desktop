@@ -30,6 +30,7 @@ import { cn } from "@/lib/cn";
 import { formatDuration, plural } from "@/lib/format";
 import { useCopy } from "@/lib/hooks";
 import { useStore } from "@/lib/store";
+import { showSettingsTab } from "@/screens/settings/SettingsScreen";
 import { formatMeetingDate, formatTimestamp, isLabelled, meetingMarkdown, transcriptBlocks } from "./transcript";
 import { useMeeting, useMeetingSetup } from "./useMeetings";
 
@@ -219,7 +220,15 @@ function Notes({
             tone="accent"
             title="Notes need an AI model"
             action={
-              <Button size="sm" variant="ghost" icon={ArrowRight} onClick={() => onNavigate("settings")}>
+              <Button
+                size="sm"
+                variant="ghost"
+                icon={ArrowRight}
+                onClick={() => {
+                  showSettingsTab("ai");
+                  onNavigate("settings");
+                }}
+              >
                 Open Settings
               </Button>
             }
