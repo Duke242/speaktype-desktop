@@ -32,6 +32,7 @@ The engineering checklist for WordFlow.
 - [x] Filler-word removal, smart trailing punctuation, dictionary rules
 - [x] Parakeet v2 (English) and v3 (25 languages), on CPU, about 25–30x real time on an M3 Pro
 - [x] Neural Engine acceleration for Whisper on Apple Silicon (15–30% faster; optional for Turbo)
+- [x] Transcribe while recording, at pauses, so only the last few seconds are left on release
 - [ ] Parakeet on the Neural Engine (CoreML through ONNX Runtime was 3–4x slower than CPU)
 
 ### App

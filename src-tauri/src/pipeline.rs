@@ -18,6 +18,7 @@ use crate::{
     live, media, models,
     platform::FrontApp,
     settings::Settings,
+    stream::Prefetch,
     text,
     tone::{self, AppCategory},
 };
@@ -87,12 +88,14 @@ pub enum Stage {
 ///
 /// `on_stage` is called as the work moves along. Loading is always followed by
 /// Transcribing, whether or not loading succeeded. `target` is the app being
-/// dictated into, which sets the tone.
+/// dictated into, which sets the tone. `prefetch` has transcribed the start of
+/// the recording while it was made, leaving only the rest to do here.
 pub fn run(
     app: &AppHandle,
     samples: &[f32],
     duration_secs: f64,
     target: Option<&FrontApp>,
+    prefetch: Option<Prefetch>,
     on_stage: impl Fn(Stage),
 ) -> Result<HistoryItem, Error> {
     let state = app.state::<AppState>();
@@ -100,6 +103,8 @@ pub fn run(
     let model = models::find(&settings.selected_model)
         .filter(|m| state.models.is_downloaded(m.id))
         .ok_or(Error::NoModel)?;
+    // Before taking the engine, which the part it's finishing holds.
+    let mut earlier = prefetch.map(Prefetch::finish).unwrap_or_default();
 
     let mut engine = lock_engine(&state, &on_stage);
     if engine.loaded_model() != Some(model.id) {
@@ -111,16 +116,24 @@ pub fn run(
     let style = tone::Style::new(&settings.tone, target);
     // The recording is saved as it was captured.
     let heard = heard(&settings, samples);
+    let rest = &heard[earlier.start.min(heard.len())..];
     // Given words to expect and only silence, Whisper may write those words.
-    let prompt = if live::has_speech(&heard) {
-        text::prompt(&settings.dictionary, "", style.category)
-    } else {
-        String::new()
-    };
-    let raw = engine
-        .transcribe(&heard, &settings.language, &prompt)
-        .map_err(Error::Transcribe)?;
+    // Audio already heard at the end of the last part doesn't count.
+    if live::has_speech(&rest[earlier.replayed.min(rest.len())..]) {
+        let prompt = text::prompt(&settings.dictionary, "", style.category);
+        let words = engine
+            .transcribe(rest, &settings.language, &prompt)
+            .map_err(Error::Transcribe)?;
+        earlier.append(&words);
+    } else if earlier.start == 0 {
+        // As before streaming: an empty prompt lets Whisper say there's nothing.
+        let words = engine
+            .transcribe(rest, &settings.language, "")
+            .map_err(Error::Transcribe)?;
+        earlier.append(&words);
+    }
     drop(engine);
+    let raw = earlier.raw;
 
     let options = text::Options {
         auto_edit: settings.auto_edit,
