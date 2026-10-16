@@ -154,6 +154,8 @@ impl Prefetch {
     pub fn finish(mut self) -> Heard {
         self.stop.store(true, Ordering::SeqCst);
         let worker = self.worker.take().expect("prefetch finishes once");
+        // Wake it from its poll wait rather than letting release wait it out.
+        worker.thread().unpark();
         worker.join().unwrap_or_else(|_| {
             eprintln!("[stream] the worker crashed");
             Heard::default()
@@ -186,7 +188,7 @@ fn run(app: &AppHandle, monitor: &Monitor, settings: &Settings, stop: &AtomicBoo
     let mut booster = Booster::default();
 
     while !stop.load(Ordering::SeqCst) {
-        thread::sleep(POLL);
+        thread::park_timeout(POLL);
         let samples = monitor.read(offset);
         offset += samples.len();
         booster.push(&samples);

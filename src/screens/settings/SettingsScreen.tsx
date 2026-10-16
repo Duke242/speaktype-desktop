@@ -189,19 +189,17 @@ function GeneralTab() {
             For live typing with this shortcut, choose Toggle mode. Other modes insert the transcript when you stop.
           </p>
         )}
-        {!settings.liveTyping && (
-          <SettingRow
-            icon={Zap}
+        <SettingRow
+          icon={Zap}
+          label="Transcribe while speaking"
+          description="Transcribe at pauses as you talk, so longer dictations insert almost as soon as you stop. Punctuation where parts meet can differ slightly. Not used while typing live."
+        >
+          <Switch
             label="Transcribe while speaking"
-            description="Transcribe at pauses as you talk, so longer dictations insert almost as soon as you stop. Punctuation where parts meet can differ slightly."
-          >
-            <Switch
-              label="Transcribe while speaking"
-              checked={settings.transcribeWhileSpeaking}
-              onChange={(transcribeWhileSpeaking) => save({ transcribeWhileSpeaking })}
-            />
-          </SettingRow>
-        )}
+            checked={settings.transcribeWhileSpeaking}
+            onChange={(transcribeWhileSpeaking) => save({ transcribeWhileSpeaking })}
+          />
+        </SettingRow>
         <SettingRow
           icon={CornerDownLeft}
           label="Finish and send"
